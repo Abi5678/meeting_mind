@@ -1,0 +1,11 @@
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/Block.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/BlockDocument.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/ChunkPlanner.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiClient.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiModels.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/HTTPTransport.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/MeetingAnalysis.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/PromptBuilder.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/MarkdownExporter.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/CSVTableParser.swift
+/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/MarkdownBlockParser.swift

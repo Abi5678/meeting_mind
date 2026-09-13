@@ -1,0 +1,925 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.xctest/Contents/MacOS/MeetingMindKitPackageTests",
+      "packagePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit",
+      "productName" : "MeetingMindKitPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.MeetingMindKit-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/sources",
+      "importPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/Block.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/BlockDocument.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/ChunkPlanner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/HTTPTransport.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/MeetingAnalysis.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/PromptBuilder.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/MarkdownExporter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/CSVTableParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/MarkdownBlockParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "MeetingMindKit",
+      "moduleOutputPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKit.swiftmodule",
+      "objects" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/Block.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/BlockDocument.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/ChunkPlanner.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiClient.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiModels.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/HTTPTransport.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MeetingAnalysis.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/PromptBuilder.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownExporter.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/CSVTableParser.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownBlockParser.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/include/MeetingMindKit-Swift.h",
+        "-swift-version",
+        "6",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "meetingmindkit"
+      ],
+      "outputFileMapPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/Block.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/BlockDocument.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/ChunkPlanner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/HTTPTransport.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MeetingAnalysis.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/PromptBuilder.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownExporter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/CSVTableParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownBlockParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKit.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/Block.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/BlockDocument.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/ChunkPlanner.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiClient.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiModels.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/HTTPTransport.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/MeetingAnalysis.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/PromptBuilder.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/MarkdownExporter.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/CSVTableParser.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/MarkdownBlockParser.swift"
+      ],
+      "tempsPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.MeetingMindKitPackageTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/sources",
+      "importPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKitTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "MeetingMindKitPackageTests",
+      "moduleOutputPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKitPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/include/MeetingMindKitPackageTests-Swift.h",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "meetingmindkit"
+      ],
+      "outputFileMapPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKitPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.MeetingMindKitTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/sources",
+      "importPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/BlockDocumentTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/CSVTableParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/ChunkPlannerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/GeminiClientTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownBlockParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownExporterTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/PromptBuilderTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/TestSupport.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKit.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "MeetingMindKitTests",
+      "moduleOutputPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKitTests.swiftmodule",
+      "objects" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/BlockDocumentTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/CSVTableParserTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/ChunkPlannerTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/GeminiClientTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownBlockParserTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownExporterTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/PromptBuilderTests.swift.o",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/TestSupport.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "6",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "meetingmindkit"
+      ],
+      "outputFileMapPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/BlockDocumentTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/CSVTableParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/ChunkPlannerTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/GeminiClientTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownBlockParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownExporterTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/PromptBuilderTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/TestSupport.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules/MeetingMindKitTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/BlockDocumentTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/CSVTableParserTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/ChunkPlannerTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/GeminiClientTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownBlockParserTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownExporterTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/PromptBuilderTests.swift",
+        "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/TestSupport.swift"
+      ],
+      "tempsPath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "MeetingMindKit" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "MeetingMindKit",
+      "-package-name",
+      "meetingmindkit",
+      "-c",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/Block.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/BlockDocument.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/ChunkPlanner.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiClient.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiModels.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/HTTPTransport.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/MeetingAnalysis.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/PromptBuilder.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/MarkdownExporter.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/CSVTableParser.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/MarkdownBlockParser.swift",
+      "-I",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/include/MeetingMindKit-Swift.h",
+      "-swift-version",
+      "6",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "meetingmindkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "MeetingMindKitPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "MeetingMindKitPackageTests",
+      "-package-name",
+      "meetingmindkit",
+      "-c",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/include/MeetingMindKitPackageTests-Swift.h",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "meetingmindkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "MeetingMindKitTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "MeetingMindKitTests",
+      "-package-name",
+      "meetingmindkit",
+      "-c",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/BlockDocumentTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/CSVTableParserTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/ChunkPlannerTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/GeminiClientTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownBlockParserTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownExporterTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/PromptBuilderTests.swift",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/TestSupport.swift",
+      "-I",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "6",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "meetingmindkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "MeetingMindKit" : [
+
+    ],
+    "MeetingMindKitPackageTests" : [
+      "MeetingMindKitTests",
+      "MeetingMindKit"
+    ],
+    "MeetingMindKitTests" : [
+      "MeetingMindKit"
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/Block.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Blocks/BlockDocument.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/ChunkPlanner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/GeminiModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/HTTPTransport.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/MeetingAnalysis.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/Gemini/PromptBuilder.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/MarkdownExporter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/CSVTableParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Sources/MeetingMindKit/NotionImport/MarkdownBlockParser.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/sources"
+    },
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/sources"
+    },
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/Block.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/BlockDocument.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/CSVTableParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/ChunkPlanner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/GeminiModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/HTTPTransport.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownBlockParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MarkdownExporter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/MeetingAnalysis.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKit.build/PromptBuilder.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/BlockDocumentTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/CSVTableParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/ChunkPlannerTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/GeminiClientTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownBlockParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/MarkdownExporterTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/PromptBuilderTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/TestSupport.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/BlockDocumentTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/CSVTableParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/ChunkPlannerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/GeminiClientTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownBlockParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/MarkdownExporterTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/PromptBuilderTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/Tests/MeetingMindKitTests/TestSupport.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/MeetingMindKitTests.build/sources"
+    },
+    "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/abishek/meeting_mind/Packages/MeetingMindKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}

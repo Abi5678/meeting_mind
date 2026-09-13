@@ -1,0 +1,149 @@
+@import "tailwindcss" source(none);
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource/caveat/400.css";
+@import "@fontsource/caveat/600.css";
+@import "@fontsource/caveat/700.css";
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-hand: "Caveat", "Instrument Serif", cursive;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-paper: var(--paper);
+  --color-paper-shadow: var(--paper-shadow);
+  --color-ink: var(--ink);
+  --color-rule: var(--rule);
+  --color-margin: var(--margin);
+  --color-highlight-yellow: var(--highlight-yellow);
+  --color-highlight-pink: var(--highlight-pink);
+  --color-highlight-mint: var(--highlight-mint);
+  --color-tab-manila: var(--tab-manila);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Notability-inspired warm paper palette */
+  --paper: oklch(0.975 0.012 85);          /* cream page */
+  --paper-shadow: oklch(0.88 0.02 80);
+  --ink: oklch(0.22 0.02 260);             /* deep ink blue-black */
+  --rule: oklch(0.85 0.04 240 / 0.55);     /* ruled line blue */
+  --margin: oklch(0.68 0.18 25 / 0.55);    /* red margin line */
+  --highlight-yellow: oklch(0.94 0.14 95);
+  --highlight-pink: oklch(0.88 0.09 15);
+  --highlight-mint: oklch(0.9 0.08 165);
+  --tab-manila: oklch(0.85 0.06 80);
+
+  --background: oklch(0.96 0.015 80);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: oklch(0.99 0.005 80);
+  --popover-foreground: var(--ink);
+  --primary: oklch(0.22 0.02 260);
+  --primary-foreground: oklch(0.98 0.01 85);
+  --secondary: oklch(0.92 0.02 80);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.93 0.015 80);
+  --muted-foreground: oklch(0.5 0.02 260);
+  --accent: oklch(0.68 0.18 25);           /* meeting-mind red accent */
+  --accent-foreground: oklch(0.98 0.01 85);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 85);
+  --border: oklch(0.88 0.02 80);
+  --input: oklch(0.9 0.02 80);
+  --ring: oklch(0.68 0.18 25 / 0.5);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { height: 100%; }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@utility font-serif { font-family: var(--font-serif); }
+@utility font-hand { font-family: var(--font-hand); }
+
+/* Ruled notebook paper — subtle horizontal lines + red margin */
+@utility paper-ruled {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(to right, transparent 0, transparent 72px, var(--margin) 72px, var(--margin) 73px, transparent 73px),
+    repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule) 31px 32px);
+  background-attachment: local;
+}
+
+@utility paper-plain {
+  background-color: var(--paper);
+}
+
+/* Soft paper drop-shadow */
+@utility shadow-paper {
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.6) inset,
+    0 1px 2px oklch(0.2 0.02 260 / 0.06),
+    0 12px 40px -20px oklch(0.2 0.02 260 / 0.25);
+}
+
+/* Highlighter marks */
+@utility hl-yellow {
+  background: linear-gradient(180deg, transparent 55%, var(--highlight-yellow) 55%, var(--highlight-yellow) 92%, transparent 92%);
+  padding: 0 2px;
+}
+@utility hl-pink {
+  background: linear-gradient(180deg, transparent 55%, var(--highlight-pink) 55%, var(--highlight-pink) 92%, transparent 92%);
+  padding: 0 2px;
+}
+@utility hl-mint {
+  background: linear-gradient(180deg, transparent 55%, var(--highlight-mint) 55%, var(--highlight-mint) 92%, transparent 92%);
+  padding: 0 2px;
+}
+
+/* Waveform bar animation */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@utility wave-bar {
+  animation: wave 1.1s ease-in-out infinite;
+  transform-origin: center;
+}

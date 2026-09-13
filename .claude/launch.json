@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "NoteStyle Studio",
+      "runtimeExecutable": "/opt/homebrew/bin/bun",
+      "runtimeArgs": ["run", "--cwd", "/Users/abishek/meeting_mind/NoteStyle Studio", "dev"],
+      "port": 8080
+    }
+  ]
+}
