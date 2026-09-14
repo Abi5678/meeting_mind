@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Required: microphone access for audio recording -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.</string>
+
+	<!-- Required: photo library access for image blocks / note attachments -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Add photos from your library as image blocks in notes.</string>
+
+	<!-- Required: camera access for capturing new images -->
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos or scan documents to insert directly into your notes.</string>
+
+	<!-- Required: file access for importing Notion export ZIPs -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- Keep files in iCloud Drive for seamless backup/sync (v1.1) -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+
+	<!-- App supports universal save -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+
+	<!-- Keyboard accessary view support -->
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+</dict>
+</plist>

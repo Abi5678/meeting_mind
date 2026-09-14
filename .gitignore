@@ -1,0 +1,34 @@
+# Xcode generated
+build/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+*.xcworkspace/
+*.xcshareddata/
+
+# XcodeGen
+project.yml.local # per-machine overrides (team ID, paths)
+
+# MeetingMindKit tests
+Packages/MeetingMindKit/.build/
+Packages/MeetingMindKit/Sources/Package.swift~
+
+# Whisper.cpp framework (vendor, large, gitignored)
+Vendor/whisper.xcframework/*
+!Vendor/whisper.xcframework/.gitkeep
+
+# NoteStyle Studio (design reference only, never ships)
+NoteStyle Studio/node_modules/
+NoteStyle Studio/.lovable/
+NoteStyle Studio/dist/
+NoteStyle Studio/bun.lock
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/
+*.pbxproj.user

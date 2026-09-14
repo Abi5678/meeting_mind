@@ -1,0 +1,76 @@
+# XcodeGen project file for InstantNotes
+# Generated following: instant_notes_plan.md Phase 1
+# Project gen: XcodeGen `project.yml`, app target `InstantNotes`
+
+name: InstantNotes
+options:
+  deploymentPostprocessing: true
+  settingsVersion: 3
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: true
+
+configs:
+  debug:
+    type: support
+    buildConfiguration:
+      DEVELOPMENT_TEAM: "" # set via project.yml.local or Xcode signing settings
+      PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes.debug
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      INFOPLIST_FILE: InstantNotes/Info.plist
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  release:
+    type: application
+    buildConfiguration:
+      PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes
+      SWIFT_OPTIMIZATION_LEVEL: "-Owholemodule"
+
+targets:
+  InstantNotes:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    settings:
+      base:
+        INFOPLIST_FILE: InstantNotes/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Instant Notes
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        CFBundleDevelopmentRegion: en
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: $(PRODUCT_BUNDLE_TYPE)
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        # Minimum build number that increases with every release
+        CURRENT_PROJECT_VERSION: 1
+    sources:
+      - path: InstantNotes
+        excludes:
+          - "**/*.swift~" # generated files to avoid compiler warnings
+    dependencies:
+      - package: MeetingMindKit
+    entitlements: InstantNotes/InstantNotes.entitlements
+    info:
+      path: InstantNotes/Info.plist
+      properties:
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UIBackgroundModes:
+          - audio
+    preBuildScripts:
+      - name: "Generate Route Tree"
+        script: |
+          # Generate TanStack-style route tree if using the web design reference
+          echo "Route tree generation skipped (iOS target)"
+        basedOnDependencyAnalysis: false
+
+packages:
+  MeetingMindKit:
+    path: Packages/MeetingMindKit
