@@ -17,15 +17,17 @@ struct SwiftDataBlockDocument: Codable {
     }
 
     var document: BlockDocument {
-        let blocks = blocksByID.compactMapValues { SwiftDataBlock($0).toBlock() }
-        let order = order.compactMap { UUID(uuidString: $0) }
-        return BlockDocument(blocks: blocks.values.map { $0 })
+        BlockDocument(blocks: order.compactMap { blocksByID[$0]?.toBlock() })
     }
 }
 
 struct SwiftDataBlock: Codable {
     let id: String
-    let typeRawValue: Int
+    /// BlockType case name; associated values are stored in the optional fields below.
+    let kind: String
+    var headingLevel: Int?
+    var emoji: String?
+    var language: String?
     let runs: [SwiftDataInlineRun]
     let indent: Int
     let isExpanded: Bool
@@ -33,7 +35,18 @@ struct SwiftDataBlock: Codable {
 
     init(_ block: Block) {
         self.id = block.id.uuidString
-        self.typeRawValue = block.type.rawValue
+        switch block.type {
+        case .paragraph: kind = "paragraph"
+        case .heading(let level): kind = "heading"; headingLevel = level
+        case .bulletedList: kind = "bulletedList"
+        case .numberedList: kind = "numberedList"
+        case .todo: kind = "todo"
+        case .toggle: kind = "toggle"
+        case .quote: kind = "quote"
+        case .callout(let emoji): kind = "callout"; self.emoji = emoji
+        case .code(let language): kind = "code"; self.language = language
+        case .divider: kind = "divider"
+        }
         self.runs = block.runs.map(SwiftDataInlineRun.init)
         self.indent = block.indent
         self.isExpanded = block.isExpanded
@@ -41,11 +54,22 @@ struct SwiftDataBlock: Codable {
     }
 
     func toBlock() -> Block {
-        let type: BlockType = BlockType(rawValue: typeRawValue) ?? .paragraph
+        let type: BlockType = switch kind {
+        case "heading": .heading(level: headingLevel ?? 1)
+        case "bulletedList": .bulletedList
+        case "numberedList": .numberedList
+        case "todo": .todo
+        case "toggle": .toggle
+        case "quote": .quote
+        case "callout": .callout(emoji: emoji ?? "")
+        case "code": .code(language: language)
+        case "divider": .divider
+        default: .paragraph
+        }
         return Block(
             id: UUID(uuidString: id) ?? UUID(),
             type: type,
-            runs: runs.map { SwiftDataInlineRun($0).toInlineRun() },
+            runs: runs.map { $0.toInlineRun() },
             indent: indent,
             isExpanded: isExpanded,
             isChecked: isChecked

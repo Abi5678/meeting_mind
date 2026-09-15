@@ -42,16 +42,19 @@ public enum ChunkPlanner {
         plan(totalSamples: totalSamples, sampleRate: sampleRate) { _ in 0 }
     }
 
+    /// - Parameter windowSeconds: the longest a chunk may be before snapping; recognizers with a
+    ///   shorter input limit than whisper pass their own.
     /// - Parameter energy: mean energy of the samples in the given half-open range. Any
     ///   monotonic measure works (RMS, mean square); only the ordering matters.
     public static func plan(
         totalSamples: Int,
         sampleRate: Int,
+        windowSeconds: TimeInterval = targetWindowSeconds,
         energy: (Range<Int>) -> Float
     ) -> [ChunkRange] {
         guard totalSamples > 0, sampleRate > 0 else { return [] }
 
-        let window = Int(targetWindowSeconds * TimeInterval(sampleRate))
+        let window = Int(windowSeconds * TimeInterval(sampleRate))
         let searchSpan = Int(boundarySearchSeconds * TimeInterval(sampleRate))
         let frame = max(1, Int(energyFrameSeconds * TimeInterval(sampleRate)))
         let minimumChunk = Int(minimumChunkSeconds * TimeInterval(sampleRate))

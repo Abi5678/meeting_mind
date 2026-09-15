@@ -6,6 +6,9 @@ public struct GeminiClient: Sendable {
 
     public struct Configuration: Sendable {
         public var model: String
+        /// Where a 503 (model overloaded) on `model` goes instead of waiting out the backoff.
+        /// Preview models shed load often; nil turns the switch off.
+        public var fallbackModel: String?
         public var baseURL: URL
         /// Retries *after* the initial attempt, so worst case is `1 + maxRetries` requests.
         public var maxRetries: Int
@@ -17,6 +20,7 @@ public struct GeminiClient: Sendable {
 
         public init(
             model: String = "gemini-3-flash-preview",
+            fallbackModel: String? = "gemini-2.5-flash",
             baseURL: URL = URL(string: "https://generativelanguage.googleapis.com/v1beta")!,
             maxRetries: Int = 3,
             backoff: [TimeInterval] = [2, 8, 30],
@@ -24,6 +28,7 @@ public struct GeminiClient: Sendable {
             temperature: Double = 0.2
         ) {
             self.model = model
+            self.fallbackModel = fallbackModel
             self.baseURL = baseURL
             self.maxRetries = maxRetries
             self.backoff = backoff
@@ -56,22 +61,48 @@ public struct GeminiClient: Sendable {
         guard !trimmed.isEmpty else { throw GeminiError.emptyTranscript }
 
         let bounded = String(trimmed.prefix(configuration.maxTranscriptCharacters))
-        let request = try makeRequest(prompt: PromptBuilder.analysisPrompt(transcript: bounded))
-        let response = try await sendWithRetry(request)
+        let response = try await send(
+            prompt: PromptBuilder.analysisPrompt(transcript: bounded),
+            schema: GeminiSchema.meetingAnalysis
+        )
         return try Self.decodeAnalysis(from: response.body)
+    }
+
+    /// Writes a multiple-choice quiz grounded in `notes`. Questions the model could not make
+    /// gradeable (answer index outside the options) are dropped rather than shown broken.
+    public func generateQuiz(fromNotes notes: String, questionCount: Int = 5) async throws -> Quiz {
+        guard !apiKey.isEmpty else { throw GeminiError.missingAPIKey }
+
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GeminiError.emptyNotes }
+
+        let bounded = String(trimmed.prefix(configuration.maxTranscriptCharacters))
+        let response = try await send(
+            prompt: PromptBuilder.quizPrompt(notes: bounded, questionCount: questionCount),
+            schema: GeminiSchema.quiz
+        )
+        let (quiz, text) = try Self.decode(Quiz.self, from: response.body)
+
+        let playable = quiz.questions.filter(\.isPlayable)
+        guard !playable.isEmpty else { throw GeminiError.malformedJSON(text) }
+        return Quiz(title: quiz.title, questions: playable)
     }
 
     // MARK: - Request
 
-    func makeRequest(prompt: String) throws -> HTTPRequest {
-        let endpoint = "\(configuration.baseURL.absoluteString)/models/\(configuration.model):generateContent"
+    func makeRequest(
+        prompt: String,
+        schema: Schema = GeminiSchema.meetingAnalysis,
+        model: String? = nil
+    ) throws -> HTTPRequest {
+        let endpoint = "\(configuration.baseURL.absoluteString)/models/\(model ?? configuration.model):generateContent"
         guard let url = URL(string: endpoint) else {
             throw GeminiError.transport("Invalid endpoint: \(endpoint)")
         }
 
         let body = GenerateContentRequest(
             prompt: prompt,
-            schema: GeminiSchema.meetingAnalysis,
+            schema: schema,
             temperature: configuration.temperature
         )
 
@@ -88,7 +119,20 @@ public struct GeminiClient: Sendable {
 
     // MARK: - Retry
 
-    private func sendWithRetry(_ request: HTTPRequest) async throws -> HTTPResponse {
+    /// A 503 on the configured model skips its backoff and goes to `fallbackModel`, which then
+    /// gets the normal retry schedule. Every other status is handled by `sendWithRetry` alone.
+    private func send(prompt: String, schema: Schema) async throws -> HTTPResponse {
+        guard let fallback = configuration.fallbackModel, fallback != configuration.model else {
+            return try await sendWithRetry(makeRequest(prompt: prompt, schema: schema))
+        }
+        do {
+            return try await sendWithRetry(makeRequest(prompt: prompt, schema: schema), failFastOn503: true)
+        } catch GeminiError.server(status: 503, _) {
+            return try await sendWithRetry(makeRequest(prompt: prompt, schema: schema, model: fallback))
+        }
+    }
+
+    private func sendWithRetry(_ request: HTTPRequest, failFastOn503: Bool = false) async throws -> HTTPResponse {
         var attempt = 0
         while true {
             let response: HTTPResponse
@@ -103,7 +147,8 @@ public struct GeminiClient: Sendable {
             if (200..<300).contains(response.status) { return response }
 
             let isRetryable = response.status == 429 || (500..<600).contains(response.status)
-            guard isRetryable, attempt < configuration.maxRetries else {
+            let hasFallback = failFastOn503 && response.status == 503
+            guard isRetryable, !hasFallback, attempt < configuration.maxRetries else {
                 throw Self.error(for: response)
             }
 
@@ -140,6 +185,11 @@ public struct GeminiClient: Sendable {
     // MARK: - Decoding
 
     static func decodeAnalysis(from data: Data) throws -> MeetingAnalysis {
+        try decode(MeetingAnalysis.self, from: data).value
+    }
+
+    /// Unwraps the candidate text and decodes it as `T`. Also returns the raw text, for error reporting.
+    static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> (value: T, text: String) {
         guard let envelope = try? JSONDecoder().decode(GenerateContentResponse.self, from: data) else {
             throw GeminiError.malformedJSON(String(data: data, encoding: .utf8) ?? "<non-UTF8>")
         }
@@ -166,7 +216,7 @@ public struct GeminiClient: Sendable {
         }
 
         do {
-            return try JSONDecoder().decode(MeetingAnalysis.self, from: json)
+            return (try JSONDecoder().decode(T.self, from: json), text)
         } catch {
             throw GeminiError.malformedJSON(text)
         }

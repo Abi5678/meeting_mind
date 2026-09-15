@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import MeetingMindKit
 
 @Model
 final class Note {
@@ -18,6 +19,8 @@ final class Note {
     var tagsJSON: String // JSON-compressed [String]
 
     var blocksJSON: String // JSON-encoded BlockDocument state
+    /// PaperStyle raw value; the default lets existing stores migrate without a schema version.
+    var paperStyle: String = PaperStyle.lined.rawValue
     var recordings: [Recording]
     var meetingArtifact: MeetingArtifact?
 
@@ -45,7 +48,12 @@ final class Note {
 
     var tags: [String] {
         get { (try? JSONDecoder().decode([String].self, from: tagsJSON.data(using: .utf8) ?? Data())) ?? [] }
-        set { tagsJSON = (try? JSONEncoder().encode(newValue)) ?? "[]" }
+        set { tagsJSON = (try? JSONEncoder().encode(newValue)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]" }
+    }
+
+    var paper: PaperStyle {
+        get { PaperStyle(rawValue: paperStyle) ?? .lined }
+        set { paperStyle = newValue.rawValue }
     }
 
     var blockDocument: BlockDocument {
@@ -57,7 +65,7 @@ final class Note {
             return doc.document
         }
         set {
-            blocksJSON = (try? JSONEncoder().encode(SwiftDataBlockDocument(document: newValue)).data(using: .utf8)) ?? "[]"
+            blocksJSON = (try? JSONEncoder().encode(SwiftDataBlockDocument(document: newValue))).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         }
     }
 

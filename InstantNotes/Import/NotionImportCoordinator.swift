@@ -6,15 +6,18 @@
 
 import Foundation
 import Compression
+import MeetingMindKit
 
-public enum NotionImportCoordinator {
+public struct NotionImportCoordinator: Sendable {
     public static let shared = NotionImportCoordinator()
 
+    private init() {}
+
     public struct ImportResult {
-        public let importedPages: Int
-        public let importedTables: Int
-        public let skippedBlocks: Int
-        public let errors: [String]
+        public var importedPages: Int
+        public var importedTables: Int
+        public var skippedBlocks: Int
+        public var errors: [String]
 
         public var summary: String {
             "\(importedPages) pages, \(importedTables) tables; \(skippedBlocks) blocks skipped"
@@ -23,7 +26,7 @@ public enum NotionImportCoordinator {
 
     /// Import a Notion export ZIP and return the result.
     /// Never silently drops content — unsupported features create placeholder blocks.
-    public func importFromZIP(at url: URL, progressHandler: ((Double) -> Void)? = nil) async throws -> ImportResult {
+    public func importFromZIP(at url: URL, progressHandler: (@Sendable (Double) -> Void)? = nil) async throws -> ImportResult {
         // Extract ZIP to temp directory
         let extractedDir = try extractZIP(from: url)
 
@@ -55,7 +58,7 @@ public enum NotionImportCoordinator {
 
         // Process CSV files → Table + Rows for each database
         for (idx, fileURL) in csvFiles.enumerated() {
-            progressHandler?((mdFiles.count + idx) / Double(mdCount))
+            progressHandler?(Double(mdFiles.count + idx) / Double(mdCount))
 
             do {
                 let content = try String(contentsOf: fileURL, encoding: .utf8)
@@ -84,7 +87,7 @@ public enum NotionImportCoordinator {
         }
 
         // Swift's built-in Archive utilities for ZIP (iOS 13+)
-        let tempArchive = URL(fileURLWithPath: NSTemporaryPath()).appendingPathComponent(
+        let tempArchive = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
             "import_" + UUID().uuidString + ".zip"
         )
         try? FileManager.default.copyItem(at: sourceURL, to: tempArchive)

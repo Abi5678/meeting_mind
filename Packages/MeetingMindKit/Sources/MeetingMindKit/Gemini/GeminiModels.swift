@@ -2,12 +2,13 @@ import Foundation
 
 // MARK: - Response schema
 
-/// The subset of Gemini's OpenAPI-flavoured schema language that `MeetingAnalysis` needs.
+/// The subset of Gemini's OpenAPI-flavoured schema language that `MeetingAnalysis` and `Quiz` need.
 ///
 /// Gemini constrains generation to this schema when it is sent as `responseSchema`
 /// alongside `responseMimeType: "application/json"`.
 indirect enum Schema: Encodable, Sendable {
     case string(description: String)
+    case integer(description: String)
     case array(of: Schema, description: String)
     case object(properties: [(name: String, schema: Schema)], required: [String], description: String?)
 
@@ -28,6 +29,10 @@ indirect enum Schema: Encodable, Sendable {
         switch self {
         case let .string(description):
             try container.encode("STRING", forKey: .type)
+            try container.encode(description, forKey: .description)
+
+        case let .integer(description):
+            try container.encode("INTEGER", forKey: .type)
             try container.encode(description, forKey: .description)
 
         case let .array(element, description):
@@ -92,6 +97,36 @@ enum GeminiSchema {
             ),
         ],
         required: ["summary", "keyDecisions", "actionItems", "followUpEmail"],
+        description: nil
+    )
+
+    static let quiz: Schema = .object(
+        properties: [
+            ("title", .string(description: "A short, playful quiz title about the notes' topic, at most 6 words.")),
+            (
+                "questions",
+                .array(
+                    of: .object(
+                        properties: [
+                            ("prompt", .string(description: "The question, answerable from the notes alone.")),
+                            (
+                                "options",
+                                .array(
+                                    of: .string(description: "One answer choice, at most 12 words."),
+                                    description: "Exactly 4 answer choices: one correct, three plausible but wrong."
+                                )
+                            ),
+                            ("answerIndex", .integer(description: "Zero-based index of the correct choice in options.")),
+                            ("explanation", .string(description: "One short sentence on why the correct choice is right. Shown after right and wrong answers alike, so no praise.")),
+                        ],
+                        required: ["prompt", "options", "answerIndex", "explanation"],
+                        description: nil
+                    ),
+                    description: "The quiz questions."
+                )
+            ),
+        ],
+        required: ["title", "questions"],
         description: nil
     )
 }
@@ -164,6 +199,8 @@ public enum GeminiError: Error, Equatable, Sendable {
     /// No API key has been saved in Settings.
     case missingAPIKey
     case emptyTranscript
+    /// There is no note text to write a quiz from.
+    case emptyNotes
     /// 429, after retries were exhausted.
     case rateLimited(retryAfter: TimeInterval?)
     /// 5xx, after retries were exhausted.
@@ -174,7 +211,7 @@ public enum GeminiError: Error, Equatable, Sendable {
     case blocked(reason: String)
     /// 2xx with no usable candidate text.
     case emptyResponse
-    /// The model returned text that does not decode as `MeetingAnalysis`.
+    /// The model returned text that does not decode as the requested type (`MeetingAnalysis`, `Quiz`).
     case malformedJSON(String)
     case transport(String)
 }
@@ -186,6 +223,8 @@ extension GeminiError: LocalizedError {
             "No Gemini API key. Add one in Settings."
         case .emptyTranscript:
             "There is no transcript to analyse yet."
+        case .emptyNotes:
+            "Write a few notes first, then make a quiz."
         case let .rateLimited(retryAfter):
             if let retryAfter {
                 "Gemini is rate limiting this key. Try again in \(Int(retryAfter.rounded()))s."

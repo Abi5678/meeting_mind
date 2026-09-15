@@ -5,6 +5,7 @@
 // Settings UI for AI configuration (API key, model selection).
 
 import SwiftUI
+import Security
 
 struct AISettingsView: View {
     @State private var apiKey = ""
@@ -20,15 +21,11 @@ struct AISettingsView: View {
         Form {
             Section("API Key") {
                 HStack(spacing: 10) {
-                    if !apiKey.isEmpty {
-                        TextField("Enter API key", text: $apiKey)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                    } else {
-                        Text("Not configured")
-                            .foregroundStyle(.secondary)
-                            .font(.system(.body, design: .monospaced))
-                    }
+                    // Always editable: with no key saved there must still be somewhere to paste one.
+                    SecureField("Paste Gemini API key", text: $apiKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
 
                     if !apiKey.isEmpty {
                         Button(role: .destructive) { apiKey = "" } label: {
@@ -108,7 +105,7 @@ struct KeychainHelper {
     func getString(forKey key: String) -> String? {
         // Stub: returns nil on non-iOS targets
         #if os(iOS)
-        guard let data = SecItemCopyMatchingKeyed(key), let result = String(data: data, encoding: .utf8) else {
+        guard let data = keychainData(forKey: key), let result = String(data: data, encoding: .utf8) else {
             return nil
         }
         return result
@@ -120,7 +117,10 @@ struct KeychainHelper {
     func set(_ value: String, forKey key: String) {
         guard let data = value.data(using: .utf8) else { return }
         #if os(iOS)
-        SecItemAddKeyed(key, data)
+        SecItemDelete(query(forKey: key) as CFDictionary)
+        var attributes = query(forKey: key)
+        attributes[kSecValueData as String] = data
+        SecItemAdd(attributes as CFDictionary, nil)
         #else
         UserDefaults.standard.set(value, forKey: "keychain_\(key)")
         #endif
@@ -128,9 +128,22 @@ struct KeychainHelper {
 
     func remove(forKey key: String) {
         #if os(iOS)
-        SecItemDeleteKeyed(key)
+        SecItemDelete(query(forKey: key) as CFDictionary)
         #else
         UserDefaults.standard.removeObject(forKey: "keychain_\(key)")
         #endif
+    }
+
+    private func query(forKey key: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: key]
+    }
+
+    private func keychainData(forKey key: String) -> Data? {
+        var query = query(forKey: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
+        return item as? Data
     }
 }

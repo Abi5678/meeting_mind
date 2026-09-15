@@ -11,9 +11,12 @@ import MeetingMindKit
 /// A single editable block row with type-specific chrome (checkboxes, bullets, etc.).
 struct BlockRowView: View {
     let block: Block
-    @Binding var isFocused: Bool
+    var focusedBlockID: FocusState<UUID?>.Binding
     @State private var textContent: String
-    @EnvironmentObject private var editorState: EditorDocumentState
+    @EnvironmentObject private var editorState: CanvasEditorState
+
+    private var isFocused: Bool { focusedBlockID.wrappedValue == block.id }
+    private var isDone: Bool { block.type == .todo && block.isChecked }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -31,6 +34,20 @@ struct BlockRowView: View {
         .padding(.vertical, 2)
         .background(isFocused ? Color("PaperBackground").opacity(0.3) : .clear)
         .cornerRadius(4)
+        .onChange(of: textContent) { _, newText in
+            // Return (or a multi-line paste) starts new blocks instead of wrapping inside this one.
+            let isCode = if case .code = block.type { true } else { false }
+            if !isCode, newText.contains("\n") {
+                let lines = newText.components(separatedBy: "\n")
+                textContent = lines[0]
+                let next = editorState.splitBlock(block.id, into: lines)
+                DispatchQueue.main.async { focusedBlockID.wrappedValue = next }
+                return
+            }
+            // TextEditor is plain text, so an edited block's inline formatting collapses to one run.
+            guard newText != block.plainText else { return }
+            editorState.updateBlock(block.id) { $0.runs = [.plain(newText)] }
+        }
     }
 
     // MARK: - Drag handle
@@ -71,18 +88,28 @@ struct BlockRowView: View {
                 }
             } label: {
                 Image(systemName: block.isChecked ? "checkmark.circle.fill" : "circle")
-                    .font(.caption2)
-                    .foregroundStyle(block.isChecked ? Color.accentColor : .secondary)
+                    .font(.title3)
+                    .foregroundStyle(block.isChecked ? Color.green : .secondary)
+                    .symbolEffect(.bounce, value: block.isChecked)
             }
             .buttonStyle(.plain)
+            .sensoryFeedback(.success, trigger: block.isChecked) { _, checked in checked }
             .padding(.leading, 8)
 
         case .toggle:
-            Image(systemName: block.isExpanded ? "chevron.down" : "chevron.right")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(block.isExpanded ? 0 : -90))
-                .padding(.leading, 8)
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    editorState.updateBlock(block.id) { $0.isExpanded.toggle() }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(block.isExpanded ? 90 : 0))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 8)
 
         case .quote:
             Rectangle()
@@ -109,17 +136,19 @@ struct BlockRowView: View {
         let placeholder = block.type.defaultPlaceholder
 
         switch block.type {
-        case .code(let lang):
+        case .code:
             TextEditor(text: $textContent)
                 .font(.system(.body, design: .monospaced))
                 .lineSpacing(2)
+                .frame(minHeight: 60)
+                .focused(focusedBlockID, equals: block.id)
                 .padding(10)
                 .background(Color("InkColor").opacity(0.08).cornerRadius(6))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color("RuleColor").opacity(0.3), lineWidth: 0.5)
                 )
-                .padding(.leading, block.type == .code ? 12 : 4)
+                .padding(.leading, 12)
 
         case .divider:
             Divider()
@@ -143,14 +172,19 @@ struct BlockRowView: View {
             TextEditor(text: $textContent)
                 .font(.system(size: fontSize, weight: fontWeight, design: .default))
                 .lineSpacing(block.type.isHeading ? 2 : 1)
+                .foregroundStyle(isDone ? .secondary : .primary)
+                .frame(minHeight: fontSize * 2) // TextEditor collapses to zero height inside a LazyVStack
+                .focused(focusedBlockID, equals: block.id)
                 .padding(4)
                 .scrollContentBackground(.hidden)
-                .background {
+                .background(alignment: .topLeading) {
                     if textContent.isEmpty {
                         Text(placeholder)
                             .font(.system(size: fontSize, weight: fontWeight, design: .default))
                             .foregroundStyle(.secondary.opacity(0.5))
-                            .padding(4)
+                            // TextEditor insets its text by ~5pt horizontally and 8pt vertically
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 12)
                             .allowsHitTesting(false)
                     }
                 }
@@ -159,9 +193,9 @@ struct BlockRowView: View {
 
     // MARK: - Init
 
-    init(block: Block, isFocused: Binding<Bool>) {
+    init(block: Block, focusedBlockID: FocusState<UUID?>.Binding) {
         self.block = block
-        self._isFocused = isFocused
+        self.focusedBlockID = focusedBlockID
         _textContent = State(initialValue: block.plainText)
     }
 
@@ -171,7 +205,7 @@ struct BlockRowView: View {
     private var paperBgColor: Color {
         #if os(iOS)
         if #available(iOS 17.0, *) {
-            return Color(uicolor: .label) // system default; paper texture applied by parent
+            return Color(uiColor: .label) // system default; paper texture applied by parent
         }
         return Color(.white)
         #else

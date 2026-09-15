@@ -1,31 +1,19 @@
 # XcodeGen project file for InstantNotes
 # Generated following: instant_notes_plan.md Phase 1
 # Project gen: XcodeGen `project.yml`, app target `InstantNotes`
+#
+# NOTE: Info.plist and the entitlements file are GENERATED from the `info` and
+# `entitlements` properties below — edit keys here, not in those files.
 
 name: InstantNotes
 options:
-  deploymentPostprocessing: true
-  settingsVersion: 3
+  deploymentTarget:
+    iOS: "17.0"
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    GENERATE_INFOPLIST_FILE: true
-
-configs:
-  debug:
-    type: support
-    buildConfiguration:
-      DEVELOPMENT_TEAM: "" # set via project.yml.local or Xcode signing settings
-      PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes.debug
-      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
-      INFOPLIST_FILE: InstantNotes/Info.plist
-      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  release:
-    type: application
-    buildConfiguration:
-      PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes
-      SWIFT_OPTIMIZATION_LEVEL: "-Owholemodule"
+    DEVELOPMENT_TEAM: "" # set via project.yml.local or Xcode signing settings
 
 targets:
   InstantNotes:
@@ -34,42 +22,45 @@ targets:
     deploymentTarget: "17.0"
     settings:
       base:
-        INFOPLIST_FILE: InstantNotes/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Instant Notes
-        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        CFBundleDevelopmentRegion: en
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
-        CFBundleInfoDictionaryVersion: "6.0"
-        CFBundlePackageType: $(PRODUCT_BUNDLE_TYPE)
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
-        # Minimum build number that increases with every release
+        PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes
+        MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes.debug
     sources:
       - path: InstantNotes
         excludes:
           - "**/*.swift~" # generated files to avoid compiler warnings
     dependencies:
       - package: MeetingMindKit
-    entitlements: InstantNotes/InstantNotes.entitlements
+    entitlements:
+      path: InstantNotes/InstantNotes.entitlements
     info:
       path: InstantNotes/Info.plist
       properties:
+        CFBundleDisplayName: Instant Notes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIRequiredDeviceCapabilities:
           - arm64
+        NSSpeechRecognitionUsageDescription: Instant Notes turns your meeting recordings into text so it can summarize them.
         UIBackgroundModes:
           - audio
-    preBuildScripts:
-      - name: "Generate Route Tree"
-        script: |
-          # Generate TanStack-style route tree if using the web design reference
-          echo "Route tree generation skipped (iOS target)"
-        basedOnDependencyAnalysis: false
+        NSMicrophoneUsageDescription: Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
+        NSPhotoLibraryUsageDescription: Add photos from your library as image blocks in notes.
+        NSCameraUsageDescription: Take photos or scan documents to insert directly into your notes.
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        UIApplicationSupportsIndirectInputEvents: true
 
 packages:
   MeetingMindKit:

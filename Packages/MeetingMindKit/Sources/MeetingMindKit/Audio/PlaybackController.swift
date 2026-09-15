@@ -74,8 +74,8 @@ public final class PlaybackController: NSObject, ObservableObject {
     private func startUpdateTimer() {
         stopUpdateTimer()
         playbackUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 15.0, repeats: true) { [weak self] _ in
-            guard let self = self, let player = self.audioPlayer else { return }
-            DispatchQueue.main.async {
+            Task { @MainActor in
+                guard let self, let player = self.audioPlayer else { return }
                 self.currentTime = player.currentTime
             }
         }
@@ -89,10 +89,9 @@ public final class PlaybackController: NSObject, ObservableObject {
 
 // MARK: - AVAudioPlayerDelegate
 
-@MainActor
 extension PlaybackController: AVAudioPlayerDelegate {
-    public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        DispatchQueue.main.async {
+    public nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
             self.isPlaying = false
             self.stopUpdateTimer()
             if flag {
@@ -101,10 +100,10 @@ extension PlaybackController: AVAudioPlayerDelegate {
         }
     }
 
-    public func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-        guard let error else { return }
-        DispatchQueue.main.async {
-            self.error = PlaybackError.decodeFailed(error.localizedDescription)
+    public nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        guard let message = error?.localizedDescription else { return }
+        Task { @MainActor in
+            self.error = PlaybackError.decodeFailed(message)
         }
     }
 }

@@ -31,6 +31,7 @@ struct ImportView: View {
         }
     }
 
+    @ToolbarContentBuilder
     private var doneToolbar: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
             if viewModel.state == .complete || viewModel.isProcessing {
@@ -55,6 +56,8 @@ final class ImportViewModel: ObservableObject {
     @Published var result: NotionImportCoordinator.ImportResult?
     @Published var isProcessed = false
 
+    var isProcessing: Bool { state == .processing }
+
     private let coordinator = NotionImportCoordinator.shared
 
     func startImport() {
@@ -71,7 +74,7 @@ final class ImportViewModel: ObservableObject {
         do {
             statusMessage = "Importing…"
             let result = try await coordinator.importFromZIP(at: selectedURL) { p in
-                Task { @MainActor in progress = p }
+                Task { @MainActor in self.progress = p }
             }
             await MainActor.run {
                 self.result = result

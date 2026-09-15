@@ -17,7 +17,7 @@ struct InkCanvasOverlay: UIViewRepresentable {
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
         canvas.drawingPolicy = .anyInput
-        canvas.tool = PKInkingTool(.pen(color: .label, lineWidth: 2))
+        canvas.tool = PKInkingTool(.pen, color: .label, width: 2)
         canvas.delegate = context.coordinator
         return canvas
     }
@@ -105,13 +105,13 @@ enum CanvasTool: String, CaseIterable, Identifiable {
     var pkTool: PKTool {
         switch self {
         case .pen:
-            return PKInkingTool(.pen(color: .label, lineWidth: 2))
+            return PKInkingTool(.pen, color: .label, width: 2)
         case .marker:
-            return PKInkingTool(.marker(color: .label, opacity: 0.8, lineWidth: .large))
+            return PKInkingTool(.marker, color: .label.withAlphaComponent(0.8), width: 10)
         case .highlighter:
-            return PKInkingTool(.highlighter(color: UIColor(white: 0.95, alpha: 0.6), lineWidth: .extraLarge))
+            return PKInkingTool(.marker, color: UIColor(white: 0.95, alpha: 0.6), width: 20)
         case .eraser:
-            return PKEraserTool(.path)
+            return PKEraserTool(.vector)
         }
     }
 }

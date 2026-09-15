@@ -34,4 +34,29 @@ public enum PromptBuilder {
         \(transcript)
         """
     }
+
+    /// Builds the quiz prompt. The quiz tests recall of the user's own notes, so every question
+    /// and correct answer must come from the notes, never from the model's general knowledge.
+    public static func quizPrompt(notes: String, questionCount: Int) -> String {
+        """
+        You are writing a multiple-choice quiz that helps someone check what they remember \
+        from their own notes.
+
+        Write \(questionCount) questions. If the notes are too short to support \(questionCount) \
+        distinct questions, write fewer rather than repeating yourself or going beyond the notes.
+
+        Rules:
+        - Every question and every correct answer must come from the notes. Never test \
+        outside knowledge.
+        - Each question has exactly 4 options: one correct, three plausible but clearly wrong \
+        given the notes. Keep options short.
+        - answerIndex is the zero-based position of the correct option. Vary it across questions.
+        - explanation: one short sentence saying why the correct option is right. It is shown \
+        whether the learner answered right or wrong, so never open with praise like "That's right!".
+        - title: a short, playful title for the quiz, based on the notes' topic.
+
+        NOTES:
+        \(notes)
+        """
+    }
 }

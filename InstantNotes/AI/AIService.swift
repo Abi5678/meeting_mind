@@ -8,14 +8,15 @@
 import Foundation
 import MeetingMindKit
 
-public enum AIService {
-    public static let shared = AIService()
+@MainActor
+final class AIService {
+    static let shared = AIService()
 
     private var requestCountPerMinute: Int = 0
     private var lastMinuteReset: Date = .now
 
     /// Suggest tags for a note based on its content.
-    public func suggestTags(for title: String, summary: String?, context: [String]) async -> [String] {
+    func suggestTags(for title: String, summary: String?, context: [String]) async -> [String] {
         guard hasAPIKey else { return [] }
 
         let prompt = PromptBuilder.buildTagPrompt(
@@ -24,39 +25,38 @@ public enum AIService {
             relatedNoteTitles: context
         )
 
-        do {
-            let result = try await GeminiClient.shared.chat(prompt: prompt, systemPrompt: nil)
-            return parseTags(from: result)
-        } catch {
-            print("[AIService] Tag suggestion failed: \(error)")
-            return []
-        }
+        // Stub: MeetingMindKit's GeminiClient only exposes `analyze(transcript:)` today — there is
+        // no free-form chat call to send `prompt` to yet. Wire it here, then feed `parseTags(from:)`.
+        _ = prompt
+        return []
     }
 
     /// Auto-organize a note: summarize + suggest tags.
-    public func organize(title: String, content: String) async -> OrganizeResult? {
+    func organize(title: String, content: String) async -> OrganizeResult? {
         guard hasAPIKey else { return nil }
 
-        let summary = await GeminiClient.shared.summarize(text: content)
+        // Stub: no summarize call in GeminiClient yet (see suggestTags).
+        let summary: String? = nil
         let tags = await suggestTags(for: title, summary: nil, context: [])
 
         return .init(summary: summary, suggestedTags: tags)
     }
 
     /// Find related notes using on-device sentence embeddings (NLEmbedding).
-    public func findRelatedNotes(for note: Note, allNotes: [Note]) async -> [Note] {
+    func findRelatedNotes(for note: Note, allNotes: [Note]) async -> [Note] {
         // Stub: in production this would use NLEmbedding for semantic similarity.
         // For now, keyword matching fallback.
         let words = Set(note.title.lowercased().split(separator: " ").map(String.init))
         return allNotes.filter { n in
             guard n.id != note.id else { return false }
+            let summary = n.summary?.lowercased() ?? ""
             return n.tags.contains(where: { words.contains($0.lowercased()) }) ||
-                   n.summary?.lowercased().contains(where: { words.firstIndex(of: $0) != nil }) ?? false
+                   words.contains(where: { summary.contains($0) })
         }.prefix(5).map { $0 }
     }
 
     /// Schedule a task in the throttled queue. The task will execute when capacity is available.
-    public func scheduleTask(_ task: @escaping () async throws -> Void) async -> UUID {
+    func scheduleTask(_ task: @escaping () async throws -> Void) async -> UUID {
         let id = UUID()
         pendingTasks[id] = task
 
@@ -104,17 +104,17 @@ public enum AIService {
             return
         }
 
-        let task = pendingTasks.first?.value
-        pendingTasks.removeValue(forKey: task == nil ? UUID() : pendingTasks.first!.key)
+        guard let (id, task) = pendingTasks.first else { return }
+        pendingTasks.removeValue(forKey: id)
         requestCountPerMinute += 1
 
-        try? await task?()
+        try? await task()
     }
 }
 
-public struct OrganizeResult: Codable {
-    public let summary: String?
-    public let suggestedTags: [String]
+struct OrganizeResult: Codable {
+    let summary: String?
+    let suggestedTags: [String]
 }
 
 // MARK: - PromptBuilder helper (reuse from MeetingMindKit)

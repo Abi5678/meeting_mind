@@ -10,36 +10,112 @@ import MeetingMindKit
 struct CanvasNoteEditorView: View {
     @Binding var note: Note
     @StateObject private var state = CanvasEditorState()
+    @FocusState private var focusedBlockID: UUID?
+    @State private var showQuiz = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Layer 1: paper background with ruled lines and margin accent
-            PaperCanvasBackground()
+            // Layer 1: paper background in the note's chosen style
+            PaperCanvasBackground(style: note.paper)
+                .ignoresSafeArea(edges: .bottom)
 
             // Layer 2: block editor scroll view
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    if state.document.isEmpty {
-                        Spacer(minLength: 60)
+                    ForEach(state.document.blocks) { block in
+                        BlockRowView(block: block, focusedBlockID: $focusedBlockID)
                     }
-                    ForEach(state.document.blocks.map({ ($0, state.document.order.firstIndex(of: $0.id)!)})) { block, index in
-                        BlockRowView(block: block, isFocused: .constant(false))
-                            .onTapGesture(count: 2) { /* double-tap to focus and edit */ }
-                    }
+                    // Tapping below the last block continues writing there.
+                    Color.clear
+                        .frame(height: 240)
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusOrAddTrailingBlock() }
                 }
+                // Clears the floating + button and sits content right of the margin line.
+                .padding(.top, 56)
+                .padding(.leading, 20)
             }
         }
         .overlay(alignment: .topTrailing) {
             // Floating add block button (top-right of canvas)
-            AddBlockPicker(onInsert: state.insertBlock)
+            AddBlockPicker(onInsert: { focus(state.insertBlock($0, after: focusedBlockID)) })
                 .padding(.trailing, 16)
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Paper", selection: Binding(get: { note.paper }, set: { note.paper = $0 })) {
+                        ForEach(PaperStyle.allCases, id: \.self) { style in
+                            Text(style.rawValue.capitalized).tag(style)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "doc.plaintext")
+                }
+                .accessibilityLabel("Paper style")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showQuiz = true } label: {
+                    Label("Quiz me", systemImage: "brain.head.profile")
+                        .labelStyle(.titleAndIcon)
+                        .font(.subheadline.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(.pink)
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                if let id = focusedBlockID {
+                    Menu {
+                        ForEach(AddBlockPicker.blockTypes, id: \.displayName) { type in
+                            Button { state.updateBlock(id) { $0.type = type } } label: {
+                                Label(type.displayName, systemImage: type.iconName)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                    Button(role: .destructive) { focus(state.removeBlock(id)) } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+                Spacer()
+                Button("Done") { focusedBlockID = nil }
+            }
+        }
+        .fullScreenCover(isPresented: $showQuiz) {
+            QuizView(noteTitle: note.title, notesText: state.document.plainText)
+        }
+        .environmentObject(state)
         .onAppear {
             state.load(from: note)
+            // A brand-new note opens ready to type.
+            if state.document.isEmpty {
+                let id = state.insertBlock(.paragraph, after: nil)
+                // Focus set while the push animation runs is dropped, so wait for it to finish.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { focusedBlockID = id }
+            }
         }
         .onChange(of: note) { _, _ in
             state.load(from: note)
+        }
+        .onChange(of: state.document) { _, document in
+            if document != note.blockDocument { state.save(to: note) }
+        }
+    }
+
+    /// Focus is applied on the next run loop so a just-inserted row exists to receive it.
+    private func focus(_ id: UUID?) {
+        guard let id else { return }
+        DispatchQueue.main.async { focusedBlockID = id }
+    }
+
+    private func focusOrAddTrailingBlock() {
+        if let last = state.document.blocks.last, last.plainText.isEmpty, last.type != .divider {
+            focus(last.id)
+        } else {
+            focus(state.insertBlock(.paragraph, after: nil))
         }
     }
 }
@@ -48,7 +124,9 @@ struct CanvasNoteEditorView: View {
 
 @MainActor
 final class CanvasEditorState: ObservableObject {
-    @Published var document = BlockDocument()
+    @Published var document = BlockDocument() {
+        didSet { updateListCounters() }
+    }
     @Published var listCounters: [String: Int] = [:]
     @Published var pendingUpdateTimer: Timer?
 
@@ -59,64 +137,139 @@ final class CanvasEditorState: ObservableObject {
 
     func save(to note: Note) {
         // Debounced persistence — in production this would be a timer-based debounce
-        note.blocksJSON = (try? JSONEncoder().encode(SwiftDataBlockDocument(document: document)).data(using: .utf8)) ?? "[]"
+        note.blockDocument = document
         note.touch()
     }
 
-    func insertBlock(_ type: Block.BlockType) {
-        let newBlock = Block(type: type, runs: [.plain(type.defaultPlaceholder)])
-        let index = document.insert(newBlock, after: nil)
-        listCounters[newBlock.id.uuidString] = 1
-        // If inserted as bulleted/numbered list, also counter the previous sibling
-        if index > 0, let prevID = document.order[safe: index - 1], let prev = document.blocksByID[prevID] {
-            if case (.bulletedList, .numberedList) = (prev.type, type) {
-                listCounters[newBlock.id.uuidString] = listCounters[prevID.uuidString, default: 0] + 1
-            } else if case (.numberedList, .numberedList) = (prev.type, type) {
-                let prevCounter = listCounters[prevID.uuidString, default: 1]
-                listCounters[newBlock.id.uuidString] = prevCounter + 1
-            }
+    /// Inserts after `id` (the focused block), or at the end of the note when nothing is focused.
+    @discardableResult
+    func insertBlock(_ type: BlockType, after id: UUID?) -> UUID {
+        let newBlock = Block(type: type)
+        if let id, document.blocksByID[id] != nil {
+            _ = document.insert(newBlock, after: id)
+        } else {
+            document.append(newBlock)
         }
+        return newBlock.id
     }
 
     func updateBlock(_ id: UUID, transform: (inout Block) -> Void) {
         document.update(id, transform: transform)
     }
 
+    /// Replaces a block's text with the first line and inserts one block per remaining line.
+    /// Returns the block that should take focus.
+    func splitBlock(_ id: UUID, into lines: [String]) -> UUID? {
+        guard let block = document.blocksByID[id], let first = lines.first else { return nil }
+        let continuesList = [BlockType.bulletedList, .numberedList, .todo].contains(block.type)
+
+        // Return on an empty list item leaves the list, as in Notion.
+        if lines == ["", ""], block.plainText.isEmpty, continuesList {
+            document.update(id) { $0.type = .paragraph }
+            return id
+        }
+
+        document.update(id) { $0.runs = first.isEmpty ? [] : [.plain(first)] }
+        var previousID = id
+        for line in lines.dropFirst() {
+            let next = Block(
+                type: continuesList ? block.type : .paragraph,
+                runs: line.isEmpty ? [] : [.plain(line)],
+                indent: block.indent
+            )
+            _ = document.insert(next, after: previousID)
+            previousID = next.id
+        }
+        return previousID
+    }
+
+    /// Removes a block and returns the block before it, for focus.
+    func removeBlock(_ id: UUID) -> UUID? {
+        let index = document.order.firstIndex(of: id)
+        _ = document.remove(id)
+        guard let index, index > 0 else { return document.order.first }
+        return document.order[safe: index - 1]
+    }
+
     // MARK: - Helpers
 
+    /// Numbers each run of consecutive numbered-list blocks from 1.
     private func updateListCounters() {
-        listCounters.removeAll()
+        var counters: [String: Int] = [:]
         var counter = 0
-        for blockID in document.order {
-            if let block = document.blocksByID[blockID] {
-                switch block.type {
-                case .bulletedList, .numberedList:
-                    counter += 1
-                    listCounters[blockID.uuidString] = counter
-                default:
-                    // Reset counter for other block types
-                    counter = 0
-                }
+        for block in document.blocks {
+            if block.type == .numberedList {
+                counter += 1
+                counters[block.id.uuidString] = counter
+            } else {
+                counter = 0
             }
         }
+        if counters != listCounters { listCounters = counters }
     }
 }
 
 // MARK: - Paper Canvas Background
 
 struct PaperCanvasBackground: View {
+    var style: PaperStyle = .lined
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Warm cream paper background
-                Color(red: 0.976, green: 0.945, blue: 0.937)
+                // Warm cream paper background (warm charcoal in dark mode)
+                Color("PaperBackground")
 
-                // Ruled lines (horizontal at 32pt intervals)
-                RuledLinesOverlay(height: geo.size.height)
+                switch style {
+                case .lined:
+                    // Ruled lines (horizontal at 32pt intervals)
+                    RuledLinesOverlay(height: geo.size.height)
 
-                // Red margin accent line at 72pt from left (legal pad convention)
-                VerticalMarginLine(x: 72)
+                    // Red margin accent line, left of the block chrome (legal pad convention)
+                    VerticalMarginLine(x: 40)
+                case .grid:
+                    GridLinesOverlay()
+                case .dotted:
+                    DotGridOverlay()
+                case .blank:
+                    EmptyView()
+                }
             }
+        }
+    }
+}
+
+struct GridLinesOverlay: View {
+    private let spacing: CGFloat = 24
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            for x in stride(from: spacing, through: size.width, by: spacing) {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for y in stride(from: spacing, through: size.height, by: spacing) {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            context.stroke(path, with: .color(Color(red: 0.72, green: 0.84, blue: 0.96).opacity(0.45)), lineWidth: 0.5)
+        }
+    }
+}
+
+struct DotGridOverlay: View {
+    private let spacing: CGFloat = 20
+
+    var body: some View {
+        Canvas { context, size in
+            var dots = Path()
+            for x in stride(from: spacing, through: size.width, by: spacing) {
+                for y in stride(from: spacing, through: size.height, by: spacing) {
+                    dots.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
+                }
+            }
+            context.fill(dots, with: .color(Color.gray.opacity(0.4)))
         }
     }
 }
@@ -145,7 +298,8 @@ struct VerticalMarginLine: View {
         Rectangle()
             .fill(Color(red: 0.85, green: 0.25, blue: 0.25).opacity(0.3))
             .frame(width: 1)
-            .position(x: x + 0.5, y: .infinity / 2) // center vertically
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.leading, x)
     }
 }
 
@@ -153,11 +307,11 @@ struct VerticalMarginLine: View {
 
 struct AddBlockPicker: View {
     @State private var isPresented = false
-    let onInsert: (Block.BlockType) -> Void
+    let onInsert: (BlockType) -> Void
 
     var body: some View {
         Menu {
-            ForEach(blockTypes, id: \.rawValue) { type in
+            ForEach(Self.blockTypes, id: \.displayName) { type in
                 Button {
                     onInsert(type)
                 } label: {
@@ -174,16 +328,16 @@ struct AddBlockPicker: View {
                 .font(.title3)
                 .foregroundStyle(Color("InkColor"))
                 .padding(8)
-                .background(Circle().fill(Color.paperBackgroundLight))
+                .background(Circle().fill(Color("PaperBackground")))
         }
     }
 
-    private var blockTypes: [Block.BlockType] {
+    static var blockTypes: [BlockType] {
         [
             .paragraph,
             .heading(level: 1), .heading(level: 2), .heading(level: 3),
             .bulletedList, .numberedList, .todo, .toggle,
-            .quote, .callout(emoji: "💡"), .code(nil), .divider
+            .quote, .callout(emoji: "💡"), .code(language: nil), .divider
         ]
     }
 }
@@ -213,7 +367,7 @@ enum BlockMarkdownShortcut {
         return nil
     }
 
-    var blockType: Block.BlockType {
+    var blockType: BlockType {
         switch self {
         case .paragraph: .paragraph
         case .heading1: .heading(level: 1)

@@ -7,14 +7,14 @@
 import SwiftUI
 import MeetingMindKit
 
-extension Block.BlockType {
+extension BlockType {
     /// SF Symbol name for this block type's icon in toolbars and menus.
     var iconName: String {
         switch self {
         case .paragraph: return "textformat"
         case .heading(level: 1): return "headline"
         case .heading(level: 2): return "headline.fill"
-        case .heading(level: 3): return "heading"
+        case .heading: return "heading"
         case .bulletedList: return "list.bullet"
         case .numberedList: return "list.number"
         case .todo: return "checkmark.circle"

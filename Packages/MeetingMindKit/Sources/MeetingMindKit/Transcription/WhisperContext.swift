@@ -32,7 +32,7 @@ public final class StubWhisperContext: WhisperContextProtocol, @unchecked Sendab
     public var progress: Progress { Progress() }
 }
 
-public struct WhisperEmbedding: Sendable {
+public struct WhisperEmbedding: @unchecked Sendable {
     public let buffer: UnsafePointer<Float>
     public let length: Int
 
@@ -66,7 +66,7 @@ public enum WhisperModel: String, CaseIterable {
 }
 
 /// Manages whisper.cpp model download and caching.
-public enum ModelManager {
+public struct ModelManager: Sendable {
     public static let shared = ModelManager()
 
     private init() {}
@@ -106,13 +106,15 @@ public enum ModelManager {
 
 // MARK: - TranscriptionService — stub orchestration layer
 
-public enum TranscriptionService {
+public struct TranscriptionService: Sendable {
     public static let shared = TranscriptionService()
+
+    private init() {}
 
     /// Run the full meeting capture pipeline:
     /// AudioRecording → ChunkPlanner windows → WhisperContext per chunk → Gemini analyze
     @available(*, deprecated, message: "Stub — will use real whisper.cpp when xcframework is integrated")
-    public func analyzeMeeting(from recording: Recording) async throws -> MeetingAnalysis {
+    public func analyzeMeeting(audioURL: URL) async throws -> MeetingAnalysis {
         // Stub implementation
         throw TranscriptionError.stubOnly
     }

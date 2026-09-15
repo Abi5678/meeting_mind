@@ -13,6 +13,9 @@ struct NoteListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showNewNoteSheet = false
     @State private var selectedSort: SortOption = .modified
+    @State private var selectedNoteID: UUID?
+    @State private var showSettings = false
+    @State private var showMeetingCapture = false
 
     var body: some View {
         NavigationSplitView {
@@ -25,8 +28,12 @@ struct NoteListView: View {
             .navigationTitle("Notes")
             .toolbar { toolbarContent }
         } detail: {
-            // Detail pane — filled by Phase 7 when a note is selected
-            EmptyDetailPlaceholder()
+            if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
+                CanvasNoteEditorView(note: .constant(note))
+                    .id(note.id)
+            } else {
+                EmptyDetailPlaceholder()
+            }
         }
     }
 
@@ -50,6 +57,7 @@ struct NoteListView: View {
         .padding(.vertical, 8)
     }
 
+    @ViewBuilder
     private var noteList: some View {
         let filtered = filteredNotes
 
@@ -60,10 +68,8 @@ struct NoteListView: View {
                 description: Text(searchText.isEmpty ? "Tap + to create your first note." : "Try a different search term.")
             )
         } else {
-            List(filtered, id: \.id) { note in
-                NavigationLink {
-                    NoteEditorView(note: .constant(note))
-                } label: {
+            List(filtered, id: \.id, selection: $selectedNoteID) { note in
+                NavigationLink(value: note.id) {
                     NoteRowView(note: note)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -87,7 +93,8 @@ struct NoteListView: View {
             notes = notes.filter {
                 $0.title.localizedCaseInsensitiveContains(searchText) ||
                 ($0.summary ?? "").localizedCaseInsensitiveContains(searchText) ||
-                ($0.tags).joined().localizedCaseInsensitiveContains(searchText)
+                ($0.tags).joined().localizedCaseInsensitiveContains(searchText) ||
+                $0.blockDocument.plainText.localizedCaseInsensitiveContains(searchText)
             }
         }
 
@@ -101,6 +108,7 @@ struct NoteListView: View {
         return notes
     }
 
+    @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .navigationBarLeading) {
             Menu {
@@ -115,6 +123,16 @@ struct NoteListView: View {
             }
         }
 
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.caption2)
+            }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack { AISettingsView() }
+            }
+        }
+
         ToolbarItem(placement: .navigationBarTrailing) {
             Button { showNewNoteSheet = true } label: {
                 Image(systemName: "plus")
@@ -122,7 +140,21 @@ struct NoteListView: View {
             }
             .buttonStyle(.plain)
             .sheet(isPresented: $showNewNoteSheet) {
-                NewNoteSheet()
+                TemplateGalleryView { selectedNoteID = $0.id }
+            }
+        }
+
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button { showMeetingCapture = true } label: {
+                Image(systemName: "mic")
+                    .font(.caption2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Record meeting")
+            .sheet(isPresented: $showMeetingCapture) {
+                NavigationStack {
+                    MeetingCaptureView { selectedNoteID = $0.id }
+                }
             }
         }
     }
@@ -186,38 +218,5 @@ struct EmptyDetailPlaceholder: View {
             systemImage: "note.text",
             description: Text("Choose a note from the list to start editing.")
         )
-    }
-}
-
-// MARK: - New Note Sheet
-
-struct NewNoteSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-
-    @State private var title = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Note title", text: $title)
-                    .textContentType(.name)
-            }
-            .navigationTitle("New Note")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        let note = Note(title: title.isEmpty ? "Untitled" : title)
-                        modelContext.insert(note)
-                        dismiss()
-                    }
-                    .disabled(title.isEmpty)
-                }
-            }
-        }
     }
 }

@@ -141,8 +141,10 @@ struct GeminiClientTests {
             .response(Fixture.successAnalysis()),
         ])
         let recorder = DelayRecorder()
+        let noFallback = GeminiClient.Configuration(fallbackModel: nil)
 
-        _ = try await makeClient(transport: transport, recorder: recorder).analyze(transcript: "Hi.")
+        _ = try await makeClient(transport: transport, recorder: recorder, configuration: noFallback)
+            .analyze(transcript: "Hi.")
 
         let delays = await recorder.delays
         #expect(delays == [4])
@@ -180,7 +182,7 @@ struct GeminiClientTests {
     @Test("Persistent 5xx surfaces the server error with its message")
     func exhaustsRetriesOnServerError() async throws {
         let transport = StubTransport(repeating: Fixture.failure(503, message: "overloaded"), times: 4)
-        let client = makeClient(transport: transport)
+        let client = makeClient(transport: transport, configuration: .init(fallbackModel: nil))
 
         await #expect(throws: GeminiError.server(status: 503, message: "overloaded")) {
             try await client.analyze(transcript: "Hi.")
@@ -188,6 +190,75 @@ struct GeminiClientTests {
 
         let callCount = await transport.callCount
         #expect(callCount == 4)
+    }
+
+    // MARK: - Overload fallback
+
+    @Test("A 503 switches to the fallback model at once, without waiting")
+    func fallsBackOn503() async throws {
+        let transport = StubTransport([.response(Fixture.failure(503)), .response(Fixture.successAnalysis())])
+        let recorder = DelayRecorder()
+
+        let analysis = try await makeClient(transport: transport, recorder: recorder).analyze(transcript: "Hi.")
+        #expect(analysis == Fixture.analysis)
+
+        let received = await transport.received
+        let delays = await recorder.delays
+        #expect(received.count == 2)
+        #expect(received[0].url.absoluteString.hasSuffix("/models/gemini-3-flash-preview:generateContent"))
+        #expect(received[1].url.absoluteString.hasSuffix("/models/gemini-2.5-flash:generateContent"))
+        #expect(delays.isEmpty)
+    }
+
+    @Test("The fallback model keeps the normal retry schedule and surfaces its own error")
+    func fallbackRetriesThenFails() async throws {
+        let transport = StubTransport(repeating: Fixture.failure(503, message: "overloaded"), times: 5)
+        let recorder = DelayRecorder()
+        let client = makeClient(transport: transport, recorder: recorder)
+
+        await #expect(throws: GeminiError.server(status: 503, message: "overloaded")) {
+            try await client.analyze(transcript: "Hi.")
+        }
+
+        let received = await transport.received
+        let delays = await recorder.delays
+        #expect(received.count == 5)  // primary once, then fallback + 3 retries
+        #expect(received.dropFirst().allSatisfy { $0.url.absoluteString.contains("/models/gemini-2.5-flash:") })
+        #expect(delays == [2, 8, 30])
+    }
+
+    @Test("Other 5xx retry on the same model instead of falling back")
+    func nonOverloadServerErrorStaysOnModel() async throws {
+        let transport = StubTransport([.response(Fixture.failure(500)), .response(Fixture.successAnalysis())])
+        _ = try await makeClient(transport: transport).analyze(transcript: "Hi.")
+
+        let received = await transport.received
+        #expect(received.allSatisfy { $0.url.absoluteString.contains("/models/gemini-3-flash-preview:") })
+    }
+
+    @Test("No fallback when the configured model already is the fallback")
+    func noFallbackToSelf() async throws {
+        let transport = StubTransport([.response(Fixture.failure(503)), .response(Fixture.successAnalysis())])
+        let recorder = DelayRecorder()
+        let configuration = GeminiClient.Configuration(model: "gemini-2.5-flash")
+
+        _ = try await makeClient(transport: transport, recorder: recorder, configuration: configuration)
+            .analyze(transcript: "Hi.")
+
+        let delays = await recorder.delays
+        #expect(delays == [2])  // retried with backoff, not fast-failed
+    }
+
+    @Test("Quizzes fall back too")
+    func quizFallsBackOn503() async throws {
+        let quizJSON = #"{"title":"T","questions":[{"prompt":"Q?","options":["a","b","c","d"],"answerIndex":1,"explanation":"b."}]}"#
+        let transport = StubTransport([.response(Fixture.failure(503)), .response(Fixture.success(text: quizJSON))])
+
+        let quiz = try await makeClient(transport: transport).generateQuiz(fromNotes: "Notes.")
+        #expect(quiz.questions.count == 1)
+
+        let received = await transport.received
+        #expect(received[1].url.absoluteString.contains("/models/gemini-2.5-flash:"))
     }
 
     @Test("A 4xx is not retried and carries Gemini's message")

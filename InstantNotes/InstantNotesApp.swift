@@ -27,9 +27,6 @@ struct InstantNotesApp: App {
             TableEntity.self,
             ColumnEntity.self,
             RowEntity.self,
-
-            // Block document storage wrapper
-            SwiftDataBlockDocument.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
