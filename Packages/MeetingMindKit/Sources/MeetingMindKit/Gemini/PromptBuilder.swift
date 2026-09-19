@@ -59,4 +59,26 @@ public enum PromptBuilder {
         \(notes)
         """
     }
+
+    /// Builds the tag prompt. Tags are for finding and grouping notes, so they name the topic,
+    /// never the note's format, and reuse the user's existing vocabulary where it fits.
+    public static func tagPrompt(title: String, notes: String, existingTags: [String]) -> String {
+        """
+        Suggest 2 to 5 short topic tags for this note, so it can be found and grouped with \
+        related notes later.
+
+        Rules:
+        - Tags name what the note is about (subject, project, course, place), not its format. \
+        Never use tags like "notes", "meeting" or "todo".
+        - Lowercase, 1 or 2 words each, no # symbol.
+        - If one of the user's existing tags fits, reuse it exactly instead of a near-duplicate.
+
+        EXISTING TAGS: \(existingTags.isEmpty ? "(none yet)" : existingTags.joined(separator: ", "))
+
+        TITLE: \(title)
+
+        NOTES:
+        \(notes)
+        """
+    }
 }

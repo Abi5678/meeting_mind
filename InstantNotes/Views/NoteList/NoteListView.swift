@@ -16,17 +16,18 @@ struct NoteListView: View {
     @State private var selectedNoteID: UUID?
     @State private var showSettings = false
     @State private var showMeetingCapture = false
+    @State private var showImport = false
 
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 searchField
-                Divider()
-                    .padding(.horizontal, 16)
                 noteList
             }
-            .navigationTitle("Notes")
+            .navigationTitle("Instant Notes")
             .toolbar { toolbarContent }
+            // Not on the toolbar button: importing re-renders the list, which would reset the sheet mid-import.
+            .sheet(isPresented: $showImport) { ImportView() }
         } detail: {
             if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
                 CanvasNoteEditorView(note: .constant(note))
@@ -40,19 +41,26 @@ struct NoteListView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(Color("InkColor").opacity(0.45))
             TextField("Search notes…", text: $searchText)
                 .font(.body)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(Color("InkColor").opacity(0.35))
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color("PaperBackground"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color("RuleColor"), lineWidth: 1)
+        )
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }
@@ -63,26 +71,37 @@ struct NoteListView: View {
 
         if filtered.isEmpty {
             ContentUnavailableView(
-                searchText.isEmpty ? "No notes yet" : "No matches",
-                systemImage: searchText.isEmpty ? "note.text" : "magnifyingglass",
-                description: Text(searchText.isEmpty ? "Tap + to create your first note." : "Try a different search term.")
+                searchText.isEmpty ? "Your notebook is empty" : "No matches",
+                systemImage: searchText.isEmpty ? "mic.fill" : "magnifyingglass",
+                description: Text(searchText.isEmpty ? "Tap the mic to capture a meeting, or + for a blank page." : "Try a different search term.")
             )
         } else {
             List(filtered, id: \.id, selection: $selectedNoteID) { note in
                 NavigationLink(value: note.id) {
                     NoteRowView(note: note)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                modelContext.delete(note)
-                            } label: {
-                                Image(systemName: "trash")
-                                Text("Delete")
-                            }
-                        }
+                }
+                // Both affordances live on the row, not inside the link's label, where
+                // SwiftUI ignores them. Swipe is the iOS gesture; right-click is the Mac one.
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) { delete(note) } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+                .contextMenu {
+                    Button(role: .destructive) { delete(note) } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
                 }
             }
             .listStyle(.plain)
         }
+    }
+
+    /// Clears the selection first: deleting the open note would otherwise leave the
+    /// detail pane pointing at a deleted model object.
+    private func delete(_ note: Note) {
+        if selectedNoteID == note.id { selectedNoteID = nil }
+        modelContext.delete(note)
     }
 
     private var filteredNotes: [Note] {
@@ -115,19 +134,32 @@ struct NoteListView: View {
                 Picker("Sort by", selection: $selectedSort) {
                     Text("Last Modified").tag(SortOption.modified)
                     Text("Date Created").tag(SortOption.created)
-                    Text("Title A-Z").tag(SortOption.title)
+                    Text("Title A–Z").tag(SortOption.title)
+                }
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("AI", systemImage: "sparkles")
+                }
+                Button {
+                    showImport = true
+                } label: {
+                    Label("Import from Notion", systemImage: "square.and.arrow.down")
+                }
+                if selectedNoteID != nil {
+                    Divider()
+                    Button(role: .destructive) {
+                        if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
+                            delete(note)
+                        }
+                    } label: {
+                        Label("Delete note", systemImage: "trash")
+                    }
                 }
             } label: {
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.caption2)
+                Image(systemName: "ellipsis.circle")
             }
-        }
-
-        ToolbarItem(placement: .navigationBarLeading) {
-            Button { showSettings = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.caption2)
-            }
+            .accessibilityLabel("More")
             .sheet(isPresented: $showSettings) {
                 NavigationStack { AISettingsView() }
             }
@@ -136,9 +168,8 @@ struct NoteListView: View {
         ToolbarItem(placement: .navigationBarTrailing) {
             Button { showNewNoteSheet = true } label: {
                 Image(systemName: "plus")
-                    .font(.caption2)
             }
-            .buttonStyle(.plain)
+            .accessibilityLabel("New note")
             .sheet(isPresented: $showNewNoteSheet) {
                 TemplateGalleryView { selectedNoteID = $0.id }
             }
@@ -146,10 +177,9 @@ struct NoteListView: View {
 
         ToolbarItem(placement: .navigationBarTrailing) {
             Button { showMeetingCapture = true } label: {
-                Image(systemName: "mic")
-                    .font(.caption2)
+                Image(systemName: "mic.fill")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
             .accessibilityLabel("Record meeting")
             .sheet(isPresented: $showMeetingCapture) {
                 NavigationStack {
@@ -177,11 +207,11 @@ struct NoteRowView: View {
                 if note.tags.count > 0 {
                     ForEach(note.tags.prefix(3), id: \.self) { tag in
                         Text(tag)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(Color("InkColor"))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.1), in: Capsule())
+                            .background(highlighterFill(for: tag), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                     }
                 }
 
@@ -190,12 +220,13 @@ struct NoteRowView: View {
                 if note.meetingArtifact != nil {
                     Image(systemName: "waveform")
                         .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color("InkColor"))
                 }
             }
 
             Text(note.title)
                 .font(.headline)
+                .foregroundStyle(Color("InkColor"))
                 .lineLimit(1)
 
             if let summary = note.summary, !summary.isEmpty {
@@ -206,6 +237,7 @@ struct NoteRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .listRowSeparatorTint(Color("RuleColor"))
     }
 }
 
@@ -214,9 +246,20 @@ struct NoteRowView: View {
 struct EmptyDetailPlaceholder: View {
     var body: some View {
         ContentUnavailableView(
-            "Select a note",
-            systemImage: "note.text",
-            description: Text("Choose a note from the list to start editing.")
+            "Open a page",
+            systemImage: "book.closed",
+            description: Text("Pick a note from the list, or capture a meeting with the mic.")
         )
     }
+}
+
+
+private func highlighterFill(for tag: String) -> Color {
+    let palette: [Color] = [
+        Color(red: 1.0, green: 0.96, blue: 0.61).opacity(0.55),   // yellow
+        Color(red: 0.96, green: 0.56, blue: 0.69).opacity(0.45),  // pink
+        Color(red: 0.65, green: 0.84, blue: 0.65).opacity(0.50),  // mint
+    ]
+    let idx = abs(tag.hashValue) % palette.count
+    return palette[idx]
 }

@@ -41,8 +41,8 @@ struct MeetingCaptureView: View {
         return VStack(spacing: 24) {
             Spacer()
 
-            WaveformBanner(isRecording: isRecording)
-                .padding(.horizontal, 32)
+            WaveformBanner(levels: viewModel.levels, isRecording: isRecording)
+                .padding(.horizontal, 24)
 
             TimerDisplay(timeInterval: viewModel.recordingDuration)
                 .font(.system(size: 64, design: .monospaced))
@@ -169,6 +169,8 @@ final class MeetingCaptureViewModel: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var recordingDuration: TimeInterval = 0
+    /// Rolling microphone levels for the waveform, oldest first.
+    @Published private(set) var levels: [Double] = []
     @Published private(set) var transcript = ""
     @Published private(set) var analysis: MeetingAnalysis?
     /// Set when transcription worked but Gemini did not; the transcript can still be saved.
@@ -205,10 +207,12 @@ final class MeetingCaptureViewModel: ObservableObject {
                 return
             }
             phase = .recording
-            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            levels = []
+            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
                     self.recordingDuration = self.recorderService.recordingDuration
+                    self.levels = (self.levels + [self.recorderService.level]).suffix(WaveformBanner.barCount)
                 }
             }
         }
@@ -235,6 +239,7 @@ final class MeetingCaptureViewModel: ObservableObject {
         cancel()
         phase = .idle
         recordingDuration = 0
+        levels = []
         transcript = ""
         analysis = nil
         analysisError = nil
@@ -267,7 +272,7 @@ final class MeetingCaptureViewModel: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
-            phase = .failed(error.localizedDescription)
+            phase = .failed(Self.transcriptionFailureMessage(for: error))
             return
         }
 
@@ -276,6 +281,20 @@ final class MeetingCaptureViewModel: ObservableObject {
             return
         }
         await analyze()
+    }
+
+    /// Apple reports a missing speech model as "Failed to initialize recognizer", which says nothing
+    /// about the cause, so the two cases that produce it are named instead.
+    static func transcriptionFailureMessage(for error: Error) -> String {
+        let nsError = error as NSError
+        guard nsError.domain == "kLSRErrorDomain", nsError.code == 300 else {
+            return error.localizedDescription
+        }
+        #if targetEnvironment(simulator)
+        return "The iOS Simulator ships no speech models, so recordings can't be transcribed here. Run on a device to transcribe."
+        #else
+        return "Speech recognition couldn't load its language model. Check the language is downloaded in Settings."
+        #endif
     }
 
     private func analyze() async {
@@ -287,7 +306,7 @@ final class MeetingCaptureViewModel: ObservableObject {
         }
 
         phase = .analyzing
-        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3-flash-preview"
+        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
         do {
             analysis = try await GeminiClient(apiKey: key, configuration: .init(model: model)).analyze(transcript: transcript)
         } catch {
@@ -301,9 +320,24 @@ final class MeetingCaptureViewModel: ObservableObject {
         self.phase = phase
     }
 
+    /// Topic-first title: summary/transcript gist, not a raw timestamp dump.
+    private func topicTitle(startedAt: Date, analysis: MeetingAnalysis?, transcript: String) -> String {
+        func gist(_ text: String) -> String? {
+            let terminators = CharacterSet(charactersIn: ".!?\n")
+            let sentence = text.components(separatedBy: terminators)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty }) ?? ""
+            let words = sentence.split(separator: " ").prefix(8)
+            return words.count >= 3 ? words.joined(separator: " ") : nil
+        }
+        if let analysis, let g = gist(analysis.summary) { return g }
+        if let g = gist(transcript) { return g }
+        return "Meeting notes · \(startedAt.formatted(date: .abbreviated, time: .omitted))"
+    }
+
     func save(in context: ModelContext) -> Note {
         let startedAt = recording?.startTime ?? .now
-        let note = Note(title: "Meeting \(startedAt.formatted(date: .abbreviated, time: .shortened))", summary: analysis?.summary)
+        let note = Note(title: topicTitle(startedAt: startedAt, analysis: analysis, transcript: transcript), summary: analysis?.summary)
         note.blockDocument = BlockDocument(blocks: MeetingNoteBuilder.blocks(analysis: analysis, transcript: transcript))
         context.insert(note)
 

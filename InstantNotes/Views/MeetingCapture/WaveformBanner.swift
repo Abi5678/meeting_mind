@@ -2,41 +2,43 @@
 //  WaveformBanner.swift
 //  Instant Notes
 //
-// Animated waveform visualization for meeting capture.
-// Uses animated bars as a placeholder until real waveform data is available.
+// Live waveform for meeting capture: the newest microphone level enters on the right and scrolls left.
 
 import SwiftUI
 
 struct WaveformBanner: View {
+    /// Recent levels from 0 to 1, oldest first.
+    let levels: [Double]
     let isRecording: Bool
-    private let barCount = 48
+
+    static let barCount = 60
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 2) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    waveformBar(index: i, containerWidth: geo.size.width)
-                }
+        Canvas { context, size in
+            let slot = size.width / CGFloat(Self.barCount)
+            let barWidth = max(2, slot * 0.55)
+            // Pad the front with silence so a fresh recording starts at the right edge.
+            let padded = Array(repeating: 0, count: max(0, Self.barCount - levels.count)) + levels.suffix(Self.barCount)
+
+            for (index, level) in padded.enumerated() {
+                let height = max(3, CGFloat(level) * size.height)
+                let rect = CGRect(
+                    x: CGFloat(index) * slot + (slot - barWidth) / 2,
+                    y: (size.height - height) / 2,
+                    width: barWidth,
+                    height: height
+                )
+                // Older bars fade so the eye follows the live edge.
+                let age = Double(index) / Double(Self.barCount)
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: barWidth / 2),
+                    with: .color(isRecording ? Color.red.opacity(0.35 + 0.65 * age) : Color.secondary.opacity(0.3))
+                )
             }
-            .frame(height: 48)
         }
-    }
-
-    @ViewBuilder
-    private func waveformBar(index: Int, containerWidth: CGFloat) -> some View {
-        let centerOffset = abs(Double(index) - Double(barCount - 1) / 2.0) / (Double(barCount) / 2.0)
-        let baseHeight = max(4, 40 * (1 - centerOffset))
-
-        Rectangle()
-            .fill(Color.accentColor.opacity(isRecording ? 0.6 : 0.3))
-            .frame(width: 3, height: isRecording ? animatedBarHeight(base: baseHeight, index: index) : baseHeight * 0.5)
-            .clipShape(RoundedRectangle(cornerRadius: 1.5))
-    }
-
-    private func animatedBarHeight(base: CGFloat, index: Int) -> CGFloat {
-        // Generate a sine-wave pattern offset by index for organic appearance
-        let t = Double(Date().timeIntervalSinceReferenceDate)
-        return base * (0.3 + 0.7 * (sin(t * 2.0 + Double(index) * 0.3).magnitude + 0.5))
+        .frame(height: 120)
+        .animation(.linear(duration: 0.05), value: levels)
+        .accessibilityLabel(isRecording ? "Live audio level" : "Audio level")
     }
 }
 

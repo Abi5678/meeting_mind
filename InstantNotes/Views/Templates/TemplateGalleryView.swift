@@ -16,6 +16,8 @@ struct TemplateGalleryView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var title = ""
     @State private var category: NoteTemplate.Category?
+    /// nil means "use whatever colour each template was designed in".
+    @State private var tint: PaperTint?
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
 
@@ -35,11 +37,12 @@ struct TemplateGalleryView: View {
                         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
 
                     categoryChips
+                    tintSwatches
 
                     LazyVGrid(columns: columns, spacing: 20) {
                         ForEach(templates) { template in
                             Button { create(from: template) } label: {
-                                TemplateCard(template: template)
+                                TemplateCard(template: template, tint: tint ?? template.tint)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(template.name)
@@ -69,6 +72,38 @@ struct TemplateGalleryView: View {
         }
     }
 
+    /// Recolours every preview at once, so you can see the whole gallery in one colour before picking.
+    private var tintSwatches: some View {
+        HStack(spacing: 8) {
+            swatch(nil, isSelected: tint == nil)
+            ForEach(PaperTint.allCases, id: \.self) { item in
+                swatch(item, isSelected: tint == item)
+            }
+        }
+    }
+
+    private func swatch(_ item: PaperTint?, isSelected: Bool) -> some View {
+        Button {
+            withAnimation(.snappy) { tint = item }
+        } label: {
+            Circle()
+                .fill(item.map { Color(paperTint: $0) } ?? Color.clear)
+                .frame(width: 24, height: 24)
+                .overlay {
+                    // The "as designed" swatch has no single colour, so it shows a palette glyph.
+                    if item == nil {
+                        Image(systemName: "paintpalette")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .overlay(Circle().stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.35),
+                                         lineWidth: isSelected ? 2.5 : 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item?.displayName ?? "Template's own color")
+    }
+
     private func chip(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button {
             withAnimation(.snappy) { action() }
@@ -88,6 +123,7 @@ struct TemplateGalleryView: View {
         let fallback = template.category == .paper ? "Untitled" : template.name
         let note = Note(title: trimmed.isEmpty ? fallback : trimmed)
         note.paper = template.paper
+        note.paperTint = tint ?? template.tint
         note.blockDocument = BlockDocument(blocks: template.makeBlocks())
         modelContext.insert(note)
         dismiss()
@@ -98,11 +134,12 @@ struct TemplateGalleryView: View {
 /// A page-shaped preview of a template: its paper with the first few lines drawn on it.
 private struct TemplateCard: View {
     let template: NoteTemplate
+    let tint: PaperTint
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .topLeading) {
-                PaperCanvasBackground(style: template.paper)
+                PaperCanvasBackground(style: template.paper, tint: tint)
 
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(Array(previewLines.enumerated()), id: \.offset) { _, line in

@@ -7,7 +7,8 @@ DerivedData/
 *.xcshareddata/
 
 # XcodeGen
-project.yml.local # per-machine overrides (team ID, paths)
+# per-machine overrides (team ID, paths)
+project.yml.local
 
 # MeetingMindKit tests
 Packages/MeetingMindKit/.build/
@@ -22,6 +23,9 @@ NoteStyle Studio/node_modules/
 NoteStyle Studio/.lovable/
 NoteStyle Studio/dist/
 NoteStyle Studio/bun.lock
+
+# Local review captures (screenshots, screen recordings)
+.review-shots/
 
 # macOS
 .DS_Store

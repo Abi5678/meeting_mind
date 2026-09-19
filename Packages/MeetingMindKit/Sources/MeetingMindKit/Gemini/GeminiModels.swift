@@ -129,6 +129,19 @@ enum GeminiSchema {
         required: ["title", "questions"],
         description: nil
     )
+
+    static let tags: Schema = .object(
+        properties: [
+            ("tags", .array(of: .string(description: "One lowercase topic tag, 1 or 2 words, no #."), description: "2 to 5 tags for the note.")),
+        ],
+        required: ["tags"],
+        description: nil
+    )
+}
+
+/// Mirrors `GeminiSchema.tags`.
+struct TagSuggestion: Decodable {
+    let tags: [String]
 }
 
 // MARK: - Request

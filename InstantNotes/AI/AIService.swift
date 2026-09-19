@@ -15,29 +15,21 @@ final class AIService {
     private var requestCountPerMinute: Int = 0
     private var lastMinuteReset: Date = .now
 
-    /// Suggest tags for a note based on its content.
-    func suggestTags(for title: String, summary: String?, context: [String]) async -> [String] {
-        guard hasAPIKey else { return [] }
-
-        let prompt = PromptBuilder.buildTagPrompt(
-            noteTitle: title,
-            noteSummary: summary ?? "",
-            relatedNoteTitles: context
-        )
-
-        // Stub: MeetingMindKit's GeminiClient only exposes `analyze(transcript:)` today — there is
-        // no free-form chat call to send `prompt` to yet. Wire it here, then feed `parseTags(from:)`.
-        _ = prompt
-        return []
+    /// Suggest tags for a note from its text, reusing `existingTags` (the user's other tags) where they fit.
+    func suggestTags(for title: String, notes: String, existingTags: [String]) async throws -> [String] {
+        guard let key = GeminiKey.current else { throw GeminiError.missingAPIKey }
+        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
+        return try await GeminiClient(apiKey: key, configuration: .init(model: model))
+            .suggestTags(title: title, notes: notes, existingTags: existingTags)
     }
 
     /// Auto-organize a note: summarize + suggest tags.
     func organize(title: String, content: String) async -> OrganizeResult? {
         guard hasAPIKey else { return nil }
 
-        // Stub: no summarize call in GeminiClient yet (see suggestTags).
+        // Stub: no summarize call in GeminiClient yet.
         let summary: String? = nil
-        let tags = await suggestTags(for: title, summary: nil, context: [])
+        let tags = (try? await suggestTags(for: title, notes: content, existingTags: [])) ?? []
 
         return .init(summary: summary, suggestedTags: tags)
     }
@@ -89,15 +81,6 @@ final class AIService {
         return keychain.getString(forKey: "gemini_api_key") != nil
     }
 
-    private func parseTags(from text: String) -> [String] {
-        // Simple tag parsing: split by comma, filter empty
-        return text.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && $0.count > 1 }
-            .prefix(10) // limit to 10 tags max
-            .map { String($0) }
-    }
-
     private func processNextTask() async {
         guard throttleCheck() else {
             await rateLimitBackoff()
@@ -115,21 +98,4 @@ final class AIService {
 struct OrganizeResult: Codable {
     let summary: String?
     let suggestedTags: [String]
-}
-
-// MARK: - PromptBuilder helper (reuse from MeetingMindKit)
-
-extension PromptBuilder {
-    static func buildTagPrompt(noteTitle: String, noteSummary: String, relatedNoteTitles: [String]) -> String {
-        var prompt = "Suggest up to 10 tags for a note with this title and summary:\n\n"
-        prompt += "Title: \(noteTitle)\n"
-        prompt += "Summary: \(noteSummary)\n\n"
-
-        if !relatedNoteTitles.isEmpty {
-            prompt += "Related notes:\n\(relatedNoteTitles.prefix(5).joined(separator: "\n"))\n\n"
-        }
-
-        prompt += "Return tags as a comma-separated list. No markdown formatting."
-        return prompt
-    }
 }

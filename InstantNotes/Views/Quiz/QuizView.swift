@@ -68,7 +68,7 @@ struct QuizView: View {
             phase = .failed(message: "Add your free Gemini API key to turn notes into quizzes.", needsKey: true)
             return
         }
-        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3-flash-preview"
+        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
         let client = GeminiClient(apiKey: key, configuration: .init(model: model))
         let notes = "\(noteTitle)\n\n\(notesText)"
 

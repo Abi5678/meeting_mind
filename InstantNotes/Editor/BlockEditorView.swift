@@ -5,6 +5,7 @@
 // Main editor view combining blocks + ink canvas with paper design identity.
 
 import SwiftUI
+import SwiftData
 import MeetingMindKit
 
 struct CanvasNoteEditorView: View {
@@ -12,17 +13,22 @@ struct CanvasNoteEditorView: View {
     @StateObject private var state = CanvasEditorState()
     @FocusState private var focusedBlockID: UUID?
     @State private var showQuiz = false
+    @State private var isSuggestingTags = false
+    @State private var tagError: String?
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Layer 1: paper background in the note's chosen style
-            PaperCanvasBackground(style: note.paper)
+            PaperCanvasBackground(style: note.paper, tint: note.paperTint)
                 .ignoresSafeArea(edges: .bottom)
 
             // Layer 2: block editor scroll view
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if !note.tags.isEmpty || isSuggestingTags {
+                        tagRow
+                    }
                     ForEach(state.document.blocks) { block in
                         BlockRowView(block: block, focusedBlockID: $focusedBlockID)
                     }
@@ -42,18 +48,49 @@ struct CanvasNoteEditorView: View {
             AddBlockPicker(onInsert: { focus(state.insertBlock($0, after: focusedBlockID)) })
                 .padding(.trailing, 16)
         }
+        .safeAreaInset(edge: .bottom) {
+            if let recording = note.recordings.first {
+                RecordingPlayerBar(recording: recording)
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Paper", selection: Binding(get: { note.paper }, set: { note.paper = $0 })) {
+                    ShareLink(
+                        item: NoteMarkdownExporter.markdown(title: note.title, document: state.document),
+                        subject: Text(note.title)
+                    ) {
+                        Label("Share as Markdown", systemImage: "square.and.arrow.up")
+                    }
+                    Button { suggestTags() } label: {
+                        Label("Suggest tags", systemImage: "tag")
+                    }
+                    .disabled(isSuggestingTags || state.document.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Picker(selection: Binding(get: { note.paper }, set: { note.paper = $0 })) {
                         ForEach(PaperStyle.allCases, id: \.self) { style in
                             Text(style.rawValue.capitalized).tag(style)
                         }
+                    } label: {
+                        Label("Paper", systemImage: "doc.plaintext")
                     }
+                    .pickerStyle(.menu)
+                    Picker(selection: Binding(get: { note.paperTint }, set: { note.paperTint = $0 })) {
+                        ForEach(PaperTint.allCases, id: \.self) { tint in
+                            Label {
+                                Text(tint.displayName)
+                            } icon: {
+                                Image(systemName: "circle.fill").foregroundStyle(Color(paperTint: tint))
+                            }
+                            .tag(tint)
+                        }
+                    } label: {
+                        Label("Page color", systemImage: "paintpalette")
+                    }
+                    .pickerStyle(.menu)
                 } label: {
-                    Image(systemName: "doc.plaintext")
+                    Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("Paper style")
+                .accessibilityLabel("More")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showQuiz = true } label: {
@@ -87,6 +124,11 @@ struct CanvasNoteEditorView: View {
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
         }
+        .alert("Couldn't suggest tags", isPresented: Binding(get: { tagError != nil }, set: { if !$0 { tagError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(tagError ?? "")
+        }
         .environmentObject(state)
         .onAppear {
             state.load(from: note)
@@ -102,6 +144,55 @@ struct CanvasNoteEditorView: View {
         }
         .onChange(of: state.document) { _, document in
             if document != note.blockDocument { state.save(to: note) }
+        }
+    }
+
+    private var tagRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(note.tags, id: \.self) { tag in
+                    HStack(spacing: 4) {
+                        Text("#\(tag)")
+                        Button { note.tags.removeAll { $0 == tag } } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2.bold())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove tag \(tag)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                if isSuggestingTags {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            // Clear the paper's margin line and line up with the bullets below.
+            .padding(.leading, 30)
+            .padding(.trailing, 16)
+        }
+        .padding(.bottom, 8)
+    }
+
+    /// Asks Gemini for topic tags, steering it toward tags other notes already use.
+    private func suggestTags() {
+        let existing = Set(((try? modelContext.fetch(FetchDescriptor<Note>())) ?? []).flatMap(\.tags)).sorted()
+        isSuggestingTags = true
+        Task {
+            defer { isSuggestingTags = false }
+            do {
+                let suggested = try await AIService.shared.suggestTags(
+                    for: note.title, notes: state.document.plainText, existingTags: existing
+                )
+                note.tags += suggested.filter { !note.tags.contains($0) }
+                note.touch()
+            } catch {
+                tagError = error.localizedDescription
+            }
         }
     }
 
@@ -211,14 +302,25 @@ final class CanvasEditorState: ObservableObject {
 
 // MARK: - Paper Canvas Background
 
+/// Resolves a `PaperTint` into a dynamic colour, so a tinted page darkens in dark mode
+/// instead of staying a bright sheet behind light text.
+extension Color {
+    init(paperTint tint: PaperTint) {
+        self.init(uiColor: UIColor { traits in
+            let c = traits.userInterfaceStyle == .dark ? tint.darkComponents : tint.components
+            return UIColor(red: c.red, green: c.green, blue: c.blue, alpha: 1)
+        })
+    }
+}
+
 struct PaperCanvasBackground: View {
     var style: PaperStyle = .lined
+    var tint: PaperTint = .cream
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Warm cream paper background (warm charcoal in dark mode)
-                Color("PaperBackground")
+                Color(paperTint: tint)
 
                 switch style {
                 case .lined:
@@ -253,7 +355,7 @@ struct GridLinesOverlay: View {
                 path.move(to: CGPoint(x: 0, y: y))
                 path.addLine(to: CGPoint(x: size.width, y: y))
             }
-            context.stroke(path, with: .color(Color(red: 0.72, green: 0.84, blue: 0.96).opacity(0.45)), lineWidth: 0.5)
+            context.stroke(path, with: .color(Color("RuleColor").opacity(0.5)), lineWidth: 0.5)
         }
     }
 }
@@ -269,7 +371,7 @@ struct DotGridOverlay: View {
                     dots.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
                 }
             }
-            context.fill(dots, with: .color(Color.gray.opacity(0.4)))
+            context.fill(dots, with: .color(Color("RuleColor").opacity(0.7)))
         }
     }
 }
@@ -286,7 +388,9 @@ struct RuledLinesOverlay: View {
                     path.addLine(to: CGPoint(x: geo.size.width, y: y))
                 }
             }
-            .stroke(Color(red: 0.72, green: 0.84, blue: 0.96).opacity(0.15), lineWidth: 0.5)
+            // 0.15 made the rules invisible on cream paper. RuleColor is the shared asset the
+            // block chrome already uses, and it darkens in dark mode where a fixed blue washes out.
+            .stroke(Color("RuleColor").opacity(0.55), lineWidth: 0.75)
         }
     }
 }

@@ -21,6 +21,8 @@ final class Note {
     var blocksJSON: String // JSON-encoded BlockDocument state
     /// PaperStyle raw value; the default lets existing stores migrate without a schema version.
     var paperStyle: String = PaperStyle.lined.rawValue
+    /// PaperTint raw value; defaulted for the same reason as `paperStyle`.
+    var paperTintName: String = PaperTint.cream.rawValue
     var recordings: [Recording]
     var meetingArtifact: MeetingArtifact?
 
@@ -54,6 +56,11 @@ final class Note {
     var paper: PaperStyle {
         get { PaperStyle(rawValue: paperStyle) ?? .lined }
         set { paperStyle = newValue.rawValue }
+    }
+
+    var paperTint: PaperTint {
+        get { PaperTint(rawValue: paperTintName) ?? .cream }
+        set { paperTintName = newValue.rawValue }
     }
 
     var blockDocument: BlockDocument {

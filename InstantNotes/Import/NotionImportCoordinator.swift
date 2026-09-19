@@ -2,125 +2,75 @@
 //  NotionImportCoordinator.swift
 //  Instant Notes
 //
-// Coordinates importing a Notion export ZIP (Markdown + CSV) using the MeetingMindKit parsers.
+// Turns a Notion export ZIP (Markdown pages + CSV databases) into pages ready to become notes.
 
 import Foundation
-import Compression
 import MeetingMindKit
 
-public struct NotionImportCoordinator: Sendable {
-    public static let shared = NotionImportCoordinator()
+struct NotionImportCoordinator: Sendable {
+    static let shared = NotionImportCoordinator()
 
     private init() {}
 
-    public struct ImportResult {
-        public var importedPages: Int
-        public var importedTables: Int
-        public var skippedBlocks: Int
-        public var errors: [String]
+    struct ImportedPage: Sendable {
+        let title: String
+        let document: BlockDocument
+    }
 
-        public var summary: String {
-            "\(importedPages) pages, \(importedTables) tables; \(skippedBlocks) blocks skipped"
+    struct ImportResult: Sendable {
+        var pages: [ImportedPage]
+        /// Everything that did not become a note, so nothing is dropped silently.
+        var errors: [String]
+
+        var summary: String {
+            let imported = "Imported \(pages.count) \(pages.count == 1 ? "page" : "pages")"
+            return errors.isEmpty ? "\(imported)." : "\(imported), skipped \(errors.count)."
         }
     }
 
-    /// Import a Notion export ZIP and return the result.
-    /// Never silently drops content — unsupported features create placeholder blocks.
-    public func importFromZIP(at url: URL, progressHandler: (@Sendable (Double) -> Void)? = nil) async throws -> ImportResult {
-        // Extract ZIP to temp directory
-        let extractedDir = try extractZIP(from: url)
-
-        // Find all .md and .csv files
-        let mdFiles = try findFiles(in: extractedDir, suffix: ".md")
-        let csvFiles = try findFiles(in: extractedDir, suffix: ".csv")
-
-        var result = ImportResult(
-            importedPages: 0,
-            importedTables: 0,
-            skippedBlocks: 0,
-            errors: []
-        )
-
-        // Process Markdown files → [Block] for each page
-        let mdCount = mdFiles.count + csvFiles.count
-        for (idx, fileURL) in mdFiles.enumerated() {
-            progressHandler?(Double(idx) / Double(mdCount))
-
-            do {
-                let content = try String(contentsOf: fileURL, encoding: .utf8)
-                _ = MarkdownBlockParser.parse(content) // returns [Block] — caller builds Note from these
-                result.importedPages += 1
-            } catch {
-                result.errors.append("Failed to parse \(fileURL.lastPathComponent): \(error.localizedDescription)")
-                result.skippedBlocks += 1
-            }
-        }
-
-        // Process CSV files → Table + Rows for each database
-        for (idx, fileURL) in csvFiles.enumerated() {
-            progressHandler?(Double(mdFiles.count + idx) / Double(mdCount))
-
-            do {
-                let content = try String(contentsOf: fileURL, encoding: .utf8)
-                _ = CSVTableParser.parse(content) // returns ParsedTable — caller converts to Table/Row
-                result.importedTables += 1
-            } catch {
-                result.errors.append("Failed to parse \(fileURL.lastPathComponent): \(error.localizedDescription)")
-            }
-        }
-
+    /// Reads the whole archive into memory, which is fine for text exports; exported images are
+    /// never decompressed.
+    func importFromZIP(at url: URL) throws -> ImportResult {
+        var result = ImportResult(pages: [], errors: [])
+        try collect(from: Data(contentsOf: url), into: &result)
         return result
     }
 
     // MARK: - Helpers
 
-    private func extractZIP(from sourceURL: URL) throws -> URL {
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "NotionImport_" + UUID().uuidString
-        )
-
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        // Use Compression framework for ZIP extraction
-        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
-            throw ImportError.noFile(sourceURL.path)
+    private func collect(from archive: Data, into result: inout ImportResult) throws {
+        let entries = try ZipArchive.entries(in: archive) { path in
+            ["md", "csv", "zip"].contains((path as NSString).pathExtension.lowercased())
         }
 
-        // Swift's built-in Archive utilities for ZIP (iOS 13+)
-        let tempArchive = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
-            "import_" + UUID().uuidString + ".zip"
-        )
-        try? FileManager.default.copyItem(at: sourceURL, to: tempArchive)
-
-        // For production: use Foundation's Archive (iOS 16+) or NSSimpleArchive
-        // Stub: in real implementation this would properly extract the ZIP
-        return tempDir
-    }
-
-    private func findFiles(in directory: URL, suffix: String) throws -> [URL] {
-        var files: [URL] = []
-        let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)
-        while let fileURL = enumerator?.nextObject() as? URL {
-            if fileURL.pathExtension.lowercased() == suffix.trimmingCharacters(in: CharacterSet(charactersIn: ".") ) {
-                files.append(fileURL)
+        for entry in entries.sorted(by: { $0.path < $1.path }) {
+            let name = (entry.path as NSString).lastPathComponent
+            switch (name as NSString).pathExtension.lowercased() {
+            case "zip":
+                // Notion splits large exports into ZIPs inside the ZIP.
+                do {
+                    try collect(from: entry.data, into: &result)
+                } catch {
+                    result.errors.append("\(name): \(error.localizedDescription)")
+                }
+            case "md":
+                guard let markdown = String(data: entry.data, encoding: .utf8) else {
+                    result.errors.append("\(name): not UTF-8 text")
+                    continue
+                }
+                let parsed = MarkdownBlockParser.parse(markdown)
+                result.pages.append(ImportedPage(title: parsed.title ?? Self.pageTitle(fromFilename: name), document: parsed.document))
+            default:
+                // A database's rows also export as their own .md pages, which are imported above.
+                result.errors.append("\(Self.pageTitle(fromFilename: name)): database tables aren't supported yet")
             }
         }
-        return files
     }
 
-    // MARK: - Error types
-
-    public enum ImportError: LocalizedError {
-        case noFile(String)
-        case invalidFormat(String)
-        case unsupportedFeature(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case .noFile(let path): "File not found: \(path)"
-            case .invalidFormat(let name): "Invalid format in \(name)"
-            case .unsupportedFeature(let feature): "Unsupported: \(feature)"
-            }
-        }
+    /// Notion appends a 32-character id to exported filenames: "Trip plan 1a2b…ef.md" → "Trip plan".
+    static func pageTitle(fromFilename name: String) -> String {
+        let base = (name as NSString).deletingPathExtension
+        let stripped = base.replacingOccurrences(of: #"\s+[0-9a-f]{32}(_all)?$"#, with: "", options: .regularExpression)
+        return stripped.isEmpty ? base : stripped
     }
 }

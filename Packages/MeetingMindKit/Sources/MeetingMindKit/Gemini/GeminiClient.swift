@@ -7,7 +7,7 @@ public struct GeminiClient: Sendable {
     public struct Configuration: Sendable {
         public var model: String
         /// Where a 503 (model overloaded) on `model` goes instead of waiting out the backoff.
-        /// Preview models shed load often; nil turns the switch off.
+        /// Points at an older Flash generation so the two don't shed load together; nil turns the switch off.
         public var fallbackModel: String?
         public var baseURL: URL
         /// Retries *after* the initial attempt, so worst case is `1 + maxRetries` requests.
@@ -19,8 +19,8 @@ public struct GeminiClient: Sendable {
         public var temperature: Double
 
         public init(
-            model: String = "gemini-3-flash-preview",
-            fallbackModel: String? = "gemini-2.5-flash",
+            model: String = "gemini-3.8-flash",
+            fallbackModel: String? = "gemini-3.5-flash",
             baseURL: URL = URL(string: "https://generativelanguage.googleapis.com/v1beta")!,
             maxRetries: Int = 3,
             backoff: [TimeInterval] = [2, 8, 30],
@@ -86,6 +86,33 @@ public struct GeminiClient: Sendable {
         let playable = quiz.questions.filter(\.isPlayable)
         guard !playable.isEmpty else { throw GeminiError.malformedJSON(text) }
         return Quiz(title: quiz.title, questions: playable)
+    }
+
+    /// Suggests up to five topic tags for a note. `existingTags` are the user's tags on other
+    /// notes; the model is told to reuse them, so one topic does not end up tagged three ways.
+    public func suggestTags(title: String, notes: String, existingTags: [String] = []) async throws -> [String] {
+        guard !apiKey.isEmpty else { throw GeminiError.missingAPIKey }
+
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GeminiError.emptyNotes }
+
+        let bounded = String(trimmed.prefix(configuration.maxTranscriptCharacters))
+        let response = try await send(
+            prompt: PromptBuilder.tagPrompt(title: title, notes: bounded, existingTags: existingTags),
+            schema: GeminiSchema.tags
+        )
+        return Self.normalizedTags(try Self.decode(TagSuggestion.self, from: response.body).value.tags)
+    }
+
+    /// Lowercased, `#` stripped, duplicates dropped, at most five.
+    static func normalizedTags(_ tags: [String]) -> [String] {
+        var seen = Set<String>()
+        let cleaned = tags.compactMap { raw -> String? in
+            let tag = raw.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespacesAndNewlines)).lowercased()
+            guard !tag.isEmpty, seen.insert(tag).inserted else { return nil }
+            return tag
+        }
+        return Array(cleaned.prefix(5))
     }
 
     // MARK: - Request

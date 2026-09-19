@@ -5,9 +5,12 @@
 // UI for selecting and importing a Notion export ZIP.
 
 import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
 
 struct ImportView: View {
     @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = ImportViewModel()
 
     var body: some View {
@@ -18,9 +21,9 @@ struct ImportView: View {
 
                 VStack(spacing: 32) {
                     if viewModel.state == .idle {
-                        ImportEmptyStateView(onImport: { viewModel.startImport() })
+                        ImportEmptyStateView(onImport: { viewModel.startImport() }, message: viewModel.statusMessage)
                     } else if viewModel.isProcessing {
-                        ImportProgressView(progress: viewModel.progress, status: viewModel.statusMessage)
+                        ImportProgressView(status: viewModel.statusMessage)
                     } else if let result = viewModel.result {
                         ImportResultView(result: result, onDone: { presentationMode.wrappedValue.dismiss() })
                     }
@@ -28,6 +31,9 @@ struct ImportView: View {
             }
             .navigationTitle("Import Notion")
             .toolbar { doneToolbar }
+            .fileImporter(isPresented: $viewModel.isPickingFile, allowedContentTypes: [.zip]) { selection in
+                viewModel.importFile(selection, into: modelContext)
+            }
         }
     }
 
@@ -51,47 +57,50 @@ final class ImportViewModel: ObservableObject {
     enum State { case idle, processing, complete }
 
     @Published var state: State = .idle
-    @Published var progress: Double = 0
     @Published var statusMessage: String = ""
     @Published var result: NotionImportCoordinator.ImportResult?
     @Published var isProcessed = false
+    @Published var isPickingFile = false
 
     var isProcessing: Bool { state == .processing }
 
-    private let coordinator = NotionImportCoordinator.shared
-
     func startImport() {
-        state = .processing
-        Task { await processFilePicker() }
+        statusMessage = ""
+        isPickingFile = true
     }
 
-    private func processFilePicker() async {
-        statusMessage = "Selecting file…"
+    /// Imports the picked ZIP and inserts one note per page.
+    func importFile(_ selection: Result<URL, Error>, into context: ModelContext) {
+        let url: URL
+        switch selection {
+        case let .success(picked): url = picked
+        case let .failure(error):
+            statusMessage = "Couldn't open the file: \(error.localizedDescription)"
+            return
+        }
 
-        // Trigger file picker — in production use FileImporter
-        guard let selectedURL = pickFile() else { return }
+        state = .processing
+        statusMessage = "Importing…"
+        Task {
+            // Files outside the app sandbox are readable only inside this scope.
+            let isScoped = url.startAccessingSecurityScopedResource()
+            defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
 
-        do {
-            statusMessage = "Importing…"
-            let result = try await coordinator.importFromZIP(at: selectedURL) { p in
-                Task { @MainActor in self.progress = p }
-            }
-            await MainActor.run {
+            do {
+                let result = try await Task.detached { try NotionImportCoordinator.shared.importFromZIP(at: url) }.value
+                for page in result.pages {
+                    let note = Note(title: page.title)
+                    note.blockDocument = page.document
+                    context.insert(note)
+                }
                 self.result = result
                 state = .complete
                 isProcessed = true
-            }
-        } catch {
-            await MainActor.run {
+            } catch {
                 statusMessage = "Import failed: \(error.localizedDescription)"
                 state = .idle
             }
         }
-    }
-
-    private func pickFile() -> URL? {
-        // Stub: in production use FileImporter / UIDocumentPickerViewController
-        return nil
     }
 }
 
@@ -99,6 +108,7 @@ final class ImportViewModel: ObservableObject {
 
 struct ImportEmptyStateView: View {
     let onImport: () -> Void
+    var message = ""
 
     var body: some View {
         VStack(spacing: 24) {
@@ -109,7 +119,7 @@ struct ImportEmptyStateView: View {
             Text("Import from Notion")
                 .font(.title.bold())
 
-            Text("Select a Notion export ZIP file to import your pages and databases as notes. Supported: Markdown pages, CSV databases.")
+            Text("Select a Notion export ZIP (Markdown & CSV format) to import each page as a note. Database tables are skipped for now.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
@@ -126,28 +136,29 @@ struct ImportEmptyStateView: View {
                 .background(Color.accentColor)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
+
+            if !message.isEmpty {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
     }
 }
 
 struct ImportProgressView: View {
-    let progress: Double
     let status: String
 
     var body: some View {
         VStack(spacing: 24) {
-            ProgressView(value: progress)
-                .progressViewStyle(.linear)
+            ProgressView()
+                .controlSize(.large)
 
             Text(status)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-
-            if progress > 0 && progress < 1 {
-                Text("\(Int(progress * 100))%")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 }

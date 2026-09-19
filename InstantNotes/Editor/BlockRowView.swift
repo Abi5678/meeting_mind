@@ -169,25 +169,21 @@ struct BlockRowView: View {
                 return .regular
             }()
 
-            TextEditor(text: $textContent)
+            // TextField, not TextEditor: a TextEditor scrolls inside a fixed height, so long text was clipped.
+            TextField(placeholder, text: $textContent, axis: .vertical)
+                .textFieldStyle(.plain)
                 .font(.system(size: fontSize, weight: fontWeight, design: .default))
                 .lineSpacing(block.type.isHeading ? 2 : 1)
                 .foregroundStyle(isDone ? .secondary : .primary)
-                .frame(minHeight: fontSize * 2) // TextEditor collapses to zero height inside a LazyVStack
                 .focused(focusedBlockID, equals: block.id)
-                .padding(4)
-                .scrollContentBackground(.hidden)
-                .background(alignment: .topLeading) {
-                    if textContent.isEmpty {
-                        Text(placeholder)
-                            .font(.system(size: fontSize, weight: fontWeight, design: .default))
-                            .foregroundStyle(.secondary.opacity(0.5))
-                            // TextEditor insets its text by ~5pt horizontally and 8pt vertically
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 12)
-                            .allowsHitTesting(false)
-                    }
+                // A TextField submits on Return instead of inserting "\n", so the split is done here.
+                .onSubmit {
+                    let next = editorState.splitBlock(block.id, into: [textContent, ""])
+                    DispatchQueue.main.async { focusedBlockID.wrappedValue = next }
                 }
+                // Matches the insets TextEditor used, so rows keep their spacing.
+                .padding(.horizontal, 9)
+                .padding(.vertical, 8)
         }
     }
 

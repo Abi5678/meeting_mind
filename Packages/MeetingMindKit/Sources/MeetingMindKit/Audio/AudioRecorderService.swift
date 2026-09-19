@@ -24,6 +24,8 @@ public struct AudioRecordingResult: Sendable {
 public final class AudioRecorderService: NSObject, ObservableObject {
     @Published public var isRecording = false
     @Published public var recordingDuration: TimeInterval = 0
+    /// Microphone loudness from 0 (silence) to 1, refreshed about 20 times a second while recording.
+    @Published public private(set) var level: Double = 0
     @Published public var error: Error?
 
     private var audioRecorder: AVAudioRecorder?
@@ -140,10 +142,14 @@ public final class AudioRecorderService: NSObject, ObservableObject {
 
     private func startTimer() {
         stopTimer()
-        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let startTime = self.recordingStartTime else { return }
                 self.recordingDuration = Date().timeIntervalSince(startTime)
+                if let recorder = self.audioRecorder {
+                    recorder.updateMeters()
+                    self.level = Self.normalizedLevel(decibels: recorder.averagePower(forChannel: 0))
+                }
             }
         }
     }
@@ -151,6 +157,15 @@ public final class AudioRecorderService: NSObject, ObservableObject {
     private func stopTimer() {
         meteringTimer?.invalidate()
         meteringTimer = nil
+        level = 0
+    }
+
+    /// Maps average power (-160…0 dBFS) to 0…1. Anything under -50 dB is room noise and reads as
+    /// silence; the square root lifts normal speech so the waveform visibly moves.
+    nonisolated static func normalizedLevel(decibels: Float) -> Double {
+        let floor: Float = -50
+        guard decibels.isFinite, decibels > floor else { return 0 }
+        return Double(min(1, (decibels - floor) / -floor)).squareRoot()
     }
 
     public nonisolated static func defaultRecordingsDirectory() -> URL {

@@ -5,6 +5,10 @@
 # NOTE: Info.plist and the entitlements file are GENERATED from the `info` and
 # `entitlements` properties below — edit keys here, not in those files.
 
+include:
+  - path: project.yml.local
+    optional: true
+
 name: InstantNotes
 options:
   deploymentTarget:
@@ -13,16 +17,23 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    DEVELOPMENT_TEAM: "" # set via project.yml.local or Xcode signing settings
+    CODE_SIGN_STYLE: Automatic
+    # DEVELOPMENT_TEAM set in project.yml.local (gitignored)
 
 targets:
   InstantNotes:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    # Mac Catalyst, not a native AppKit target: the app leans on UIKit, AVAudioSession and
+    # PencilKit, all of which Catalyst keeps working as-is.
+    supportedDestinations: [iOS, macCatalyst]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # The sandbox entitlements are Catalyst-only; the iOS build keeps its empty file.
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: InstantNotes/InstantNotesMacCatalyst.entitlements
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -37,13 +48,16 @@ targets:
       - package: MeetingMindKit
     entitlements:
       path: InstantNotes/InstantNotes.entitlements
+    resources:
+      - path: InstantNotes/PrivacyInfo.xcprivacy
     info:
       path: InstantNotes/Info.plist
       properties:
         CFBundleDisplayName: Instant Notes
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: PaperBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
         UISupportedInterfaceOrientations:
@@ -52,12 +66,10 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiredDeviceCapabilities:
           - arm64
-        NSSpeechRecognitionUsageDescription: Instant Notes turns your meeting recordings into text so it can summarize them.
+        NSSpeechRecognitionUsageDescription: Instant Notes turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.
         UIBackgroundModes:
           - audio
         NSMicrophoneUsageDescription: Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
-        NSPhotoLibraryUsageDescription: Add photos from your library as image blocks in notes.
-        NSCameraUsageDescription: Take photos or scan documents to insert directly into your notes.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         UIApplicationSupportsIndirectInputEvents: true

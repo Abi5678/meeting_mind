@@ -22,14 +22,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Take photos or scan documents to insert directly into your notes.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Instant Notes turns your meeting recordings into text so it can summarize them.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Add photos from your library as image blocks in notes.</string>
+	<string>Instant Notes turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -44,7 +40,10 @@
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIColorName</key>
+		<string>PaperBackground</string>
+	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>

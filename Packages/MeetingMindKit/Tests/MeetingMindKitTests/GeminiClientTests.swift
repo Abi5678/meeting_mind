@@ -42,7 +42,7 @@ struct GeminiClientTests {
         let request = await transport.received[0]
         #expect(request.method == "POST")
         #expect(request.url.absoluteString ==
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent")
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent")
         #expect(request.headers["x-goog-api-key"] == "test-key")
         #expect(request.headers["Content-Type"] == "application/json")
 
@@ -205,8 +205,8 @@ struct GeminiClientTests {
         let received = await transport.received
         let delays = await recorder.delays
         #expect(received.count == 2)
-        #expect(received[0].url.absoluteString.hasSuffix("/models/gemini-3-flash-preview:generateContent"))
-        #expect(received[1].url.absoluteString.hasSuffix("/models/gemini-2.5-flash:generateContent"))
+        #expect(received[0].url.absoluteString.hasSuffix("/models/gemini-3.8-flash:generateContent"))
+        #expect(received[1].url.absoluteString.hasSuffix("/models/gemini-3.5-flash:generateContent"))
         #expect(delays.isEmpty)
     }
 
@@ -223,7 +223,7 @@ struct GeminiClientTests {
         let received = await transport.received
         let delays = await recorder.delays
         #expect(received.count == 5)  // primary once, then fallback + 3 retries
-        #expect(received.dropFirst().allSatisfy { $0.url.absoluteString.contains("/models/gemini-2.5-flash:") })
+        #expect(received.dropFirst().allSatisfy { $0.url.absoluteString.contains("/models/gemini-3.5-flash:") })
         #expect(delays == [2, 8, 30])
     }
 
@@ -233,14 +233,14 @@ struct GeminiClientTests {
         _ = try await makeClient(transport: transport).analyze(transcript: "Hi.")
 
         let received = await transport.received
-        #expect(received.allSatisfy { $0.url.absoluteString.contains("/models/gemini-3-flash-preview:") })
+        #expect(received.allSatisfy { $0.url.absoluteString.contains("/models/gemini-3.8-flash:") })
     }
 
     @Test("No fallback when the configured model already is the fallback")
     func noFallbackToSelf() async throws {
         let transport = StubTransport([.response(Fixture.failure(503)), .response(Fixture.successAnalysis())])
         let recorder = DelayRecorder()
-        let configuration = GeminiClient.Configuration(model: "gemini-2.5-flash")
+        let configuration = GeminiClient.Configuration(model: "gemini-3.5-flash")
 
         _ = try await makeClient(transport: transport, recorder: recorder, configuration: configuration)
             .analyze(transcript: "Hi.")
@@ -258,7 +258,7 @@ struct GeminiClientTests {
         #expect(quiz.questions.count == 1)
 
         let received = await transport.received
-        #expect(received[1].url.absoluteString.contains("/models/gemini-2.5-flash:"))
+        #expect(received[1].url.absoluteString.contains("/models/gemini-3.5-flash:"))
     }
 
     @Test("A 4xx is not retried and carries Gemini's message")

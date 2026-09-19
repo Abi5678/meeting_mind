@@ -9,7 +9,7 @@ import Security
 
 struct AISettingsView: View {
     @State private var apiKey = ""
-    @AppStorage("gemini_model") private var modelName = "gemini-3-flash-preview"
+    @AppStorage("gemini_model") private var modelName = "gemini-3.8-flash"
     @AppStorage("ai_enabled") private var aiEnabled = true
     @Environment(\.dismiss) private var dismiss
 
@@ -87,8 +87,8 @@ struct AISettingsView: View {
 
     private var geminiModels: [GeminiModelOption] {
         [
-            GeminiModelOption(name: "gemini-3-flash-preview", displayName: "Flash (Free tier)"),
-            GeminiModelOption(name: "gemini-2.5-pro-preview-05-06", displayName: "Pro (Paid tier)"),
+            GeminiModelOption(name: "gemini-3.8-flash", displayName: "Flash (Free tier)"),
+            GeminiModelOption(name: "gemini-3.1-pro-preview", displayName: "Pro (Paid tier)"),
         ]
     }
 

@@ -54,6 +54,7 @@ public struct SpeechFileTranscriber: Sendable {
         ) { Self.meanSquare(of: file, range: $0) }
 
         var onDevice = recognizer.supportsOnDeviceRecognition
+        var triedServer = false
         var texts: [String] = []
         for (index, window) in windows.enumerated() {
             try Task.checkCancellation()
@@ -61,9 +62,11 @@ public struct SpeechFileTranscriber: Sendable {
             let text: String
             do {
                 text = try await recognize(window, in: file, with: recognizer, onDevice: onDevice)
-            } catch where onDevice && !(error is CancellationError) {
-                // The on-device model can be advertised but not installed (e.g. the simulator); use the server instead.
+            } catch where !triedServer && !(error is CancellationError) {
+                // The local model can be missing whether or not it was advertised (e.g. the simulator
+                // ships none), so the server is tried once even when on-device was never used.
                 onDevice = false
+                triedServer = true
                 text = try await recognize(window, in: file, with: recognizer, onDevice: false)
             }
             if !text.isEmpty { texts.append(text) }

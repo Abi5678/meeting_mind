@@ -41,9 +41,26 @@ struct InstantNotesApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NoteListView() // Entry point — replaces hello-world placeholder
-                .navigationViewStyle(.stack)
+            RootView()
         }
         .modelContainer(sharedModelContainer)
+    }
+}
+
+/// The note list with the launch mark over it. The mark plays once per launch and then
+/// removes itself, so the list is already loaded behind it by the time it clears.
+private struct RootView: View {
+    @State private var showLaunchMark = true
+
+    var body: some View {
+        NoteListView() // Entry point — replaces hello-world placeholder
+            .navigationViewStyle(.stack)
+            .overlay {
+                if showLaunchMark {
+                    // The splash fades itself out at the end of its own sequence, so this
+                    // just removes it afterwards rather than animating a second time.
+                    LaunchSplashView { showLaunchMark = false }
+                }
+            }
     }
 }
