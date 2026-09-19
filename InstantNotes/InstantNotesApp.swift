@@ -50,7 +50,9 @@ struct InstantNotesApp: App {
 /// The note list with the launch mark over it. The mark plays once per launch and then
 /// removes itself, so the list is already loaded behind it by the time it clears.
 private struct RootView: View {
-    @State private var showLaunchMark = true
+    /// Per process, not per scene, so a new iPad or Mac window opens straight to the list.
+    @MainActor private static var didShowLaunchMark = false
+    @State private var showLaunchMark = !RootView.didShowLaunchMark
 
     var body: some View {
         NoteListView() // Entry point — replaces hello-world placeholder
@@ -60,6 +62,7 @@ private struct RootView: View {
                     // The splash fades itself out at the end of its own sequence, so this
                     // just removes it afterwards rather than animating a second time.
                     LaunchSplashView { showLaunchMark = false }
+                        .onAppear { Self.didShowLaunchMark = true }
                 }
             }
     }

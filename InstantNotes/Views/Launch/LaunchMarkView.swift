@@ -128,36 +128,35 @@ struct LaunchSplashView: View {
 
     var body: some View {
         ZStack {
-            Color("PaperBackground")
-                .ignoresSafeArea()
-
             if reduceMotion {
+                Color("PaperBackground")
+                    .ignoresSafeArea()
                 VStack(spacing: 22) {
                     LaunchMarkView(progress: 1, time: 0, rise: 1)
                         .frame(width: 176, height: 176)
                     wordmark
                 }
             } else {
-                // Static mark+wordmark underneath so the first paint is never blank if TimelineView lags.
-                VStack(spacing: 22) {
-                    LaunchMarkView(progress: 0, time: 0, rise: 1)
-                        .frame(width: 176, height: 176)
-                    wordmark
-                }
+                // The paper sits inside the timeline so the whole splash fades out onto the list.
+                // TimelineView draws its first frame straight away, with the mark and name already up.
                 TimelineView(.animation) { timeline in
                     let t = timeline.date.timeIntervalSince(start)
-                    VStack(spacing: 22) {
-                        LaunchMarkView(
-                            progress: Self.ease(Self.span(t, Self.resolveStart, Self.resolveEnd)),
-                            time: t,
-                            rise: max(0.55, Self.ease(Self.span(t, 0, Self.riseEnd)))
-                        )
-                        .frame(width: 176, height: 176)
-                        .scaleEffect(0.94 + 0.06 * Self.ease(Self.span(t, 0, Self.fadeIn)))
+                    ZStack {
+                        Color("PaperBackground")
+                            .ignoresSafeArea()
+                        VStack(spacing: 22) {
+                            LaunchMarkView(
+                                progress: Self.ease(Self.span(t, Self.resolveStart, Self.resolveEnd)),
+                                time: t,
+                                rise: max(0.55, Self.ease(Self.span(t, 0, Self.riseEnd)))
+                            )
+                            .frame(width: 176, height: 176)
+                            .scaleEffect(0.94 + 0.06 * Self.ease(Self.span(t, 0, Self.fadeIn)))
 
-                        // Wordmark visible early; fully opaque by nameEnd, held until fadeOutStart (≥0.8s).
-                        wordmark
-                            .opacity(max(0.85, Self.ease(Self.span(t, 0.15, Self.nameEnd))))
+                            // Wordmark visible early; fully opaque by nameEnd, held until fadeOutStart (≥0.8s).
+                            wordmark
+                                .opacity(max(0.85, Self.ease(Self.span(t, 0.15, Self.nameEnd))))
+                        }
                     }
                     .opacity(Self.opacity(at: t))
                 }
