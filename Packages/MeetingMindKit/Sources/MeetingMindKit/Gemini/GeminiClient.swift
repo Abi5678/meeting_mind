@@ -81,10 +81,12 @@ public struct GeminiClient: Sendable {
             prompt: PromptBuilder.quizPrompt(notes: bounded, questionCount: questionCount),
             schema: GeminiSchema.quiz
         )
-        let (quiz, text) = try Self.decode(Quiz.self, from: response.body)
+        let quiz = try Self.decode(Quiz.self, from: response.body).value
 
+        // The prompt lets the model write fewer questions for thin notes, so none at all means
+        // the note has nothing to ask about yet; resending the same notes would not change that.
         let playable = quiz.questions.filter(\.isPlayable)
-        guard !playable.isEmpty else { throw GeminiError.malformedJSON(text) }
+        guard !playable.isEmpty else { throw GeminiError.notEnoughContent }
         return Quiz(title: quiz.title, questions: playable)
     }
 
@@ -173,7 +175,8 @@ public struct GeminiClient: Sendable {
 
             if (200..<300).contains(response.status) { return response }
 
-            let isRetryable = response.status == 429 || (500..<600).contains(response.status)
+            let isRetryable = (response.status == 429 && !Self.isOutOfQuota(response))
+                || (500..<600).contains(response.status)
             let hasFallback = failFastOn503 && response.status == 503
             guard isRetryable, !hasFallback, attempt < configuration.maxRetries else {
                 throw Self.error(for: response)
@@ -189,21 +192,38 @@ public struct GeminiClient: Sendable {
         return attempt < configuration.backoff.count ? configuration.backoff[attempt] : last
     }
 
-    /// Google sends `Retry-After` as whole seconds on 429.
+    /// A `Retry-After` header in whole seconds, or else the RetryInfo `retryDelay` ("41.7s") that
+    /// Gemini puts in the body of its 429s instead.
     private static func retryAfter(_ response: HTTPResponse) -> TimeInterval? {
-        guard let value = response.header("Retry-After"), let seconds = TimeInterval(value), seconds >= 0 else {
+        let raw = response.header("Retry-After")
+            ?? apiError(in: response)?.details?.lazy.compactMap(\.retryDelay).first
+        guard let raw, let seconds = TimeInterval(raw.hasSuffix("s") ? String(raw.dropLast()) : raw), seconds >= 0 else {
             return nil
         }
         return seconds
     }
 
+    /// A per-day quota, or a limit of 0 (the model is not on this key's tier), won't reset within
+    /// the backoff window, so retrying would only keep the user waiting for the same answer.
+    private static func isOutOfQuota(_ response: HTTPResponse) -> Bool {
+        guard response.status == 429, let error = apiError(in: response) else { return false }
+        let violations = error.details?.flatMap { $0.violations ?? [] } ?? []
+        return error.message.contains("limit: 0")
+            || violations.contains { $0.quotaId?.contains("PerDay") == true || $0.quotaValue == "0" }
+    }
+
+    private static func apiError(in response: HTTPResponse) -> GeminiErrorEnvelope.APIError? {
+        (try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: response.body))?.error
+    }
+
     private static func error(for response: HTTPResponse) -> GeminiError {
-        let message = (try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: response.body))?.error.message
+        let message = apiError(in: response)?.message
             ?? String(data: response.body, encoding: .utf8)
             ?? ""
 
         return switch response.status {
-        case 429: .rateLimited(retryAfter: retryAfter(response))
+        case 429 where isOutOfQuota(response): .quotaExhausted(message: message)
+        case 429: .rateLimited(retryAfter: retryAfter(response), message: message)
         case 500..<600: .server(status: response.status, message: message)
         default: .http(status: response.status, message: message)
         }
