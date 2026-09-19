@@ -15,11 +15,14 @@ public struct SpeechFileTranscriber: Sendable {
     public enum Failure: Error, LocalizedError, Equatable {
         case notAuthorized
         case unavailable
+        /// Some windows failed even on the server; `transcript` holds the ones that came through.
+        case incomplete(transcript: String, failedParts: Int, totalParts: Int)
 
         public var errorDescription: String? {
             switch self {
             case .notAuthorized: "Speech recognition is off for Instant Notes. Turn it on in Settings."
             case .unavailable: "Speech recognition isn't available for this language right now."
+            case let .incomplete(_, failed, total): "\(failed) of \(total) parts of the recording couldn't be transcribed."
             }
         }
     }
@@ -28,6 +31,11 @@ public struct SpeechFileTranscriber: Sendable {
 
     public init(locale: Locale = .current) {
         self.locale = locale
+    }
+
+    /// Whether `locale` has a recognizer that can run right now (offline, it may have none).
+    public var isAvailable: Bool {
+        SFSpeechRecognizer(locale: locale)?.isAvailable ?? false
     }
 
     public static func requestAuthorization() async -> Bool {
@@ -55,21 +63,46 @@ public struct SpeechFileTranscriber: Sendable {
 
         var onDevice = recognizer.supportsOnDeviceRecognition
         var triedServer = false
-        var texts: [String] = []
-        for (index, window) in windows.enumerated() {
-            try Task.checkCancellation()
-            await progress(index + 1, windows.count)
-            let text: String
+        return try await Self.transcribeWindows(windows.count, progress: progress) { index in
             do {
-                text = try await recognize(window, in: file, with: recognizer, onDevice: onDevice)
+                return try await recognize(windows[index], in: file, with: recognizer, onDevice: onDevice)
             } catch where !triedServer && !(error is CancellationError) {
                 // The local model can be missing whether or not it was advertised (e.g. the simulator
                 // ships none), so the server is tried once even when on-device was never used.
                 onDevice = false
                 triedServer = true
-                text = try await recognize(window, in: file, with: recognizer, onDevice: false)
+                return try await recognize(windows[index], in: file, with: recognizer, onDevice: false)
             }
-            if !text.isEmpty { texts.append(text) }
+        }
+    }
+
+    /// Recognizes each window in turn. A window that fails is skipped so one bad stretch doesn't cost the
+    /// rest of the meeting; `Failure.incomplete` then carries the text that did come through. If every
+    /// window fails, the first error is thrown as-is since it says more than "0 of N parts".
+    static func transcribeWindows(
+        _ count: Int,
+        progress: @Sendable (Int, Int) async -> Void,
+        recognize: (Int) async throws -> String
+    ) async throws -> String {
+        var texts: [String] = []
+        var firstError: Error?
+        var failed = 0
+        for index in 0..<count {
+            try Task.checkCancellation()
+            await progress(index + 1, count)
+            do {
+                let text = try await recognize(index)
+                if !text.isEmpty { texts.append(text) }
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                failed += 1
+                firstError = firstError ?? error
+            }
+        }
+        if let firstError {
+            guard failed < count else { throw firstError }
+            throw Failure.incomplete(transcript: texts.joined(separator: " "), failedParts: failed, totalParts: count)
         }
         return texts.joined(separator: " ")
     }
