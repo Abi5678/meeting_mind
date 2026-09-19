@@ -55,6 +55,7 @@ public enum NoteMarkdownExporter {
             if run.isCode {
                 text = "`\(text)`"
             } else {
+                text = escaped(text)
                 if run.isItalic { text = "*\(text)*" }
                 if run.isBold { text = "**\(text)**" }
             }
@@ -62,5 +63,16 @@ public enum NoteMarkdownExporter {
             return text
         }
         .joined()
+    }
+
+    /// Backslash-escapes what the parser would otherwise read as formatting or a link, so
+    /// `file_name_v2` and `2 * 3` come back as typed.
+    private static func escaped(_ text: String) -> String {
+        var output = ""
+        for character in text {
+            if "\\*_`[".contains(character) { output.append("\\") }
+            output.append(character)
+        }
+        return output
     }
 }
