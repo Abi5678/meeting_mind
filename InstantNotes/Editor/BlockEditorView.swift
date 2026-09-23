@@ -2,129 +2,78 @@
 //  BlockEditorView.swift
 //  Instant Notes
 //
-// Main editor view combining blocks + ink canvas with paper design identity.
+// The note editor: an editable title, the note's blocks laid out on ruled paper, and a
+// bar of block actions that follows the caret.
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 import MeetingMindKit
+
+/// Where focus and the caret should land after an edit.
+struct CaretTarget: Equatable {
+    var id: UUID
+    /// UTF-16 offset into the block's text; nil puts the caret at the end.
+    var offset: Int?
+}
+
+// MARK: - Editor
 
 struct CanvasNoteEditorView: View {
     @Binding var note: Note
     @StateObject private var state = CanvasEditorState()
-    @FocusState private var focusedBlockID: UUID?
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @State private var focusedBlockID: UUID?
+    @FocusState private var titleFocused: Bool
+    @State private var caret: CaretTarget?
+    @State private var caretGeneration = 0
+    @State private var scrollTarget: UUID?
+    @State private var contentHeight: CGFloat = 0
     @State private var showQuiz = false
     @State private var isSuggestingTags = false
     @State private var tagError: String?
-    @Environment(\.modelContext) private var modelContext
+
+    private var metrics: EditorMetrics { EditorMetrics(dynamicTypeSize) }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Layer 1: paper background in the note's chosen style
-            PaperCanvasBackground(style: note.paper, tint: note.paperTint)
-                .ignoresSafeArea(edges: .bottom)
-
-            // Layer 2: block editor scroll view
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if !note.tags.isEmpty || isSuggestingTags {
-                        tagRow
-                    }
-                    ForEach(state.document.blocks) { block in
-                        BlockRowView(block: block, focusedBlockID: $focusedBlockID)
-                    }
-                    // Tapping below the last block continues writing there.
-                    Color.clear
-                        .frame(height: 240)
-                        .contentShape(Rectangle())
-                        .onTapGesture { focusOrAddTrailingBlock() }
-                }
-                // Clears the floating + button and sits content right of the margin line.
-                .padding(.top, 56)
-                .padding(.leading, 20)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            // Floating add block button (top-right of canvas)
-            AddBlockPicker(onInsert: { focus(state.insertBlock($0, after: focusedBlockID)) })
-                .padding(.trailing, 16)
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let recording = note.recordings.first {
-                RecordingPlayerBar(recording: recording)
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    ShareLink(
-                        item: NoteMarkdownExporter.markdown(title: note.title, document: state.document),
-                        subject: Text(note.title)
-                    ) {
-                        Label("Share as Markdown", systemImage: "square.and.arrow.up")
-                    }
-                    Button { suggestTags() } label: {
-                        Label("Suggest tags", systemImage: "tag")
-                    }
-                    .disabled(isSuggestingTags || state.document.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Picker(selection: Binding(get: { note.paper }, set: { note.paper = $0 })) {
-                        ForEach(PaperStyle.allCases, id: \.self) { style in
-                            Text(style.rawValue.capitalized).tag(style)
-                        }
-                    } label: {
-                        Label("Paper", systemImage: "doc.plaintext")
-                    }
-                    .pickerStyle(.menu)
-                    Picker(selection: Binding(get: { note.paperTint }, set: { note.paperTint = $0 })) {
-                        ForEach(PaperTint.allCases, id: \.self) { tint in
-                            Label {
-                                Text(tint.displayName)
-                            } icon: {
-                                Image(systemName: "circle.fill").foregroundStyle(Color(paperTint: tint))
-                            }
-                            .tag(tint)
-                        }
-                    } label: {
-                        Label("Page color", systemImage: "paintpalette")
-                    }
-                    .pickerStyle(.menu)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("More")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showQuiz = true } label: {
-                    Label("Quiz me", systemImage: "brain.head.profile")
-                        .labelStyle(.titleAndIcon)
-                        .font(.subheadline.bold())
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .tint(.pink)
-            }
-            ToolbarItemGroup(placement: .keyboard) {
-                if let id = focusedBlockID {
-                    Menu {
-                        ForEach(AddBlockPicker.blockTypes, id: \.displayName) { type in
-                            Button { state.updateBlock(id) { $0.type = type } } label: {
-                                Label(type.displayName, systemImage: type.iconName)
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            header
+                            ForEach(state.visibleBlocks) { block in
+                                row(for: block).id(block.id)
                             }
                         }
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                    }
-                    Button(role: .destructive) { focus(state.removeBlock(id)) } label: {
-                        Image(systemName: "trash")
+                        .background(
+                            GeometryReader { inner in
+                                Color.clear.preference(key: ContentHeightKey.self, value: inner.size.height)
+                            }
+                        )
+                        trailingSpace(viewport: geometry.size.height)
                     }
                 }
-                Spacer()
-                Button("Done") { focusedBlockID = nil }
+                .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+                    scrollTarget = nil
+                }
             }
         }
+        .background(Color(paperTint: note.paperTint).ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) { bottomBar }
+        .toolbar { toolbarContent }
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
         }
-        .alert("Couldn't suggest tags", isPresented: Binding(get: { tagError != nil }, set: { if !$0 { tagError = nil } })) {
+        .alert(
+            "Couldn't suggest tags",
+            isPresented: Binding(get: { tagError != nil }, set: { if !$0 { tagError = nil } })
+        ) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(tagError ?? "")
@@ -133,18 +82,63 @@ struct CanvasNoteEditorView: View {
         .onAppear {
             state.load(from: note)
             // A brand-new note opens ready to type.
-            if state.document.isEmpty {
-                let id = state.insertBlock(.paragraph, after: nil)
-                // Focus set while the push animation runs is dropped, so wait for it to finish.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { focusedBlockID = id }
-            }
+            if state.document.isEmpty { focus(state.insertBlock(.paragraph, after: nil)) }
         }
-        .onChange(of: note) { _, _ in
+        .onChange(of: note.id) { _, _ in
             state.load(from: note)
+            focusedBlockID = nil
         }
         .onChange(of: state.document) { _, document in
             if document != note.blockDocument { state.save(to: note) }
         }
+        .onChange(of: note.blocksJSON) { _, _ in
+            // Another window edited this note; take its version rather than overwrite it.
+            let stored = note.blockDocument
+            if stored != state.document { state.document = stored }
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Vertical so long titles wrap rather than truncate; Return is caught in the binding.
+            TextField("Untitled", text: titleBinding, axis: .vertical)
+                .lineLimit(1...3)
+                .font(metrics.titleFont)
+                .foregroundStyle(Color("InkColor"))
+                .textFieldStyle(.plain)
+                .submitLabel(.next)
+                .onSubmit { focusFirstBlock() }
+                .focused($titleFocused)
+                .frame(minHeight: metrics.pitch * 2, alignment: .bottom)
+                .padding(.trailing, 16)
+
+            if !note.tags.isEmpty || isSuggestingTags {
+                tagRow.frame(height: metrics.pitch)
+            }
+        }
+        .padding(.leading, EditorLayout.contentX)
+        .padding(.top, metrics.pitch)
+        .background(PaperRuling(style: note.paper, pitch: metrics.pitch))
+    }
+
+    /// The stored title is never blank, but the field should be — so the placeholder shows.
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { note.title == "Untitled" ? "" : note.title },
+            set: { typed in
+                // A multi-line field inserts Return as a newline; treat it as "next" instead.
+                // The field is mid-edit here, so let it go first and move on the next turn.
+                if typed.contains("\n") {
+                    titleFocused = false
+                    DispatchQueue.main.async { focusFirstBlock() }
+                }
+                let typed = typed.replacingOccurrences(of: "\n", with: "")
+                note.title = typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : typed
+                note.touch()
+            }
+        )
     }
 
     private var tagRow: some View {
@@ -154,8 +148,7 @@ struct CanvasNoteEditorView: View {
                     HStack(spacing: 4) {
                         Text("#\(tag)")
                         Button { note.tags.removeAll { $0 == tag } } label: {
-                            Image(systemName: "xmark")
-                                .font(.caption2.bold())
+                            Image(systemName: "xmark").font(.caption2.bold())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove tag \(tag)")
@@ -167,18 +160,224 @@ struct CanvasNoteEditorView: View {
                     .background(Color.accentColor.opacity(0.12), in: Capsule())
                 }
                 if isSuggestingTags {
-                    ProgressView()
-                        .controlSize(.small)
+                    ProgressView().controlSize(.small)
                 }
             }
-            // Clear the paper's margin line and line up with the bullets below.
-            .padding(.leading, 30)
             .padding(.trailing, 16)
         }
-        .padding(.bottom, 8)
     }
 
-    /// Asks Gemini for topic tags, steering it toward tags other notes already use.
+    // MARK: Rows
+
+    private func row(for block: Block) -> some View {
+        BlockRowView(
+            block: block,
+            number: state.listCounters[block.id],
+            metrics: metrics,
+            paper: note.paper,
+            isFocused: focusedBlockID == block.id,
+            wantsCaret: caret?.id == block.id,
+            caretOffset: caret?.id == block.id ? caret?.offset : nil,
+            caretGeneration: caretGeneration,
+            focus: focus,
+            setFocused: { gained in blockFocusChanged(block.id, gained: gained) }
+        )
+    }
+
+    /// The paper carries on past the last block, and tapping any of it writes there — not
+    /// just a strip below the text.
+    private func trailingSpace(viewport: CGFloat) -> some View {
+        let minimum = metrics.pitch * 4
+        let wanted = max(minimum, viewport - contentHeight)
+        let height = (wanted / metrics.pitch).rounded(.up) * metrics.pitch
+        return PaperRuling(style: note.paper, pitch: metrics.pitch)
+            .frame(height: height)
+            .contentShape(Rectangle())
+            .onTapGesture { focusTrailingBlock() }
+            .accessibilityLabel("Write below the last block")
+    }
+
+    // MARK: Bottom bar
+
+    @ViewBuilder
+    private var bottomBar: some View {
+        if let id = focusedBlockID {
+            HStack(spacing: 2) {
+                Menu {
+                    ForEach(turnIntoTypes(for: id), id: \.displayName) { type in
+                        Button { state.turn(id, into: type) } label: {
+                            Label(type.displayName, systemImage: type.iconName)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .frame(width: 40, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Turn into")
+
+                barButton("decrease.indent", "Outdent") { state.indent(id, by: -1) }
+                barButton("increase.indent", "Indent") { state.indent(id, by: 1) }
+                barButton("arrow.up", "Move up") { state.move(id, by: -1) }
+                barButton("arrow.down", "Move down") { state.move(id, by: 1) }
+                barButton("trash", "Delete block") { focus(state.remove(id)) }
+
+                Spacer()
+                Button("Done") { focusedBlockID = nil }
+                    .font(.body.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.bar)
+        } else if let recording = note.recordings.first {
+            RecordingPlayerBar(recording: recording)
+        }
+    }
+
+    private func barButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .frame(width: 40, height: 34)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    /// Turning written text into a rule would hide it with no way back, so Divider is only
+    /// offered on an empty block.
+    private func turnIntoTypes(for id: UUID) -> [BlockType] {
+        let isEmpty = state.document[id]?.plainText.isEmpty ?? true
+        return AddBlockPicker.blockTypes.filter { $0 != .divider || isEmpty }
+    }
+
+    // MARK: Toolbar
+
+    /// Menus draw SF Symbols as monochrome templates, so a tinted symbol comes out black.
+    /// A pre-rendered image keeps its colours; the outline keeps pale tints visible on the menu.
+    private static func swatch(_ color: Color) -> UIImage {
+        UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20)).image { _ in
+            let circle = UIBezierPath(ovalIn: CGRect(x: 1, y: 1, width: 18, height: 18))
+            UIColor(color).setFill()
+            circle.fill()
+            UIColor.black.withAlphaComponent(0.25).setStroke()
+            circle.lineWidth = 1
+            circle.stroke()
+        }.withRenderingMode(.alwaysOriginal)
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        // In the bar rather than floating over the page, where it hid text as the page scrolled.
+        ToolbarItem(placement: .topBarTrailing) {
+            AddBlockPicker(onInsert: insert)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                ShareLink(
+                    item: markdownFile,
+                    preview: SharePreview(markdownFile.name, image: Image(systemName: "doc.text"))
+                ) {
+                    Label("Share as Markdown", systemImage: "square.and.arrow.up")
+                }
+                Button { suggestTags() } label: {
+                    Label("Suggest tags", systemImage: "tag")
+                }
+                .disabled(
+                    isSuggestingTags
+                        || state.document.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
+                Picker(selection: Binding(get: { note.paper }, set: { note.paper = $0 })) {
+                    ForEach(PaperStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue.capitalized).tag(style)
+                    }
+                } label: {
+                    Label("Paper", systemImage: "doc.plaintext")
+                }
+                .pickerStyle(.menu)
+                Picker(selection: Binding(get: { note.paperTint }, set: { note.paperTint = $0 })) {
+                    ForEach(PaperTint.allCases, id: \.self) { tint in
+                        Label {
+                            Text(tint.displayName)
+                        } icon: {
+                            Image(uiImage: Self.swatch(Color(paperTint: tint)))
+                        }
+                        .tag(tint)
+                    }
+                } label: {
+                    Label("Page color", systemImage: "paintpalette")
+                }
+                .pickerStyle(.menu)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("More")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showQuiz = true } label: {
+                Label("Quiz me", systemImage: "brain.head.profile")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .tint(.pink)
+        }
+    }
+
+    private var markdownFile: MarkdownFile {
+        let trimmed = note.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Note" : trimmed
+        return MarkdownFile(
+            name: name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-"),
+            text: NoteMarkdownExporter.markdown(title: note.title, document: state.document)
+        )
+    }
+
+    // MARK: Focus
+
+    private func focus(_ target: CaretTarget?) {
+        guard let target else { return }
+        caret = target
+        caretGeneration += 1
+        focusedBlockID = target.id
+    }
+
+    private func blockFocusChanged(_ id: UUID, gained: Bool) {
+        if gained {
+            if focusedBlockID != id { focusedBlockID = id }
+        } else if focusedBlockID == id {
+            // Give a block taking over a turn to claim focus before the bar disappears.
+            DispatchQueue.main.async {
+                if focusedBlockID == id { focusedBlockID = nil }
+            }
+        }
+    }
+
+    private func insert(_ type: BlockType) {
+        let target = state.insertBlock(type, after: focusedBlockID)
+        focus(target)
+        scrollTarget = target.id
+    }
+
+    private func focusFirstBlock() {
+        if let first = state.document.blocks.first, first.type != .divider {
+            focus(CaretTarget(id: first.id, offset: 0))
+        } else {
+            focus(state.insertBlock(.paragraph, after: nil))
+        }
+    }
+
+    private func focusTrailingBlock() {
+        if let last = state.document.blocks.last, last.plainText.isEmpty, last.type != .divider {
+            focus(CaretTarget(id: last.id, offset: 0))
+        } else {
+            focus(state.insertBlock(.paragraph, after: state.document.order.last))
+        }
+    }
+
+    // MARK: Tags
+
     private func suggestTags() {
         let existing = Set(((try? modelContext.fetch(FetchDescriptor<Note>())) ?? []).flatMap(\.tags)).sorted()
         isSuggestingTags = true
@@ -195,115 +394,248 @@ struct CanvasNoteEditorView: View {
             }
         }
     }
+}
 
-    /// Focus is applied on the next run loop so a just-inserted row exists to receive it.
-    private func focus(_ id: UUID?) {
-        guard let id else { return }
-        DispatchQueue.main.async { focusedBlockID = id }
-    }
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
 
-    private func focusOrAddTrailingBlock() {
-        if let last = state.document.blocks.last, last.plainText.isEmpty, last.type != .divider {
-            focus(last.id)
-        } else {
-            focus(state.insertBlock(.paragraph, after: nil))
+/// The note as a real `.md` file, so sharing it lands a document rather than a wall of text.
+struct MarkdownFile: Transferable {
+    let name: String
+    let text: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .noteMarkdown) { file in
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(file.name)
+                .appendingPathExtension("md")
+            try? FileManager.default.removeItem(at: url)
+            try file.text.write(to: url, atomically: true, encoding: .utf8)
+            return SentTransferredFile(url)
         }
+        .suggestedFileName { "\($0.name).md" }
     }
 }
 
-// MARK: - CanvasEditorState
+extension UTType {
+    /// Markdown has no system-declared type on every OS the app runs on; plain text is the
+    /// honest fallback, and the .md extension survives either way.
+    static let noteMarkdown = UTType(filenameExtension: "md") ?? .plainText
+}
+
+// MARK: - State
 
 @MainActor
 final class CanvasEditorState: ObservableObject {
-    @Published var document = BlockDocument() {
-        didSet { updateListCounters() }
-    }
-    @Published var listCounters: [String: Int] = [:]
-    @Published var pendingUpdateTimer: Timer?
+    @Published var document = BlockDocument() { didSet { updateListCounters() } }
+    @Published private(set) var listCounters: [UUID: Int] = [:]
+
+    // MARK: Persistence
 
     func load(from note: Note) {
         document = note.blockDocument
-        updateListCounters()
     }
 
     func save(to note: Note) {
-        // Debounced persistence — in production this would be a timer-based debounce
         note.blockDocument = document
         note.touch()
     }
 
-    /// Inserts after `id` (the focused block), or at the end of the note when nothing is focused.
-    @discardableResult
-    func insertBlock(_ type: BlockType, after id: UUID?) -> UUID {
-        let newBlock = Block(type: type)
-        if let id, document.blocksByID[id] != nil {
-            _ = document.insert(newBlock, after: id)
-        } else {
-            document.append(newBlock)
+    /// Blocks hidden under a collapsed toggle are dropped here, not in the view.
+    var visibleBlocks: [Block] {
+        var result: [Block] = []
+        var hiddenBelow: Int?
+        for block in document.blocks {
+            if let level = hiddenBelow {
+                if block.indent > level { continue }
+                hiddenBelow = nil
+            }
+            result.append(block)
+            if block.type == .toggle, !block.isExpanded { hiddenBelow = block.indent }
         }
-        return newBlock.id
+        return result
+    }
+
+    // MARK: Editing
+
+    @discardableResult
+    func insertBlock(_ type: BlockType, after id: UUID?) -> CaretTarget {
+        var doc = document
+        let block = Block(type: type, indent: id.flatMap { doc[$0]?.indent } ?? 0)
+        if let id, doc[id] != nil {
+            doc.insert(block, after: id)
+        } else {
+            doc.append(block)
+        }
+        document = doc
+        return CaretTarget(id: block.id, offset: 0)
+    }
+
+    func updateText(_ id: UUID, _ text: String) {
+        guard document[id]?.plainText != text else { return }
+        document.update(id) { $0.runs = text.isEmpty ? [] : [.plain(text)] }
     }
 
     func updateBlock(_ id: UUID, transform: (inout Block) -> Void) {
         document.update(id, transform: transform)
     }
 
-    /// Replaces a block's text with the first line and inserts one block per remaining line.
-    /// Returns the block that should take focus.
-    func splitBlock(_ id: UUID, into lines: [String]) -> UUID? {
-        guard let block = document.blocksByID[id], let first = lines.first else { return nil }
-        let continuesList = [BlockType.bulletedList, .numberedList, .todo].contains(block.type)
-
-        // Return on an empty list item leaves the list, as in Notion.
-        if lines == ["", ""], block.plainText.isEmpty, continuesList {
-            document.update(id) { $0.type = .paragraph }
-            return id
+    func turn(_ id: UUID, into type: BlockType) {
+        document.update(id) { block in
+            block.type = type
+            if type == .divider { block.runs = [] }
+            if type != .todo { block.isChecked = false }
+            if type == .toggle { block.isExpanded = true }
         }
-
-        document.update(id) { $0.runs = first.isEmpty ? [] : [.plain(first)] }
-        var previousID = id
-        for line in lines.dropFirst() {
-            let next = Block(
-                type: continuesList ? block.type : .paragraph,
-                runs: line.isEmpty ? [] : [.plain(line)],
-                indent: block.indent
-            )
-            _ = document.insert(next, after: previousID)
-            previousID = next.id
-        }
-        return previousID
     }
 
-    /// Removes a block and returns the block before it, for focus.
-    func removeBlock(_ id: UUID) -> UUID? {
-        let index = document.order.firstIndex(of: id)
-        _ = document.remove(id)
-        guard let index, index > 0 else { return document.order.first }
-        return document.order[safe: index - 1]
+    /// Return, or a multi-line paste. Returns where focus and the caret should land.
+    func split(_ id: UUID, lines: [String], caret: Int) -> CaretTarget? {
+        guard let block = document[id], lines.count > 1 else { return nil }
+        let first = lines[0]
+        let rest = Array(lines.dropFirst())
+        var doc = document
+
+        // Return on an empty list item leaves the list instead of making another one.
+        if lines.count == 2, first.isEmpty, rest[0].isEmpty,
+           block.plainText.isEmpty, block.type.continuesOnReturn {
+            if block.indent > 0 {
+                doc.update(id) { $0.indent -= 1 }
+            } else {
+                doc.update(id) { $0.type = .paragraph; $0.isChecked = false }
+            }
+            document = doc
+            return CaretTarget(id: id, offset: 0)
+        }
+
+        // Return at the very start pushes a blank line above and leaves you where you were,
+        // so a heading or a to-do never gets downgraded by making room above it.
+        if lines.count == 2, first.isEmpty, !block.plainText.isEmpty, rest[0] == block.plainText {
+            let above = Block(type: block.type.continuation, indent: block.indent)
+            let index = doc.order.firstIndex(of: id) ?? 0
+            doc.insert(above, after: index > 0 ? doc.order[index - 1] : nil)
+            document = doc
+            return CaretTarget(id: id, offset: 0)
+        }
+
+        doc.update(id) { $0.runs = first.isEmpty ? [] : [.plain(first)] }
+
+        // A toggle's Return writes its first child, tucked under it.
+        let isToggle = block.type == .toggle
+        if isToggle { doc.update(id) { $0.isExpanded = true } }
+        let newType: BlockType = isToggle ? .paragraph : block.type.continuation
+        let newIndent = isToggle ? block.indent + 1 : block.indent
+
+        var previous = id
+        for line in rest {
+            let next = Block(type: newType, runs: line.isEmpty ? [] : [.plain(line)], indent: newIndent)
+            doc.insert(next, after: previous)
+            previous = next.id
+        }
+        document = doc
+        return CaretTarget(id: previous, offset: caret)
     }
 
-    // MARK: - Helpers
+    /// Backspace with the caret at offset zero: shed the block's type, then its indent, then
+    /// merge it into the block above.
+    func backspaceAtStart(_ id: UUID) -> CaretTarget? {
+        guard let block = document[id] else { return nil }
+        // Code keeps its text; only an empty code block gives way.
+        if block.type.isCode, !block.plainText.isEmpty { return nil }
+        var doc = document
 
-    /// Numbers each run of consecutive numbered-list blocks from 1.
+        if block.type != .paragraph, !block.type.isCode {
+            doc.update(id) { $0.type = .paragraph; $0.isChecked = false; $0.isExpanded = true }
+            document = doc
+            return CaretTarget(id: id, offset: 0)
+        }
+        if block.indent > 0 {
+            doc.update(id) { $0.indent -= 1 }
+            document = doc
+            return CaretTarget(id: id, offset: 0)
+        }
+
+        guard let index = doc.order.firstIndex(of: id), index > 0 else { return nil }
+        let previousID = doc.order[index - 1]
+        guard let previous = doc[previousID] else { return nil }
+
+        // A rule above simply goes.
+        if previous.type == .divider {
+            doc.remove(previousID)
+            document = doc
+            return CaretTarget(id: id, offset: 0)
+        }
+
+        let offset = previous.plainText.utf16.count
+        if block.plainText.isEmpty {
+            doc.remove(id)
+            document = doc
+            return CaretTarget(id: previousID, offset: offset)
+        }
+        guard !previous.type.isCode else { return nil }
+        doc.mergeWithPrevious(id)
+        document = doc
+        return CaretTarget(id: previousID, offset: offset)
+    }
+
+    /// Tab and Shift-Tab. A block can only ever sit one level deeper than the one above it.
+    func indent(_ id: UUID, by delta: Int) {
+        guard let index = document.order.firstIndex(of: id),
+              let block = document[id], block.type != .divider else { return }
+        let ceiling = index > 0 ? (document[document.order[index - 1]]?.indent ?? 0) + 1 : 0
+        let target = min(max(block.indent + delta, 0), ceiling)
+        guard target != block.indent else { return }
+        document.update(id) { $0.indent = target }
+    }
+
+    /// `BlockDocument.move` takes its destination in the pre-move ordering, so one row down
+    /// is index + 2.
+    func move(_ id: UUID, by delta: Int) {
+        guard let index = document.order.firstIndex(of: id) else { return }
+        let destination = delta < 0 ? index - 1 : index + 2
+        guard destination >= 0, destination <= document.order.count else { return }
+        document.move(fromIndex: index, toIndex: destination)
+    }
+
+    @discardableResult
+    func remove(_ id: UUID) -> CaretTarget? {
+        guard let index = document.order.firstIndex(of: id) else { return nil }
+        var doc = document
+        doc.remove(id)
+        document = doc
+        if index > 0 {
+            let previousID = doc.order[index - 1]
+            return CaretTarget(id: previousID, offset: doc[previousID]?.plainText.utf16.count)
+        }
+        return doc.order.first.map { CaretTarget(id: $0, offset: 0) }
+    }
+
+    /// Numbers each level's run of items from 1, so a nested list restarts and its parent
+    /// carries on where it left off.
     private func updateListCounters() {
-        var counters: [String: Int] = [:]
-        var counter = 0
+        var counters: [UUID: Int] = [:]
+        var levels: [Int] = []
         for block in document.blocks {
             if block.type == .numberedList {
-                counter += 1
-                counters[block.id.uuidString] = counter
-            } else {
-                counter = 0
+                let level = block.indent
+                if levels.count > level + 1 { levels.removeSubrange((level + 1)...) }
+                while levels.count <= level { levels.append(0) }
+                levels[level] += 1
+                counters[block.id] = levels[level]
+            } else if block.indent == 0 {
+                levels.removeAll()
+            } else if levels.count > block.indent {
+                levels.removeSubrange(block.indent...)
             }
         }
         if counters != listCounters { listCounters = counters }
     }
 }
 
-// MARK: - Paper Canvas Background
+// MARK: - Paper
 
-/// Resolves a `PaperTint` into a dynamic colour, so a tinted page darkens in dark mode
-/// instead of staying a bright sheet behind light text.
 extension Color {
     init(paperTint tint: PaperTint) {
         self.init(uiColor: UIColor { traits in
@@ -313,104 +645,22 @@ extension Color {
     }
 }
 
+/// A whole sheet of paper at a fixed pitch — for previews and template thumbnails. The
+/// editor itself draws its ruling per row so it scrolls with the text.
 struct PaperCanvasBackground: View {
     var style: PaperStyle = .lined
     var tint: PaperTint = .cream
+    var pitch: CGFloat = 30
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Color(paperTint: tint)
-
-                switch style {
-                case .lined:
-                    // Ruled lines (horizontal at 32pt intervals)
-                    RuledLinesOverlay(height: geo.size.height)
-
-                    // Red margin accent line, left of the block chrome (legal pad convention)
-                    VerticalMarginLine(x: 40)
-                case .grid:
-                    GridLinesOverlay()
-                case .dotted:
-                    DotGridOverlay()
-                case .blank:
-                    EmptyView()
-                }
-            }
-        }
+        Color(paperTint: tint)
+            .overlay(PaperRuling(style: style, pitch: pitch))
     }
 }
 
-struct GridLinesOverlay: View {
-    private let spacing: CGFloat = 24
-
-    var body: some View {
-        Canvas { context, size in
-            var path = Path()
-            for x in stride(from: spacing, through: size.width, by: spacing) {
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-            }
-            for y in stride(from: spacing, through: size.height, by: spacing) {
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-            }
-            context.stroke(path, with: .color(Color("RuleColor").opacity(0.5)), lineWidth: 0.5)
-        }
-    }
-}
-
-struct DotGridOverlay: View {
-    private let spacing: CGFloat = 20
-
-    var body: some View {
-        Canvas { context, size in
-            var dots = Path()
-            for x in stride(from: spacing, through: size.width, by: spacing) {
-                for y in stride(from: spacing, through: size.height, by: spacing) {
-                    dots.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
-                }
-            }
-            context.fill(dots, with: .color(Color("RuleColor").opacity(0.7)))
-        }
-    }
-}
-
-struct RuledLinesOverlay: View {
-    let height: CGFloat
-    private let spacing: CGFloat = 32
-
-    var body: some View {
-        GeometryReader { geo in
-            Path { path in
-                for y in stride(from: spacing, through: geo.size.height, by: spacing) {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: y))
-                }
-            }
-            // 0.15 made the rules invisible on cream paper. RuleColor is the shared asset the
-            // block chrome already uses, and it darkens in dark mode where a fixed blue washes out.
-            .stroke(Color("RuleColor").opacity(0.55), lineWidth: 0.75)
-        }
-    }
-}
-
-struct VerticalMarginLine: View {
-    let x: CGFloat
-
-    var body: some View {
-        Rectangle()
-            .fill(Color(red: 0.85, green: 0.25, blue: 0.25).opacity(0.3))
-            .frame(width: 1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.leading, x)
-    }
-}
-
-// MARK: - Add Block Picker
+// MARK: - Add block
 
 struct AddBlockPicker: View {
-    @State private var isPresented = false
     let onInsert: (BlockType) -> Void
 
     var body: some View {
@@ -429,11 +679,8 @@ struct AddBlockPicker: View {
             }
         } label: {
             Image(systemName: "plus")
-                .font(.title3)
-                .foregroundStyle(Color("InkColor"))
-                .padding(8)
-                .background(Circle().fill(Color("PaperBackground")))
         }
+        .accessibilityLabel("Add block")
     }
 
     static var blockTypes: [BlockType] {
@@ -443,64 +690,5 @@ struct AddBlockPicker: View {
             .bulletedList, .numberedList, .todo, .toggle,
             .quote, .callout(emoji: "💡"), .code(language: nil), .divider
         ]
-    }
-}
-
-// MARK: - Block Markdown Shortcut Detection
-
-enum BlockMarkdownShortcut {
-    case paragraph
-    case heading1, heading2, heading3
-    case bulletedList, numberedList
-    case todo, toggle, quote, code
-
-    /// Match a markdown prefix against known shortcuts.
-    static func fromPrefix(_ input: String) -> Self? {
-        let trimmed = input.replacingOccurrences(of: "^\\s+", with: "", options: .regularExpression)
-        if trimmed.hasPrefix("# ") && !trimmed.hasPrefix("## ") { return .heading1 }
-        if trimmed.hasPrefix("## ") { return .heading2 }
-        if trimmed.hasPrefix("### ") { return .heading3 }
-        if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") { return .bulletedList }
-        if let range = trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) {
-            return .numberedList
-        }
-        if trimmed.hasPrefix("[ ] ") || trimmed.hasPrefix("[x] ") || trimmed.hasPrefix("[-] ") { return .todo }
-        if trimmed.hasPrefix("> ") { return .quote }
-        if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") { return .code }
-        if trimmed.hasPrefix("- [ ] ") { return .toggle } // some Notion toggle conventions
-        return nil
-    }
-
-    var blockType: BlockType {
-        switch self {
-        case .paragraph: .paragraph
-        case .heading1: .heading(level: 1)
-        case .heading2: .heading(level: 2)
-        case .heading3: .heading(level: 3)
-        case .bulletedList: .bulletedList
-        case .numberedList: .numberedList
-        case .todo: .todo
-        case .toggle: .toggle
-        case .quote: .quote
-        case .code: .code(language: nil)
-        }
-    }
-
-    var prefixLength: Int {
-        switch self {
-        case .paragraph, .heading1, .bulletedList, .todo, .toggle, .quote, .code: 2
-        case .heading2: 3
-        case .heading3: 4
-        case .numberedList: -1 // variable length — handled by caller
-        }
-    }
-}
-
-// MARK: - Helper extension for safe array access
-
-extension Array {
-    subscript(safe index: Index) -> Element? {
-        guard index >= startIndex, index < endIndex else { return nil }
-        return self[index]
     }
 }

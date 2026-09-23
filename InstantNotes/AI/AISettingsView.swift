@@ -10,7 +10,6 @@ import Security
 struct AISettingsView: View {
     @State private var apiKey = ""
     @AppStorage("gemini_model") private var modelName = "gemini-3.8-flash"
-    @AppStorage("ai_enabled") private var aiEnabled = true
     @Environment(\.dismiss) private var dismiss
 
     init() {
@@ -47,8 +46,6 @@ struct AISettingsView: View {
             }
 
             Section("AI Features") {
-                Toggle("Auto-organize notes", isOn: $aiEnabled)
-
                 if !apiKey.isEmpty {
                     Text("AI features are enabled and ready.")
                         .foregroundStyle(.green)

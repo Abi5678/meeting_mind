@@ -14,6 +14,9 @@ struct NoteListView: View {
     @State private var showNewNoteSheet = false
     @State private var selectedSort: SortOption = .modified
     @State private var selectedNoteID: UUID?
+    /// A note made in a sheet. Opened once the sheet has gone: on iPhone the collapsed split
+    /// view ignores a selection that changes while a sheet is still dismissing.
+    @State private var createdNoteID: UUID?
     @State private var showSettings = false
     @State private var showMeetingCapture = false
     @State private var showImport = false
@@ -45,6 +48,8 @@ struct NoteListView: View {
                 .foregroundStyle(Color("InkColor").opacity(0.45))
             TextField("Search notes…", text: $searchText)
                 .font(.body)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -121,7 +126,7 @@ struct NoteListView: View {
         switch selectedSort {
         case .modified: break // already sorted by Query
         case .created: notes.sort { $0.createdAt > $1.createdAt }
-        case .title: notes.sort { $0.title < $1.title }
+        case .title: notes.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         }
 
         return notes
@@ -170,8 +175,8 @@ struct NoteListView: View {
                 Image(systemName: "plus")
             }
             .accessibilityLabel("New note")
-            .sheet(isPresented: $showNewNoteSheet) {
-                TemplateGalleryView { selectedNoteID = $0.id }
+            .sheet(isPresented: $showNewNoteSheet, onDismiss: openCreatedNote) {
+                TemplateGalleryView { createdNoteID = $0.id }
             }
         }
 
@@ -181,12 +186,18 @@ struct NoteListView: View {
             }
             .buttonStyle(.borderedProminent)
             .accessibilityLabel("Record meeting")
-            .sheet(isPresented: $showMeetingCapture) {
+            .sheet(isPresented: $showMeetingCapture, onDismiss: openCreatedNote) {
                 NavigationStack {
-                    MeetingCaptureView { selectedNoteID = $0.id }
+                    MeetingCaptureView { createdNoteID = $0.id }
                 }
             }
         }
+    }
+
+    private func openCreatedNote() {
+        guard let id = createdNoteID else { return }
+        createdNoteID = nil
+        selectedNoteID = id
     }
 
     enum SortOption: String, CaseIterable {
@@ -200,6 +211,16 @@ struct NoteListView: View {
 
 struct NoteRowView: View {
     let note: Note
+
+    /// The AI summary when there is one, else the note's own text, so typed notes aren't title-only rows.
+    private var preview: String {
+        if let summary = note.summary, !summary.isEmpty { return summary }
+        return note.blockDocument.plainText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -229,8 +250,8 @@ struct NoteRowView: View {
                 .foregroundStyle(Color("InkColor"))
                 .lineLimit(1)
 
-            if let summary = note.summary, !summary.isEmpty {
-                Text(summary.prefix(80))
+            if !preview.isEmpty {
+                Text(preview.prefix(120))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
