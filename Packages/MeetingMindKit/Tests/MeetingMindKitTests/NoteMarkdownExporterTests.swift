@@ -56,4 +56,24 @@ struct NoteMarkdownExporterTests {
         let markdown = NoteMarkdownExporter.markdown(title: "T", document: BlockDocument(blocks: blocks))
         #expect(markdown == "# T\n\n- Details\n\n[site](https://example.com)\n")
     }
+
+    @Test("Markdown characters in typed text survive an export and re-import")
+    func markdownCharactersRoundTrip() {
+        let blocks = [
+            Block(type: .paragraph, runs: [.plain(#"Rename file_name_v2 to *v3* with `mv` in C:\temp\ [draft]"#)]),
+            Block(type: .bulletedList, runs: [.plain("2 * 3 = 6 and __init__")]),
+            Block(type: .paragraph, runs: [
+                InlineRun(text: "my_docs", linkURL: URL(string: "https://example.com/some_path_here")),
+                .plain(" and "),
+                InlineRun(text: "snake_case", isItalic: true),
+            ]),
+        ]
+
+        let markdown = NoteMarkdownExporter.markdown(title: "T", document: BlockDocument(blocks: blocks))
+        #expect(markdown.contains(#"file\_name\_v2"#))
+
+        let parsed = MarkdownBlockParser.parse(markdown)
+        #expect(parsed.document.blocks.map(\.type) == blocks.map(\.type))
+        #expect(parsed.document.blocks.map(\.runs) == blocks.map(\.runs))
+    }
 }

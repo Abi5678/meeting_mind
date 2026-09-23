@@ -32,6 +32,20 @@ struct ZipArchiveTests {
         #expect(entries.map(\.path) == ["Export/Keep.md"])
     }
 
+    @Test("A stored ZIP inside a ZIP reads back from its slice of the outer archive")
+    func storedNestedArchive() throws {
+        let inner = TestZip.make([.init(path: "Part/Page.md", content: page, deflate: true)])
+        let outer = TestZip.make([
+            .init(path: "Export/Readme.md", content: page, deflate: false),
+            .init(path: "Export/Part-1.zip", content: inner, deflate: false),
+        ])
+        let nested = try #require(try ZipArchive.entries(in: outer) { $0.hasSuffix(".zip") }.first)
+        #expect(nested.data == inner)
+        let entries = try ZipArchive.entries(in: nested.data)
+        #expect(entries.map(\.path) == ["Part/Page.md"])
+        #expect(entries.first?.data == page)
+    }
+
     @Test("Data that is not a ZIP throws notAZip")
     func notAZip() {
         #expect(throws: ZipArchive.ReadError.notAZip) {

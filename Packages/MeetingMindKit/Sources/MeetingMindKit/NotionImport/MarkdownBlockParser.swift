@@ -4,21 +4,28 @@ import Foundation
 ///
 /// Notion's Markdown export is not quite CommonMark: todos use `[ ]`/`[x]` at the start of a
 /// list item, toggles export as a bold summary line followed by an indented nested list, and
-/// callouts are a blockquote whose first character is an emoji. This parser targets exactly
-/// that dialect, not general Markdown.
+/// callouts are an `<aside>` element (or, in this app's own export, a blockquote whose first
+/// character is an emoji). This parser targets exactly that dialect, not general Markdown.
 public enum MarkdownBlockParser {
     /// The page title Notion emits as the export's leading `# Heading`. `nil` if the source had
     /// no such line — callers fall back to the filename in that case.
     public struct Result {
         public let title: String?
         public let document: BlockDocument
+        /// `![alt](path)` images left out of `document`, so the caller can report them.
+        public let skippedImages: Int
     }
 
     public static func parse(_ markdown: String) -> Result {
         let lines = markdown.components(separatedBy: "\n")
         var document = BlockDocument()
         var title: String?
+        var skippedImages = 0
         var index = 0
+
+        func inline(_ text: String) -> [InlineRun] {
+            runs(from: text, imageCount: &skippedImages)
+        }
 
         while index < lines.count {
             let line = lines[index]
@@ -41,20 +48,37 @@ public enum MarkdownBlockParser {
             }
 
             if let level = headingLevel(of: line) {
-                document.append(Block(type: .heading(level: level), runs: runs(from: content(of: line, headingLevel: level))))
+                document.append(Block(type: .heading(level: level), runs: inline(content(of: line, headingLevel: level))))
                 index += 1
                 continue
             }
 
             if let emoji = calloutEmoji(of: line) {
                 let text = String(line.dropFirst(2).trimmingCharacters(in: .whitespaces).dropFirst(emoji.count))
-                document.append(Block(type: .callout(emoji: emoji), runs: runs(from: text.trimmingCharacters(in: .whitespaces))))
+                document.append(Block(type: .callout(emoji: emoji), runs: inline(text.trimmingCharacters(in: .whitespaces))))
                 index += 1
                 continue
             }
 
+            if isAsideOpening(line) {
+                // Notion writes a callout as `<aside>`, then its emoji and text, then `</aside>`.
+                var body: [String] = []
+                index += 1
+                while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces) != "</aside>" {
+                    let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty { body.append(trimmed) }
+                    index += 1
+                }
+                index += 1  // consume `</aside>`
+                var text = body.joined(separator: " ")
+                let emoji = leadingEmoji(of: text)
+                if emoji != nil { text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces) }
+                document.append(Block(type: .callout(emoji: emoji ?? "💡"), runs: inline(text)))
+                continue
+            }
+
             if isQuote(line) {
-                document.append(Block(type: .quote, runs: runs(from: quoteContent(of: line))))
+                document.append(Block(type: .quote, runs: inline(quoteContent(of: line))))
                 index += 1
                 continue
             }
@@ -73,7 +97,7 @@ public enum MarkdownBlockParser {
             }
 
             if let (indent, todo) = todoItem(of: line) {
-                var block = Block(type: .todo, runs: runs(from: todo.text), indent: indent)
+                var block = Block(type: .todo, runs: inline(todo.text), indent: indent)
                 block.isChecked = todo.isChecked
                 document.append(block)
                 index += 1
@@ -81,13 +105,13 @@ public enum MarkdownBlockParser {
             }
 
             if let (indent, text) = numberedListItem(of: line) {
-                document.append(Block(type: .numberedList, runs: runs(from: text), indent: indent))
+                document.append(Block(type: .numberedList, runs: inline(text), indent: indent))
                 index += 1
                 continue
             }
 
             if let (indent, text) = bulletedListItem(of: line) {
-                document.append(Block(type: .bulletedList, runs: runs(from: text), indent: indent))
+                document.append(Block(type: .bulletedList, runs: inline(text), indent: indent))
                 index += 1
                 continue
             }
@@ -102,11 +126,15 @@ public enum MarkdownBlockParser {
                 paragraph += " " + lines[lookahead].trimmingCharacters(in: .whitespaces)
                 lookahead += 1
             }
-            document.append(Block(type: .paragraph, runs: runs(from: paragraph)))
+            let paragraphRuns = inline(paragraph)
+            // A line that held only images has nothing left to show.
+            if !paragraphRuns.map(\.text).joined().trimmingCharacters(in: .whitespaces).isEmpty {
+                document.append(Block(type: .paragraph, runs: paragraphRuns))
+            }
             index = lookahead
         }
 
-        return Result(title: title, document: document)
+        return Result(title: title, document: document, skippedImages: skippedImages)
     }
 
     // MARK: - Line classification
@@ -115,6 +143,7 @@ public enum MarkdownBlockParser {
         headingLevel(of: line) != nil
             || isDivider(line)
             || calloutEmoji(of: line) != nil
+            || isAsideOpening(line)
             || isQuote(line)
             || isCodeFence(line)
             || todoItem(of: line) != nil
@@ -154,11 +183,18 @@ public enum MarkdownBlockParser {
     private static func calloutEmoji(of line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix(">") else { return nil }
-        let body = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
-        guard let first = body.first, first.unicodeScalars.contains(where: { $0.properties.isEmoji && $0.properties.isEmojiPresentation }) else {
+        return leadingEmoji(of: trimmed.dropFirst().trimmingCharacters(in: .whitespaces))
+    }
+
+    private static func leadingEmoji(of text: String) -> String? {
+        guard let first = text.first, first.unicodeScalars.contains(where: { $0.properties.isEmoji && $0.properties.isEmojiPresentation }) else {
             return nil
         }
         return String(first)
+    }
+
+    private static func isAsideOpening(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces) == "<aside>"
     }
 
     private static func isCodeFence(_ line: String) -> Bool {
@@ -209,10 +245,18 @@ public enum MarkdownBlockParser {
 
     // MARK: - Inline formatting
 
-    /// Splits `**bold**`, `*italic*`/`_italic_`, and `` `code` `` into runs. Formatting markers
-    /// cannot nest in this pass — Notion's own export rarely nests them, and a note is trivially
-    /// hand-fixed after import if it does.
+    /// Splits `**bold**`, `*italic*`/`_italic_`, `` `code` `` and `[links](url)` into runs.
+    /// Emphasis follows CommonMark's flanking rules, so `file_name_v2`, `2 * 3` and underscores in
+    /// URLs stay literal, and a backslash makes the punctuation after it literal. Overlapping
+    /// markers are not resolved the CommonMark way — Notion's own export rarely nests them, and
+    /// a note is trivially hand-fixed after import if it does.
     static func runs(from text: String) -> [InlineRun] {
+        var imageCount = 0
+        return runs(from: text, imageCount: &imageCount)
+    }
+
+    /// Adds the number of `![alt](path)` images it leaves out to `imageCount`.
+    private static func runs(from text: String, imageCount: inout Int) -> [InlineRun] {
         guard !text.isEmpty else { return [] }
 
         enum Marker: String, CaseIterable {
@@ -242,7 +286,41 @@ public enum MarkdownBlockParser {
             }
         }
 
+        // Unformatted runs (a page link's label, say) join the surrounding text.
+        func append(_ run: InlineRun) {
+            if run == .plain(run.text) {
+                plain += run.text
+            } else {
+                flushPlain()
+                result.append(run)
+            }
+        }
+
         while i < characters.count {
+            if characters[i] == "\\", i + 1 < characters.count, isEscapable(characters[i + 1]) {
+                plain.append(characters[i + 1])
+                i += 2
+                continue
+            }
+
+            // Only web links keep their URL: a link to another page of the export points nowhere
+            // once imported, so it keeps just its label. Images are left out and counted.
+            let isImage = characters[i] == "!" && i + 1 < characters.count && characters[i + 1] == "["
+            if isImage || characters[i] == "[", let link = link(in: characters, at: isImage ? i + 1 : i) {
+                if isImage {
+                    imageCount += 1
+                } else {
+                    var url = URL(string: link.destination)
+                    if !["http", "https"].contains(url?.scheme?.lowercased()) { url = nil }
+                    for var run in runs(from: link.label, imageCount: &imageCount) {
+                        run.linkURL = url
+                        append(run)
+                    }
+                }
+                i = link.end
+                continue
+            }
+
             var consumed = false
 
             for marker in markersByDescendingLength {
@@ -250,20 +328,23 @@ public enum MarkdownBlockParser {
                 guard i + markerChars.count <= characters.count,
                       Array(characters[i..<i + markerChars.count]) == markerChars else { continue }
 
-                if let closeRange = findClosing(markerChars, in: characters, from: i + markerChars.count) {
-                    flushPlain()
+                // Searching from one past the marker rules out empty spans like "****".
+                if marker == .code || flanking(at: i, in: characters).canOpen,
+                   let closeRange = findClosing(markerChars, in: characters, from: i + markerChars.count + 1) {
                     let inner = String(characters[(i + markerChars.count)..<closeRange.lowerBound])
-                    var run = InlineRun(text: inner)
-                    switch marker {
-                    case .bold: run.isBold = true
-                    case .code: run.isCode = true
-                    case .italicStar, .italicUnderscore: run.isItalic = true
+                    if marker == .code {
+                        append(InlineRun(text: inner, isCode: true))
+                    } else {
+                        // Parsed again so escapes, links and other markers inside still apply.
+                        for var run in runs(from: inner, imageCount: &imageCount) {
+                            if marker == .bold { run.isBold = true } else { run.isItalic = true }
+                            append(run)
+                        }
                     }
-                    result.append(run)
                     i = closeRange.upperBound
                 } else {
-                    // No closing partner for the longest matching prefix: treat just its first
-                    // character as literal text and re-scan from the next one.
+                    // The longest matching prefix can't open here or has no closing partner:
+                    // treat just its first character as literal text and re-scan from the next one.
                     plain.append(characters[i])
                     i += 1
                 }
@@ -282,11 +363,71 @@ public enum MarkdownBlockParser {
     }
 
     private static func findClosing(_ marker: [Character], in characters: [Character], from start: Int) -> Range<Int>? {
-        guard start < characters.count else { return nil }
+        let isCode = marker == ["`"]
         var i = start
         while i + marker.count <= characters.count {
-            if Array(characters[i..<i + marker.count]) == marker {
+            // Backslash escapes don't apply inside code spans.
+            if !isCode, characters[i] == "\\", i + 1 < characters.count, isEscapable(characters[i + 1]) {
+                i += 2
+                continue
+            }
+            if Array(characters[i..<i + marker.count]) == marker, isCode || flanking(at: i, in: characters).canClose {
                 return i..<(i + marker.count)
+            }
+            i += 1
+        }
+        return nil
+    }
+
+    /// CommonMark's flanking rules for the run of `*` or `_` around `index`: an opener must be
+    /// followed by text and a closer preceded by it, and an underscore inside a word does neither.
+    private static func flanking(at index: Int, in characters: [Character]) -> (canOpen: Bool, canClose: Bool) {
+        let marker = characters[index]
+        var start = index, end = index
+        while start > 0, characters[start - 1] == marker { start -= 1 }
+        while end < characters.count, characters[end] == marker { end += 1 }
+        // The start and end of the text count as whitespace.
+        let before: Character = start > 0 ? characters[start - 1] : " "
+        let after: Character = end < characters.count ? characters[end] : " "
+        let isPunctuation = { (character: Character) in character.isPunctuation || character.isSymbol }
+
+        let leftFlanking = !after.isWhitespace && (!isPunctuation(after) || before.isWhitespace || isPunctuation(before))
+        let rightFlanking = !before.isWhitespace && (!isPunctuation(before) || after.isWhitespace || isPunctuation(after))
+        guard marker == "_" else { return (leftFlanking, rightFlanking) }
+        return (leftFlanking && (!rightFlanking || isPunctuation(before)), rightFlanking && (!leftFlanking || isPunctuation(after)))
+    }
+
+    /// CommonMark lets a backslash escape any ASCII punctuation character.
+    private static func isEscapable(_ character: Character) -> Bool {
+        character.isASCII && (character.isPunctuation || character.isSymbol)
+    }
+
+    /// `[label](destination)` with its `[` at `start`. Brackets and parentheses may nest, so a
+    /// page titled "Plan [v2]" or a URL ending in "_(disambiguation)" still parses.
+    private static func link(in characters: [Character], at start: Int) -> (label: String, destination: String, end: Int)? {
+        guard let labelEnd = closingBracket(in: characters, from: start),
+              labelEnd + 1 < characters.count, characters[labelEnd + 1] == "(",
+              let destinationEnd = closingBracket(in: characters, from: labelEnd + 1) else { return nil }
+        let label = String(characters[(start + 1)..<labelEnd])
+        let destination = String(characters[(labelEnd + 2)..<destinationEnd]).trimmingCharacters(in: .whitespaces)
+        return (label, destination, destinationEnd + 1)
+    }
+
+    /// The index of the `]` or `)` that closes the `[` or `(` at `start`, skipping escaped ones.
+    private static func closingBracket(in characters: [Character], from start: Int) -> Int? {
+        let open = characters[start]
+        let close: Character = open == "[" ? "]" : ")"
+        var depth = 0
+        var i = start
+        while i < characters.count {
+            if characters[i] == "\\" {
+                i += 2
+                continue
+            }
+            if characters[i] == open { depth += 1 }
+            if characters[i] == close {
+                depth -= 1
+                if depth == 0 { return i }
             }
             i += 1
         }

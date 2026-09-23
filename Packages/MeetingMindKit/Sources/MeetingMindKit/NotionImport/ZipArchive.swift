@@ -6,6 +6,7 @@ import Compression
 public enum ZipArchive {
     public struct Entry: Equatable, Sendable {
         public let path: String
+        /// For a stored entry, a slice of the archive: index it from `startIndex`, not 0.
         public let data: Data
     }
 
@@ -80,7 +81,8 @@ extension ZipArchive {
         switch method {
         case 0:
             guard data.count == size else { throw ReadError.corrupt(path) }
-            return Data(data)
+            // A slice, not a copy: a stored nested ZIP stays in the (memory-mapped) archive.
+            return data
         case 8:
             guard size > 0 else { return Data() }
             guard !data.isEmpty else { throw ReadError.corrupt(path) }

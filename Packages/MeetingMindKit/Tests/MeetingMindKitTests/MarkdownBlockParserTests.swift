@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import MeetingMindKit
@@ -179,5 +180,61 @@ struct MarkdownBlockParserTests {
     @Test("Empty inline text produces no runs")
     func emptyInlineText() {
         #expect(MarkdownBlockParser.runs(from: "").isEmpty)
+    }
+
+    @Test("Underscores inside words stay literal")
+    func intrawordUnderscores() {
+        let runs = MarkdownBlockParser.runs(from: "Rename file_name_v2 in my_config.")
+        #expect(runs == [.plain("Rename file_name_v2 in my_config.")])
+    }
+
+    @Test("Underscores in a bare URL and in a link's URL stay literal")
+    func underscoresInURLs() {
+        #expect(MarkdownBlockParser.runs(from: "See https://example.com/some_path_here now") == [.plain("See https://example.com/some_path_here now")])
+
+        let runs = MarkdownBlockParser.runs(from: "Read [the docs](https://example.com/some_path_here).")
+        #expect(runs == [
+            .plain("Read "),
+            InlineRun(text: "the docs", linkURL: URL(string: "https://example.com/some_path_here")),
+            .plain("."),
+        ])
+    }
+
+    @Test("Asterisks surrounded by spaces are not emphasis")
+    func spacedAsterisks() {
+        #expect(MarkdownBlockParser.runs(from: "2 * 3 * 4") == [.plain("2 * 3 * 4")])
+    }
+
+    @Test("A backslash makes the punctuation after it literal, and is literal before anything else")
+    func backslashEscapes() {
+        let runs = MarkdownBlockParser.runs(from: #"\*not italic\* \_ \\ C:\Users *a\*b*"#)
+        #expect(runs == [.plain(#"*not italic* _ \ C:\Users "#), InlineRun(text: "a*b", isItalic: true)])
+    }
+
+    @Test("A link to another exported page keeps only its label")
+    func relativeLinkKeepsLabel() {
+        let runs = MarkdownBlockParser.runs(from: "See [Child page](Parent%20Page%20abc/Child%20page%20def.md) for more.")
+        #expect(runs == [.plain("See Child page for more.")])
+    }
+
+    @Test("Images are left out of the text and counted")
+    func imagesAreSkippedAndCounted() {
+        let result = MarkdownBlockParser.parse("# Page\n\n![Untitled](Page%20abc/Untitled.png)\n\nBefore ![chart](Page%20abc/chart.png) after")
+        #expect(result.skippedImages == 2)
+        #expect(result.document.blocks.map(\.plainText) == ["Before  after"])
+    }
+
+    @Test("A Notion <aside> callout becomes one callout block with its emoji")
+    func asideCallout() {
+        let result = MarkdownBlockParser.parse("Intro\n<aside>\n💡 Remember this\nand this\n\n</aside>\n\nAfter")
+        #expect(result.document.blocks.map(\.type) == [.paragraph, .callout(emoji: "💡"), .paragraph])
+        #expect(result.document.blocks.map(\.plainText) == ["Intro", "Remember this and this", "After"])
+    }
+
+    @Test("An <aside> without a leading emoji still becomes a callout")
+    func asideWithoutEmoji() {
+        let result = MarkdownBlockParser.parse("<aside>\nPlain note\n</aside>")
+        #expect(result.document.blocks.map(\.type) == [.callout(emoji: "💡")])
+        #expect(result.document.blocks.map(\.plainText) == ["Plain note"])
     }
 }

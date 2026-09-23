@@ -28,41 +28,65 @@ struct NotionImportCoordinator: Sendable {
         }
     }
 
-    /// Reads the whole archive into memory, which is fine for text exports; exported images are
-    /// never decompressed.
+    struct NoPagesFound: LocalizedError {
+        var errorDescription: String? {
+            "No Markdown pages were found in this ZIP. In Notion, export again with the format \"Markdown & CSV\" and import that ZIP."
+        }
+    }
+
+    /// Maps the archive rather than reading it into memory, and decompresses nested ZIPs one at a
+    /// time; exported images are never decompressed.
     func importFromZIP(at url: URL) throws -> ImportResult {
         var result = ImportResult(pages: [], errors: [])
-        try collect(from: Data(contentsOf: url), into: &result)
+        try collect(from: Data(contentsOf: url, options: .alwaysMapped), into: &result)
+        // An HTML or PDF export has no pages to import; don't report that as a success.
+        guard !result.pages.isEmpty else { throw NoPagesFound() }
         return result
     }
 
     // MARK: - Helpers
 
     private func collect(from archive: Data, into result: inout ImportResult) throws {
+        var nestedArchives: [String] = []
         let entries = try ZipArchive.entries(in: archive) { path in
-            ["md", "csv", "zip"].contains((path as NSString).pathExtension.lowercased())
+            // Finder's Compress adds a binary "__MACOSX/…/._Name.md" twin for many files.
+            guard !path.split(separator: "/").contains("__MACOSX"), !(path as NSString).lastPathComponent.hasPrefix("._") else {
+                return false
+            }
+            switch (path as NSString).pathExtension.lowercased() {
+            case "md", "csv": return true
+            case "zip": nestedArchives.append(path); return false
+            default: return false
+            }
         }
 
         for entry in entries.sorted(by: { $0.path < $1.path }) {
             let name = (entry.path as NSString).lastPathComponent
             switch (name as NSString).pathExtension.lowercased() {
-            case "zip":
-                // Notion splits large exports into ZIPs inside the ZIP.
-                do {
-                    try collect(from: entry.data, into: &result)
-                } catch {
-                    result.errors.append("\(name): \(error.localizedDescription)")
-                }
             case "md":
                 guard let markdown = String(data: entry.data, encoding: .utf8) else {
                     result.errors.append("\(name): not UTF-8 text")
                     continue
                 }
                 let parsed = MarkdownBlockParser.parse(markdown)
-                result.pages.append(ImportedPage(title: parsed.title ?? Self.pageTitle(fromFilename: name), document: parsed.document))
+                let title = parsed.title ?? Self.pageTitle(fromFilename: name)
+                result.pages.append(ImportedPage(title: title, document: parsed.document))
+                if parsed.skippedImages > 0 {
+                    result.errors.append("\(title): \(parsed.skippedImages) \(parsed.skippedImages == 1 ? "image" : "images") not imported")
+                }
             default:
                 // A database's rows also export as their own .md pages, which are imported above.
                 result.errors.append("\(Self.pageTitle(fromFilename: name)): database tables aren't supported yet")
+            }
+        }
+
+        // Notion splits large exports into ZIPs inside the ZIP. Only one is decompressed at a time.
+        for path in nestedArchives.sorted() {
+            do {
+                guard let nested = try ZipArchive.entries(in: archive, include: { $0 == path }).first else { continue }
+                try collect(from: nested.data, into: &result)
+            } catch {
+                result.errors.append("\((path as NSString).lastPathComponent): \(error.localizedDescription)")
             }
         }
     }

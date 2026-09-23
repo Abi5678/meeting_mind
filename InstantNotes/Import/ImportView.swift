@@ -17,7 +17,7 @@ struct ImportView: View {
         NavigationStack {
             ZStack {
                 // Paper background
-                Color(red: 0.976, green: 0.945, blue: 0.937).ignoresSafeArea()
+                Color("PaperBackground").ignoresSafeArea()
 
                 VStack(spacing: 32) {
                     if viewModel.state == .idle {
@@ -118,6 +118,7 @@ struct ImportEmptyStateView: View {
 
             Text("Import from Notion")
                 .font(.title.bold())
+                .foregroundStyle(Color("InkColor"))
 
             Text("Select a Notion export ZIP (Markdown & CSV format) to import each page as a note. Database tables are skipped for now.")
                 .multilineTextAlignment(.center)
@@ -175,10 +176,12 @@ struct ImportResultView: View {
 
             Text("Import Complete")
                 .font(.title.bold())
+                .foregroundStyle(Color("InkColor"))
 
             Text(result.summary)
                 .font(.body)
                 .multilineTextAlignment(.center)
+                .foregroundStyle(Color("InkColor"))
 
             if !result.errors.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -194,6 +197,7 @@ struct ImportResultView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .foregroundStyle(Color("InkColor"))
                 .padding(12)
                 .background(Color.yellow.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
