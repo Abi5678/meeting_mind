@@ -28,6 +28,7 @@ struct SwiftDataBlock: Codable {
     var headingLevel: Int?
     var emoji: String?
     var language: String?
+    var imageID: String?
     let runs: [SwiftDataInlineRun]
     let indent: Int
     let isExpanded: Bool
@@ -46,6 +47,7 @@ struct SwiftDataBlock: Codable {
         case .callout(let emoji): kind = "callout"; self.emoji = emoji
         case .code(let language): kind = "code"; self.language = language
         case .divider: kind = "divider"
+        case .image(let id): kind = "image"; imageID = id.uuidString
         }
         self.runs = block.runs.map(SwiftDataInlineRun.init)
         self.indent = block.indent
@@ -64,6 +66,7 @@ struct SwiftDataBlock: Codable {
         case "callout": .callout(emoji: emoji ?? "")
         case "code": .code(language: language)
         case "divider": .divider
+        case "image": imageID.flatMap(UUID.init(uuidString:)).map { .image(id: $0) } ?? .paragraph
         default: .paragraph
         }
         return Block(

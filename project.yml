@@ -76,6 +76,8 @@ targets:
         UIBackgroundModes:
           - audio
         NSMicrophoneUsageDescription: Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
+        NSCameraUsageDescription: Instant Notes uses the camera to take photos you add to your notes.
+        NSPhotoLibraryAddUsageDescription: Instant Notes saves the photos you share from a note to your library.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         UIApplicationSupportsIndirectInputEvents: true

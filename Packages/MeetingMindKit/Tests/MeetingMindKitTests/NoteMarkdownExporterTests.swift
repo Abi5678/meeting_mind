@@ -47,6 +47,14 @@ struct NoteMarkdownExporterTests {
         #expect(markdown == "# T\n\n1. a\n2. b\n\nbreak\n\n1. c\n")
     }
 
+    @Test("A photo exports as a Markdown image named after its id")
+    func photo() throws {
+        let id = try #require(UUID(uuidString: "3F2504E0-4F89-11D3-9A0C-0305E82C3301"))
+        let blocks = [Block(type: .paragraph, runs: [.plain("Whiteboard")]), Block(type: .image(id: id))]
+        let markdown = NoteMarkdownExporter.markdown(title: "T", document: BlockDocument(blocks: blocks))
+        #expect(markdown == "# T\n\nWhiteboard\n\n![Photo](photo-3f2504e0.jpg)\n")
+    }
+
     @Test("Toggles export as bullets and links keep their URL")
     func togglesAndLinks() {
         let blocks = [

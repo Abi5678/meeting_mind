@@ -26,6 +26,8 @@ final class Note {
     /// PKDrawing data for the ink layer; optional so existing stores migrate lightweight.
     @Attribute(.externalStorage) var drawingData: Data? = nil
     var recordings: [Recording]
+    /// Photos shown by the note's image blocks; optional so existing stores migrate lightweight.
+    @Relationship(deleteRule: .cascade, inverse: \NoteImage.note) var images: [NoteImage]? = []
     var meetingArtifact: MeetingArtifact?
 
     init(

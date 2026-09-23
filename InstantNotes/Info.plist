@@ -22,8 +22,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Instant Notes uses the camera to take photos you add to your notes.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Instant Notes needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Instant Notes saves the photos you share from a note to your library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Instant Notes turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.</string>
 	<key>UIApplicationSceneManifest</key>

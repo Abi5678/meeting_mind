@@ -41,6 +41,8 @@ struct CanvasNoteEditorView: View {
     @State private var showMeetingChat = false
     @State private var scrollHandle = EditorScrollHandle()
     @State private var exportError: String?
+    @State private var photoSource: PhotoSource?
+    @State private var postImages: [UIImage]?
 
     private var metrics: EditorMetrics { EditorMetrics(dynamicTypeSize) }
 
@@ -82,6 +84,10 @@ struct CanvasNoteEditorView: View {
         .toolbar { toolbarContent }
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
+        }
+        .modifier(PhotoInput(source: $photoSource, onPick: insertPhotos))
+        .sheet(item: Binding(get: { postImages.map(PostImages.init) }, set: { postImages = $0?.images })) { post in
+            SharePostView(title: note.title, document: state.document, tags: note.tags, images: post.images)
         }
         .sheet(isPresented: $showMeetingChat) {
             if let artifact = note.meetingArtifact {
@@ -238,18 +244,20 @@ struct CanvasNoteEditorView: View {
     private var bottomBar: some View {
         if let id = focusedBlockID {
             HStack(spacing: 2) {
-                Menu {
-                    ForEach(turnIntoTypes(for: id), id: \.displayName) { type in
-                        Button { state.turn(id, into: type) } label: {
-                            Label(type.displayName, systemImage: type.iconName)
+                if !turnIntoTypes(for: id).isEmpty {
+                    Menu {
+                        ForEach(turnIntoTypes(for: id), id: \.displayName) { type in
+                            Button { state.turn(id, into: type) } label: {
+                                Label(type.displayName, systemImage: type.iconName)
+                            }
                         }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .frame(width: 40, height: 34)
+                            .contentShape(Rectangle())
                     }
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .frame(width: 40, height: 34)
-                        .contentShape(Rectangle())
+                    .accessibilityLabel("Turn into")
                 }
-                .accessibilityLabel("Turn into")
 
                 barButton("decrease.indent", "Outdent") { state.indent(id, by: -1) }
                 barButton("increase.indent", "Indent") { state.indent(id, by: 1) }
@@ -282,6 +290,8 @@ struct CanvasNoteEditorView: View {
     /// Turning written text into a rule would hide it with no way back, so Divider is only
     /// offered on an empty block.
     private func turnIntoTypes(for id: UUID) -> [BlockType] {
+        // A photo has no text to turn into anything else.
+        if case .image = state.document[id]?.type { return [] }
         let isEmpty = state.document[id]?.plainText.isEmpty ?? true
         return AddBlockPicker.blockTypes.filter { $0 != .divider || isEmpty }
     }
@@ -319,7 +329,7 @@ struct CanvasNoteEditorView: View {
         }
         // In the bar rather than floating over the page, where it hid text as the page scrolled.
         ToolbarItem(placement: .topBarTrailing) {
-            AddBlockPicker(onInsert: insert)
+            AddBlockPicker(onInsert: insert, onPhoto: { photoSource = $0 })
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
@@ -331,6 +341,9 @@ struct CanvasNoteEditorView: View {
                 }
                 Button { exportPDF() } label: {
                     Label("Share as PDF", systemImage: "doc.richtext")
+                }
+                Button { postImages = imagesInNote() } label: {
+                    Label("Share as post…", systemImage: "paperplane")
                 }
                 Button { suggestTags() } label: {
                     Label("Suggest tags", systemImage: "tag")
@@ -443,8 +456,43 @@ struct CanvasNoteEditorView: View {
         scrollTarget = target.id
     }
 
+    // MARK: Photos
+
+    /// Stores each photo and puts it on the page below the caret, in the order picked. An
+    /// empty line the caret was sitting on gives way to the first photo.
+    private func insertPhotos(_ images: [UIImage]) {
+        var after = focusedBlockID
+        let replaced = after.flatMap { state.document[$0] }.flatMap { $0.plainText.isEmpty && $0.type.holdsText ? $0.id : nil }
+        var lastID: UUID?
+        for image in images {
+            guard let data = NoteImage.jpeg(from: image) else { continue }
+            let stored = NoteImage(data: data)
+            modelContext.insert(stored)
+            stored.note = note
+            let target = state.insertBlock(.image(id: stored.id), after: after)
+            after = target.id
+            lastID = target.id
+        }
+        guard let lastID else { return }
+        if let replaced { state.remove(replaced) }
+        focusedBlockID = nil
+        titleFocused = false
+        scrollTarget = lastID
+        // Save the blocks with the photos now; onChange would only copy them after this save.
+        state.save(to: note)
+        try? modelContext.save()
+    }
+
+    /// The note's photos in page order, for the post composer.
+    private func imagesInNote() -> [UIImage] {
+        state.document.blocks.compactMap { block in
+            guard case let .image(id) = block.type else { return nil }
+            return NoteImageCache.image(for: id, in: modelContext)
+        }
+    }
+
     private func focusFirstBlock() {
-        if let first = state.document.blocks.first, first.type != .divider {
+        if let first = state.document.blocks.first, first.type.holdsText {
             focus(CaretTarget(id: first.id, offset: 0))
         } else {
             focus(state.insertBlock(.paragraph, after: nil))
@@ -452,7 +500,7 @@ struct CanvasNoteEditorView: View {
     }
 
     private func focusTrailingBlock() {
-        if let last = state.document.blocks.last, last.plainText.isEmpty, last.type != .divider {
+        if let last = state.document.blocks.last, last.plainText.isEmpty, last.type.holdsText {
             focus(CaretTarget(id: last.id, offset: 0))
         } else {
             focus(state.insertBlock(.paragraph, after: state.document.order.last))
@@ -477,6 +525,12 @@ struct CanvasNoteEditorView: View {
             }
         }
     }
+}
+
+/// The photos handed to the post composer; a sheet needs something Identifiable.
+private struct PostImages: Identifiable {
+    let images: [UIImage]
+    var id: Int { images.count }
 }
 
 private struct ContentHeightKey: PreferenceKey {
@@ -525,6 +579,13 @@ final class CanvasEditorState: ObservableObject {
     func save(to note: Note) {
         note.blockDocument = document
         note.touch()
+        // A photo whose block is gone would otherwise sit in the store for good; there's no undo to bring it back.
+        let shown = Set(document.blocks.compactMap { block -> UUID? in
+            if case let .image(id) = block.type { return id } else { return nil }
+        })
+        for image in note.images ?? [] where !shown.contains(image.id) {
+            note.modelContext?.delete(image)
+        }
     }
 
     /// Blocks hidden under a collapsed toggle are dropped here, not in the view.
@@ -651,6 +712,10 @@ final class CanvasEditorState: ObservableObject {
             document = doc
             return CaretTarget(id: id, offset: 0)
         }
+        // A photo above is selected rather than deleted, so one Backspace too many can't lose it.
+        if case .image = previous.type {
+            return CaretTarget(id: previousID, offset: nil)
+        }
 
         let offset = previous.plainText.utf16.count
         if block.plainText.isEmpty {
@@ -667,7 +732,7 @@ final class CanvasEditorState: ObservableObject {
     /// Tab and Shift-Tab. A block can only ever sit one level deeper than the one above it.
     func indent(_ id: UUID, by delta: Int) {
         guard let index = document.order.firstIndex(of: id),
-              let block = document[id], block.type != .divider else { return }
+              let block = document[id], block.type.holdsText else { return }
         let ceiling = index > 0 ? (document[document.order[index - 1]]?.indent ?? 0) + 1 : 0
         let target = min(max(block.indent + delta, 0), ceiling)
         guard target != block.indent else { return }
@@ -746,9 +811,17 @@ struct PaperCanvasBackground: View {
 
 struct AddBlockPicker: View {
     let onInsert: (BlockType) -> Void
+    let onPhoto: (PhotoSource) -> Void
 
     var body: some View {
         Menu {
+            Section {
+                if PhotoSource.isCameraAvailable {
+                    Button { onPhoto(.camera) } label: { Label("Take Photo", systemImage: "camera") }
+                }
+                Button { onPhoto(.library) } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+                Button { onPhoto(.files) } label: { Label("Image from Files", systemImage: "folder") }
+            }
             ForEach(Self.blockTypes, id: \.displayName) { type in
                 Button {
                     onInsert(type)

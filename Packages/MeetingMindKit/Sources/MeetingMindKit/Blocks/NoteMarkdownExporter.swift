@@ -45,6 +45,9 @@ public enum NoteMarkdownExporter {
             return "```\(language ?? "")\n\(block.plainText)\n```"
         case .divider:
             return "---"
+        case let .image(id):
+            // The .md travels alone, so this names the photo rather than embedding it.
+            return "![Photo](photo-\(id.uuidString.prefix(8).lowercased()).jpg)"
         }
     }
 

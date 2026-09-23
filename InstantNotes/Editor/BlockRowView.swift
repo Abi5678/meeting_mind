@@ -202,10 +202,12 @@ struct BlockRowView: View {
     private var handle: some View {
         if isFocused || isHovering {
             Menu {
-                Menu("Turn into") {
-                    ForEach(turnIntoTypes, id: \.displayName) { type in
-                        Button { state.turn(block.id, into: type) } label: {
-                            Label(type.displayName, systemImage: type.iconName)
+                if !turnIntoTypes.isEmpty {
+                    Menu("Turn into") {
+                        ForEach(turnIntoTypes, id: \.displayName) { type in
+                            Button { state.turn(block.id, into: type) } label: {
+                                Label(type.displayName, systemImage: type.iconName)
+                            }
                         }
                     }
                 }
@@ -233,7 +235,8 @@ struct BlockRowView: View {
     /// Divider is only worth offering on a block with nothing in it — turning written text
     /// into a rule would hide the text with no way back.
     private var turnIntoTypes: [BlockType] {
-        AddBlockPicker.blockTypes.filter { $0 != .divider || block.plainText.isEmpty }
+        if case .image = block.type { return [] }
+        return AddBlockPicker.blockTypes.filter { $0 != .divider || block.plainText.isEmpty }
     }
 
     // MARK: Chrome
@@ -295,6 +298,13 @@ struct BlockRowView: View {
     private var content: some View {
         if case .divider = block.type {
             dividerRow
+        } else if case let .image(id) = block.type {
+            NoteImageRow(
+                imageID: id,
+                pitch: metrics.pitch,
+                isSelected: isFocused,
+                select: { focus(CaretTarget(id: block.id, offset: nil)) }
+            )
         } else {
             text
                 .background(blockFill)

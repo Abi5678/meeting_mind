@@ -23,6 +23,7 @@ extension BlockType {
         case .callout: return "lightbulb"
         case .code: return "chevron.left.forwardslash.chevron.right"
         case .divider: return "minus"
+        case .image: return "photo"
         }
     }
 
@@ -44,7 +45,7 @@ extension BlockType {
                 return "// \(lang.capitalized) code here…"
             }
             return "// Code here…"
-        case .divider: return ""
+        case .divider, .image: return ""
         }
     }
 
@@ -61,6 +62,15 @@ extension BlockType {
         case .callout: "Callout"
         case .code: "Code"
         case .divider: "Divider"
+        case .image: "Photo"
+        }
+    }
+
+    /// Dividers and photos have no text to type in: no caret, no indent, no merging.
+    var holdsText: Bool {
+        switch self {
+        case .divider, .image: return false
+        default: return true
         }
     }
 
