@@ -16,6 +16,9 @@ final class NoteImage {
     @Attribute(.externalStorage) var data: Data
     var createdAt: Date
     var note: Note?
+    /// The words in the photo, read on the device so search can find them. Nil until read; empty
+    /// when the photo has none.
+    var recognizedText: String?
 
     init(id: UUID = UUID(), data: Data, createdAt: Date = .now) {
         self.id = id

@@ -2,7 +2,7 @@
 //  NoteListView.swift
 //  Instant Notes
 //
-// Main note list with search over title/plainText/tags. Entry point of the app.
+// Main note list, and search across notes, meeting transcripts and photos. Entry point of the app.
 
 import SwiftUI
 import SwiftData
@@ -24,6 +24,12 @@ struct NoteListView: View {
     @State private var renamingNote: Note?
     @State private var renameText = ""
     @State private var showRename = false
+    @State private var searchEngine = NoteSearchEngine()
+    /// `Note.searchSignature` of every note when the index was last built.
+    @State private var indexedSignature: Int?
+    @State private var results: [SearchResult] = []
+    /// The query `results` answer, so "No matches" isn't shown while a search is still running.
+    @State private var searchedQuery = ""
 
     var body: some View {
         NavigationSplitView {
@@ -40,10 +46,14 @@ struct NoteListView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Rename") { rename(note) }
             }
+            .task(id: searchText) { await runSearch() }
+            // Photos added before search could read them.
+            .task { await PhotoTextRecognition.recognizePending(in: modelContext) }
         } detail: {
-            if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
-                CanvasNoteEditorView(note: .constant(note))
-                    .id(note.id)
+            if let note = allNotes.first(where: { $0.id == openNoteID }) {
+                // Keyed by the selection, so a second hit in the same note jumps again.
+                CanvasNoteEditorView(note: .constant(note), jump: selectedResult?.hit.passage.source)
+                    .id(selectedNoteID)
             } else {
                 EmptyDetailPlaceholder()
             }
@@ -79,15 +89,70 @@ struct NoteListView: View {
         .padding(.vertical, 8)
     }
 
+    /// A selected search result. The list selection is either a note's id or a result's id.
+    private var selectedResult: SearchResult? {
+        results.first { $0.id == selectedNoteID }
+    }
+
+    /// The note in the detail pane, whether picked from the list or from search.
+    private var openNoteID: UUID? {
+        selectedResult?.hit.passage.noteID ?? selectedNoteID
+    }
+
+    private func runSearch() async {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else {
+            // Keep the open note open when search is cleared.
+            if let result = selectedResult { selectedNoteID = result.hit.passage.noteID }
+            results = []
+            searchedQuery = ""
+            return
+        }
+        // Let a burst of typing settle before searching.
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+
+        let signature = allNotes.map(\.searchSignature).hashValue
+        if signature != indexedSignature {
+            await searchEngine.rebuild(allNotes.flatMap(\.searchPassages))
+            indexedSignature = signature
+        }
+        let hits = await searchEngine.search(searchText)
+        guard !Task.isCancelled else { return }
+        results = hits.map(SearchResult.init)
+        searchedQuery = searchText
+    }
+
+    @ViewBuilder
+    private var searchResults: some View {
+        if results.isEmpty {
+            if searchedQuery == searchText {
+                ContentUnavailableView.search(text: searchText.trimmingCharacters(in: .whitespaces))
+            } else {
+                Spacer()
+            }
+        } else {
+            let titles = Dictionary(allNotes.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+            List(results, selection: $selectedNoteID) { result in
+                NavigationLink(value: result.id) {
+                    SearchHitRow(hit: result.hit, noteTitle: titles[result.hit.passage.noteID] ?? "Untitled")
+                }
+            }
+            .listStyle(.plain)
+        }
+    }
+
     @ViewBuilder
     private var noteList: some View {
         let filtered = filteredNotes
 
-        if filtered.isEmpty {
+        if !searchText.isEmpty {
+            searchResults
+        } else if filtered.isEmpty {
             ContentUnavailableView(
-                searchText.isEmpty ? "Your notebook is empty" : "No matches",
-                systemImage: searchText.isEmpty ? "mic.fill" : "magnifyingglass",
-                description: Text(searchText.isEmpty ? "Tap the mic to capture a meeting, or + for a blank page." : "Try a different search term.")
+                "Your notebook is empty",
+                systemImage: "mic.fill",
+                description: Text("Tap the mic to capture a meeting, or + for a blank page.")
             )
         } else {
             List(filtered, id: \.id, selection: $selectedNoteID) { note in
@@ -120,7 +185,7 @@ struct NoteListView: View {
     /// Clears the selection first: deleting the open note would otherwise leave the
     /// detail pane pointing at a deleted model object.
     private func delete(_ note: Note) {
-        if selectedNoteID == note.id { selectedNoteID = nil }
+        if openNoteID == note.id { selectedNoteID = nil }
         // The relationships have no cascade rule, so the meeting's rows and audio go explicitly.
         let recordingsDirectory = AudioRecorderService.defaultRecordingsDirectory()
         for recording in note.recordings {
@@ -151,16 +216,6 @@ struct NoteListView: View {
 
     private var filteredNotes: [Note] {
         var notes = allNotes
-
-        // Filter by search
-        if !searchText.isEmpty {
-            notes = notes.filter {
-                $0.title.localizedCaseInsensitiveContains(searchText) ||
-                ($0.summary ?? "").localizedCaseInsensitiveContains(searchText) ||
-                ($0.tags).joined().localizedCaseInsensitiveContains(searchText) ||
-                $0.blockDocument.plainText.localizedCaseInsensitiveContains(searchText)
-            }
-        }
 
         // Apply sort
         switch selectedSort {
@@ -194,7 +249,7 @@ struct NoteListView: View {
                 if selectedNoteID != nil {
                     Divider()
                     Button(role: .destructive) {
-                        if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
+                        if let note = allNotes.first(where: { $0.id == openNoteID }) {
                             delete(note)
                         }
                     } label: {

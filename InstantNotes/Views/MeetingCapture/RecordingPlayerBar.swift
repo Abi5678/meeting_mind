@@ -10,6 +10,8 @@ import MeetingMindKit
 
 struct RecordingPlayerBar: View {
     let recording: Recording
+    /// Seconds to start playing from as soon as the bar appears (a search hit in the transcript).
+    var startAt: TimeInterval? = nil
     @StateObject private var player = PlaybackController()
 
     var body: some View {
@@ -50,6 +52,11 @@ struct RecordingPlayerBar: View {
         .onAppear {
             // Only the file name is stored: the app container path changes between installs.
             player.load(url: AudioRecorderService.defaultRecordingsDirectory().appending(path: recording.filePath))
+            if let startAt, player.error == nil {
+                // A second early, so the words searched for aren't clipped.
+                player.seek(to: max(0, startAt - 1))
+                play()
+            }
         }
         .onDisappear { player.stop() }
     }

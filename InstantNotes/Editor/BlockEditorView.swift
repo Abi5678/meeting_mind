@@ -22,6 +22,9 @@ struct CaretTarget: Equatable {
 
 struct CanvasNoteEditorView: View {
     @Binding var note: Note
+    /// Where a search result opened the note: the block or photo to scroll to, or the moment of
+    /// the recording to play from.
+    var jump: SearchPassage.Source? = nil
     @StateObject private var state = CanvasEditorState()
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -116,6 +119,11 @@ struct CanvasNoteEditorView: View {
             // A brand-new note opens ready to type.
             if state.document.isEmpty { focus(state.insertBlock(.paragraph, after: nil)) }
             updateInkBottom()
+            switch jump {
+            case let .block(id): scrollTarget = id
+            case let .photo(imageID): scrollTarget = state.document.blocks.first { $0.type == .image(id: imageID) }?.id
+            default: break
+            }
         }
         .onChange(of: note.drawingData) { _, _ in updateInkBottom() }
         .onChange(of: isDrawing) { _, drawing in
@@ -273,8 +281,13 @@ struct CanvasNoteEditorView: View {
             .padding(.vertical, 6)
             .background(.bar)
         } else if !isDrawing, let recording = note.recordings.first {
-            RecordingPlayerBar(recording: recording)
+            RecordingPlayerBar(recording: recording, startAt: jumpTime)
         }
+    }
+
+    private var jumpTime: TimeInterval? {
+        if case let .transcript(start) = jump { return start }
+        return nil
     }
 
     private func barButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
@@ -481,6 +494,7 @@ struct CanvasNoteEditorView: View {
         // Save the blocks with the photos now; onChange would only copy them after this save.
         state.save(to: note)
         try? modelContext.save()
+        Task { await PhotoTextRecognition.recognizePending(in: modelContext) }
     }
 
     /// The note's photos in page order, for the post composer.

@@ -2,7 +2,8 @@
 //  MeetingCaptureView.swift
 //  Instant Notes
 //
-// Records a meeting, transcribes it with Apple Speech, summarizes it with Gemini, and saves it as a note.
+// Records a meeting, transcribes it with Apple Speech, summarizes it (on the device when Apple
+// Intelligence is available, otherwise with Gemini), and saves it as a note.
 
 import SwiftUI
 import SwiftData
@@ -22,7 +23,7 @@ struct MeetingCaptureView: View {
         Group {
             switch viewModel.phase {
             case .idle, .recording: recorder
-            case .transcribing, .analyzing: working
+            case .transcribing, .transcribingOnDevice, .analyzing: working
             case .done: results
             case let .failed(message): failure(message)
             }
@@ -208,7 +209,8 @@ final class MeetingCaptureViewModel: ObservableObject {
         case idle
         case recording
         case transcribing(window: Int, total: Int)
-        case analyzing
+        case transcribingOnDevice(percent: Int)
+        case analyzing(onDevice: Bool)
         case done
         case failed(String)
 
@@ -216,6 +218,8 @@ final class MeetingCaptureViewModel: ObservableObject {
             switch self {
             case let .transcribing(window, total) where total > 1: "Transcribing part \(window) of \(total)…"
             case .transcribing: "Transcribing…"
+            case let .transcribingOnDevice(percent): "Transcribing on this device… \(percent)%"
+            case .analyzing(onDevice: true): "Summarizing on this device…"
             case .analyzing: "Summarizing with Gemini…"
             default: ""
             }
@@ -233,6 +237,8 @@ final class MeetingCaptureViewModel: ObservableObject {
     /// Rolling microphone levels for the waveform, oldest first.
     @Published private(set) var levels: [Double] = []
     @Published private(set) var transcript = ""
+    /// The transcript with timings, when the on-device model made it; saved so search can seek.
+    private var pieces: [TranscriptPiece] = []
     @Published private(set) var analysis: MeetingAnalysis?
     /// Set when transcription worked but Gemini did not; the transcript can still be saved.
     @Published private(set) var analysisError: String?
@@ -279,8 +285,12 @@ final class MeetingCaptureViewModel: ObservableObject {
                 phase = .failed(SpeechFileTranscriber.Failure.notAuthorized.localizedDescription)
                 return
             }
+            // Fetch Apple's speech model while the meeting runs, so it's ready when it ends.
+            if #available(iOS 26, *), OnDeviceTranscriber.isAvailable {
+                Task.detached(priority: .utility) { try? await OnDeviceTranscriber().prepare() }
+            }
             // Warn before the meeting, not after it. Recording still goes ahead: the audio can be saved.
-            if debugTranscript == nil, !SpeechFileTranscriber().isAvailable {
+            if debugTranscript == nil, !Self.onDeviceSpeechAvailable, !SpeechFileTranscriber().isAvailable {
                 speechWarning = "Speech recognition isn't available right now (offline, or this language isn't supported), so this meeting may not transcribe. You'll still be able to save the audio."
             }
 
@@ -343,6 +353,7 @@ final class MeetingCaptureViewModel: ObservableObject {
     func retryTranscription() {
         guard let recording else { return }
         transcript = ""
+        pieces = []
         work = Task { await transcribe(recording.url) }
     }
 
@@ -355,6 +366,7 @@ final class MeetingCaptureViewModel: ObservableObject {
         speechWarning = nil
         levels = []
         transcript = ""
+        pieces = []
         analysis = nil
         analysisError = nil
         needsAPIKey = false
@@ -379,11 +391,23 @@ final class MeetingCaptureViewModel: ObservableObject {
         do {
             if let debugTranscript {
                 transcript = debugTranscript
+                // A sentence every 4 s, so transcript search hits have a moment to seek to.
+                var sentences: [String] = []
+                debugTranscript.enumerateSubstrings(in: debugTranscript.startIndex..., options: .bySentences) { s, _, _, _ in
+                    if let s { sentences.append(s) }
+                }
+                pieces = sentences.enumerated().map { TranscriptPiece(start: Double($0) * 4, end: Double($0 + 1) * 4, text: $1) }
                 await analyze()
                 return
             }
-            transcript = try await SpeechFileTranscriber().transcribe(fileAt: url) { [weak self] window, total in
-                await self?.setPhase(.transcribing(window: window, total: total))
+            if let timed = await transcribeOnDevice(url) {
+                pieces = timed
+                transcript = TranscriptPiece.joined(timed)
+            } else {
+                phase = .transcribing(window: 0, total: 0)
+                transcript = try await SpeechFileTranscriber().transcribe(fileAt: url) { [weak self] window, total in
+                    await self?.setPhase(.transcribing(window: window, total: total))
+                }
             }
         } catch is CancellationError {
             return
@@ -399,6 +423,26 @@ final class MeetingCaptureViewModel: ObservableObject {
             return
         }
         await analyze()
+    }
+
+    private static var onDeviceSpeechAvailable: Bool {
+        if #available(iOS 26, *) { return OnDeviceTranscriber.isAvailable }
+        return false
+    }
+
+    /// Apple's newer on-device model (iOS 26): one pass over the whole file, with timings. Nil when it
+    /// isn't available or fails, so the older recognizer gets a turn.
+    private func transcribeOnDevice(_ url: URL) async -> [TranscriptPiece]? {
+        guard #available(iOS 26, *), OnDeviceTranscriber.isAvailable else { return nil }
+        phase = .transcribingOnDevice(percent: 0)
+        do {
+            let pieces = try await OnDeviceTranscriber().transcribe(fileAt: url) { [weak self] fraction in
+                await self?.setPhase(.transcribingOnDevice(percent: Int(fraction * 100)))
+            }
+            return pieces.isEmpty ? nil : pieces
+        } catch {
+            return nil
+        }
     }
 
     /// Apple reports a missing speech model as "Failed to initialize recognizer", which says nothing
@@ -418,6 +462,18 @@ final class MeetingCaptureViewModel: ObservableObject {
     private func analyze() async {
         analysisError = nil
         needsAPIKey = false
+        if #available(iOS 26, *), OnDeviceMeetingAnalyzer.isAvailable {
+            phase = .analyzing(onDevice: true)
+            do {
+                analysis = try await OnDeviceMeetingAnalyzer().analyze(transcript: transcript)
+                phase = .done
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                // Refused or out of its depth (e.g. a language it doesn't speak): Gemini may still manage.
+                analysisError = error.localizedDescription
+            }
+        }
         guard let key = GeminiKey.current else {
             analysisError = "Add a Gemini API key (… menu → AI) to get a summary. You can still save the transcript."
             needsAPIKey = true
@@ -425,7 +481,7 @@ final class MeetingCaptureViewModel: ObservableObject {
             return
         }
 
-        phase = .analyzing
+        phase = .analyzing(onDevice: false)
         let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
         do {
             analysis = try await GeminiClient(apiKey: key, configuration: .init(model: model)).analyze(transcript: transcript)
@@ -474,6 +530,9 @@ final class MeetingCaptureViewModel: ObservableObject {
                                            status: (transcribed ? MeetingProcessingStatus.ready : .failed).rawValue,
                                            summary: analysis?.summary, fullTranscript: transcript)
             artifact.recording = saved
+            artifact.segments = pieces.map {
+                TranscriptSegment(artifactId: artifact.id, startTime: $0.start, endTime: $0.end, text: $0.text)
+            }
             note.recordings.append(saved)
             note.meetingArtifact = artifact
         }
