@@ -64,6 +64,12 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # iPad multitasking requires all four orientations.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UIRequiredDeviceCapabilities:
           - arm64
         NSSpeechRecognitionUsageDescription: Instant Notes turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.

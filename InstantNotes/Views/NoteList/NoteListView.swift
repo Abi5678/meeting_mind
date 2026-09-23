@@ -6,6 +6,7 @@
 
 import SwiftUI
 import SwiftData
+import MeetingMindKit
 
 struct NoteListView: View {
     @Query(sort: \Note.modifiedAt, order: .reverse) private var allNotes: [Note]
@@ -20,6 +21,9 @@ struct NoteListView: View {
     @State private var showSettings = false
     @State private var showMeetingCapture = false
     @State private var showImport = false
+    @State private var renamingNote: Note?
+    @State private var renameText = ""
+    @State private var showRename = false
 
     var body: some View {
         NavigationSplitView {
@@ -31,6 +35,11 @@ struct NoteListView: View {
             .toolbar { toolbarContent }
             // Not on the toolbar button: importing re-renders the list, which would reset the sheet mid-import.
             .sheet(isPresented: $showImport) { ImportView() }
+            .alert("Rename note", isPresented: $showRename, presenting: renamingNote) { note in
+                TextField("Title", text: $renameText)
+                Button("Cancel", role: .cancel) {}
+                Button("Rename") { rename(note) }
+            }
         } detail: {
             if let note = allNotes.first(where: { $0.id == selectedNoteID }) {
                 CanvasNoteEditorView(note: .constant(note))
@@ -91,8 +100,14 @@ struct NoteListView: View {
                     Button(role: .destructive) { delete(note) } label: {
                         Label("Delete", systemImage: "trash")
                     }
+                    Button { beginRename(note) } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
                 }
                 .contextMenu {
+                    Button { beginRename(note) } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
                     Button(role: .destructive) { delete(note) } label: {
                         Label("Delete", systemImage: "trash")
                     }
@@ -106,7 +121,32 @@ struct NoteListView: View {
     /// detail pane pointing at a deleted model object.
     private func delete(_ note: Note) {
         if selectedNoteID == note.id { selectedNoteID = nil }
+        // The relationships have no cascade rule, so the meeting's rows and audio go explicitly.
+        let recordingsDirectory = AudioRecorderService.defaultRecordingsDirectory()
+        for recording in note.recordings {
+            try? FileManager.default.removeItem(at: recordingsDirectory.appending(path: recording.filePath))
+            modelContext.delete(recording)
+        }
+        if let artifact = note.meetingArtifact {
+            artifact.segments.forEach(modelContext.delete)
+            artifact.chatMessages.forEach(modelContext.delete)
+            modelContext.delete(artifact)
+        }
         modelContext.delete(note)
+    }
+
+    private func beginRename(_ note: Note) {
+        renamingNote = note
+        renameText = note.title
+        showRename = true
+    }
+
+    /// An empty name keeps the old title rather than leaving a blank row.
+    private func rename(_ note: Note) {
+        let title = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title != note.title else { return }
+        note.title = title
+        note.touch()
     }
 
     private var filteredNotes: [Note] {
@@ -212,16 +252,6 @@ struct NoteListView: View {
 struct NoteRowView: View {
     let note: Note
 
-    /// The AI summary when there is one, else the note's own text, so typed notes aren't title-only rows.
-    private var preview: String {
-        if let summary = note.summary, !summary.isEmpty { return summary }
-        return note.blockDocument.plainText
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -250,15 +280,28 @@ struct NoteRowView: View {
                 .foregroundStyle(Color("InkColor"))
                 .lineLimit(1)
 
-            if !preview.isEmpty {
-                Text(preview.prefix(120))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            HStack(spacing: 8) {
+                Text(note.modifiedAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+                    .layoutPriority(1)
+                if let preview {
+                    Text(preview)
+                }
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
         .padding(.vertical, 4)
         .listRowSeparatorTint(Color("RuleColor"))
+    }
+
+    /// The meeting summary when there is one, otherwise the first line written on the page.
+    private var preview: String? {
+        if let summary = note.summary, !summary.isEmpty { return summary }
+        return note.blockDocument.plainText
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
     }
 }
 
@@ -281,6 +324,7 @@ private func highlighterFill(for tag: String) -> Color {
         Color(red: 0.96, green: 0.56, blue: 0.69).opacity(0.45),  // pink
         Color(red: 0.65, green: 0.84, blue: 0.65).opacity(0.50),  // mint
     ]
-    let idx = abs(tag.hashValue) % palette.count
+    // Not `hashValue`: it is seeded per process, so tags would change colour on every launch.
+    let idx = tag.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7fffffff } % palette.count
     return palette[idx]
 }
