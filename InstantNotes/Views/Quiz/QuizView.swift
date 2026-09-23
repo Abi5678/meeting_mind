@@ -21,10 +21,13 @@ struct QuizView: View {
 
     enum Phase {
         case loading
-        case failed(message: String, needsKey: Bool)
+        case failed(message: String, fix: Fix)
         case playing(Quiz)
         case finished(Quiz)
     }
+
+    /// What the failure card offers. Retrying thin notes can't work: the snapshot is fixed while the quiz is open.
+    enum Fix { case addKey, retry, backToNote }
 
     var body: some View {
         ZStack {
@@ -34,7 +37,7 @@ struct QuizView: View {
 
             switch phase {
             case .loading: LoadingCard()
-            case let .failed(message, needsKey): failure(message, needsKey: needsKey)
+            case let .failed(message, fix): failure(message, fix: fix)
             case let .playing(quiz): playing(quiz)
             case let .finished(quiz): ResultsCard(quiz: quiz, results: results, onRetry: { Task { await load() } }, onDone: { dismiss() })
             }
@@ -65,7 +68,7 @@ struct QuizView: View {
         results = []
 
         guard let key = GeminiKey.current else {
-            phase = .failed(message: "Add your free Gemini API key to turn notes into quizzes.", needsKey: true)
+            phase = .failed(message: "Add your free Gemini API key to turn notes into quizzes.", fix: .addKey)
             return
         }
         let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
@@ -76,8 +79,12 @@ struct QuizView: View {
             let quiz = try await client.generateQuiz(fromNotes: notesText.isBlank ? "" : notes)
             withAnimation(.spring) { phase = .playing(quiz) }
         } catch {
-            let needsKey: Bool = if case GeminiError.http(status: 400..<404, _) = error { true } else { false }
-            phase = .failed(message: error.localizedDescription, needsKey: needsKey)
+            let fix: Fix = switch error {
+            case GeminiError.http(status: 400..<404, _): .addKey
+            case GeminiError.emptyNotes, GeminiError.notEnoughContent: .backToNote
+            default: .retry
+            }
+            phase = .failed(message: error.localizedDescription, fix: fix)
         }
     }
 
@@ -87,53 +94,66 @@ struct QuizView: View {
         let question = quiz.questions[index]
         let isLast = index == quiz.questions.count - 1
 
-        return VStack(spacing: 18) {
-            ProgressDots(total: quiz.questions.count, results: results, current: index)
-                .padding(.top, 56)
+        // Scrolls so a long prompt or explanation still fits landscape and small phones; Next stays pinned below.
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 18) {
+                    ProgressDots(total: quiz.questions.count, results: results, current: index)
+                        .padding(.top, 56)
+                        .id("top")
 
-            Text(quiz.title.uppercased())
-                .font(.caption.weight(.heavy))
-                .tracking(1.5)
-                .foregroundStyle(.pink)
+                    Text(quiz.title.uppercased())
+                        .font(.caption.weight(.heavy))
+                        .tracking(1.5)
+                        .foregroundStyle(.pink)
 
-            Text(question.prompt)
-                .font(.system(.title2, design: .rounded, weight: .heavy))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 8)
-                .id("prompt-\(index)")
-                .transition(.push(from: .trailing))
+                    Text(question.prompt)
+                        .font(.system(.title2, design: .rounded, weight: .heavy))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                        .id("prompt-\(index)")
+                        .transition(.push(from: .trailing))
 
-            VStack(spacing: 10) {
-                ForEach(Array(question.options.enumerated()), id: \.offset) { offset, option in
-                    OptionButton(
-                        letter: ["A", "B", "C", "D", "E", "F"][offset % 6],
-                        text: option,
-                        tint: OptionButton.tints[offset % OptionButton.tints.count],
-                        state: optionState(offset, answer: question.answerIndex)
-                    ) { pick(offset, answer: question.answerIndex) }
-                    .modifier(Shake(amount: picked == offset && offset != question.answerIndex ? CGFloat(shake) : 0))
+                    VStack(spacing: 10) {
+                        ForEach(Array(question.options.enumerated()), id: \.offset) { offset, option in
+                            OptionButton(
+                                letter: ["A", "B", "C", "D", "E", "F"][offset % 6],
+                                text: option,
+                                tint: OptionButton.tints[offset % OptionButton.tints.count],
+                                state: optionState(offset, answer: question.answerIndex)
+                            ) { pick(offset, answer: question.answerIndex) }
+                            .modifier(Shake(amount: picked == offset && offset != question.answerIndex ? CGFloat(shake) : 0))
+                        }
+                    }
+                    .id("options-\(index)")
+
+                    if let picked {
+                        let correct = picked == question.answerIndex
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(correct ? ["Nailed it! 🎉", "Big brain! 🧠", "Yes! ✨"][index % 3] : "Not quite 🤏")
+                                .font(.system(.headline, design: .rounded, weight: .bold))
+                            Text(question.explanation)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background((correct ? Color.green : Color.orange).opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .id("explanation")
+                    }
                 }
+                .padding(.horizontal, 20)
             }
-            .id("options-\(index)")
-
-            if let picked {
-                let correct = picked == question.answerIndex
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(correct ? ["Nailed it! 🎉", "Big brain! 🧠", "Yes! ✨"][index % 3] : "Not quite 🤏")
-                        .font(.system(.headline, design: .rounded, weight: .bold))
-                    Text(question.explanation)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background((correct ? Color.green : Color.orange).opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+            .scrollBounceBehavior(.basedOnSize)
+            .onChange(of: index) { proxy.scrollTo("top", anchor: .top) }
+            .onChange(of: picked) {
+                // The explanation lands below the options, which in landscape is off screen.
+                if picked != nil { withAnimation { proxy.scrollTo("explanation", anchor: .bottom) } }
             }
-
-            Spacer(minLength: 0)
-
+        }
+        .safeAreaInset(edge: .bottom, spacing: 18) {
             Button {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                     if isLast {
@@ -153,9 +173,9 @@ struct QuizView: View {
             }
             .opacity(picked == nil ? 0 : 1)
             .disabled(picked == nil)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
         .sensoryFeedback(trigger: results) { _, new in
             guard let last = new.last else { return nil }
             return last ? .success : .error
@@ -182,16 +202,26 @@ struct QuizView: View {
 
     // MARK: - Failure
 
-    private func failure(_ message: String, needsKey: Bool) -> some View {
-        VStack(spacing: 16) {
-            Text(needsKey ? "🔑" : "😵‍💫").font(.system(size: 72))
-            Text(needsKey ? "One quick setup" : "That didn't work")
+    private func failure(_ message: String, fix: Fix) -> some View {
+        let (emoji, title, label) = switch fix {
+        case .addKey: ("🔑", "One quick setup", "Add API key")
+        case .retry: ("😵‍💫", "That didn't work", "Try again")
+        case .backToNote: ("📝", "Nothing to quiz yet", "Back to note")
+        }
+
+        let card = VStack(spacing: 16) {
+            Text(emoji).font(.system(size: 72))
+            Text(title)
                 .font(.system(.title, design: .rounded, weight: .heavy))
             Text(message)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            Button(needsKey ? "Add API key" : "Try again") {
-                if needsKey { showSettings = true } else { Task { await load() } }
+            Button(label) {
+                switch fix {
+                case .addKey: showSettings = true
+                case .retry: Task { await load() }
+                case .backToNote: dismiss()
+                }
             }
             .font(.system(.headline, design: .rounded, weight: .bold))
             .buttonStyle(.borderedProminent)
@@ -200,6 +230,12 @@ struct QuizView: View {
             .controlSize(.large)
         }
         .padding(32)
+
+        // Gemini's quota messages run several lines; scroll rather than clip the button in landscape.
+        return ViewThatFits(in: .vertical) {
+            card
+            ScrollView { card }
+        }
     }
 }
 
@@ -362,8 +398,7 @@ private struct ResultsCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        let summary = VStack(spacing: 24) {
             ZStack {
                 Circle().stroke(Color.secondary.opacity(0.15), lineWidth: 18)
                 Circle()
@@ -386,9 +421,17 @@ private struct ResultsCard: View {
             Text(quiz.title)
                 .font(.headline)
                 .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity)
 
-            Spacer()
-
+        // The ring and headline are taller than an iPhone in landscape: centre them when they fit,
+        // scroll them when they don't, and keep the buttons pinned either way.
+        ViewThatFits(in: .vertical) {
+            summary.frame(maxHeight: .infinity)
+            ScrollView { summary.padding(.vertical, 24) }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 24) {
             VStack(spacing: 10) {
                 Button(action: onRetry) {
                     Label("New quiz", systemImage: "arrow.clockwise")
@@ -402,9 +445,9 @@ private struct ResultsCard: View {
                     .font(.system(.headline, design: .rounded))
                     .padding(.vertical, 8)
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 12)
         .sensoryFeedback(.success, trigger: burst)
         .onAppear {
             withAnimation(.spring(response: 1.1, dampingFraction: 0.8).delay(0.15)) { fill = fraction }

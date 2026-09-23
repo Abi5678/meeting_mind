@@ -9,11 +9,15 @@ import Security
 
 struct AISettingsView: View {
     @State private var apiKey = ""
+    /// What is in the keychain, so the status line describes the key AI calls will actually use.
+    @State private var savedKey = ""
     @AppStorage("gemini_model") private var modelName = "gemini-3.8-flash"
     @Environment(\.dismiss) private var dismiss
 
     init() {
-        _apiKey = State(wrappedValue: KeychainHelper().getString(forKey: "gemini_api_key") ?? "")
+        let stored = KeychainHelper().getString(forKey: "gemini_api_key") ?? ""
+        _apiKey = State(wrappedValue: stored)
+        _savedKey = State(wrappedValue: stored)
     }
 
     var body: some View {
@@ -46,7 +50,7 @@ struct AISettingsView: View {
             }
 
             Section("AI Features") {
-                if !apiKey.isEmpty {
+                if !savedKey.isEmpty {
                     Text("AI features are enabled and ready.")
                         .foregroundStyle(.green)
                         .font(.caption)
@@ -71,15 +75,24 @@ struct AISettingsView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    if !apiKey.isEmpty {
-                        KeychainHelper().set(apiKey, forKey: "gemini_api_key")
-                    } else {
-                        KeychainHelper().remove(forKey: "gemini_api_key")
-                    }
+                    save()
                     dismiss()
                 }
             }
         }
+        // Swiping the sheet down is the usual way to close it, so a pasted key must survive that too.
+        .onDisappear { save() }
+    }
+
+    /// Keys pasted from a browser often carry a trailing space or newline, which Gemini rejects.
+    private func save() {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if key.isEmpty {
+            KeychainHelper().remove(forKey: "gemini_api_key")
+        } else {
+            KeychainHelper().set(key, forKey: "gemini_api_key")
+        }
+        savedKey = key
     }
 
     private var geminiModels: [GeminiModelOption] {

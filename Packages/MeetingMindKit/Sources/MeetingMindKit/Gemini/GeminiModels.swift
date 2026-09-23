@@ -202,7 +202,23 @@ struct GeminiErrorEnvelope: Decodable {
         let code: Int
         let message: String
         let status: String?
+        let details: [Detail]?
     }
+
+    /// One `google.rpc` detail. A 429 carries a QuotaFailure (`violations`) and a RetryInfo (`retryDelay`);
+    /// other detail types decode with both fields nil.
+    struct Detail: Decodable {
+        struct Violation: Decodable {
+            /// e.g. "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+            let quotaId: String?
+            /// The quota's limit, as a string (proto3 JSON writes int64 that way).
+            let quotaValue: String?
+        }
+        let violations: [Violation]?
+        /// A protobuf Duration, e.g. "41s" or "41.787s".
+        let retryDelay: String?
+    }
+
     let error: APIError
 }
 
@@ -214,8 +230,13 @@ public enum GeminiError: Error, Equatable, Sendable {
     case emptyTranscript
     /// There is no note text to write a quiz from.
     case emptyNotes
-    /// 429, after retries were exhausted.
-    case rateLimited(retryAfter: TimeInterval?)
+    /// The model found nothing in the notes to ask about (it returned no playable questions).
+    case notEnoughContent
+    /// 429, after retries were exhausted. `message` is Google's own explanation.
+    case rateLimited(retryAfter: TimeInterval?, message: String)
+    /// 429 on a per-day quota, or one whose limit is 0 (the model is not on this key's tier).
+    /// Waiting seconds won't fix either, so these are not retried.
+    case quotaExhausted(message: String)
     /// 5xx, after retries were exhausted.
     case server(status: Int, message: String)
     /// A non-retryable non-2xx: bad key (401/403), bad request (400), unknown model (404).
@@ -233,17 +254,21 @@ extension GeminiError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            "No Gemini API key. Add one in Settings."
+            "Add a Gemini API key (… menu → AI)."
         case .emptyTranscript:
             "There is no transcript to analyse yet."
         case .emptyNotes:
             "Write a few notes first, then make a quiz."
-        case let .rateLimited(retryAfter):
+        case .notEnoughContent:
+            "There isn't enough in this note to quiz you on yet. Add a few more lines."
+        case let .rateLimited(retryAfter, message):
             if let retryAfter {
-                "Gemini is rate limiting this key. Try again in \(Int(retryAfter.rounded()))s."
+                "Gemini is rate limiting this key. Try again in \(Int(retryAfter.rounded()))s. \(message)"
             } else {
-                "Gemini is rate limiting this key. Try again shortly."
+                "Gemini is rate limiting this key. Try again shortly. \(message)"
             }
+        case let .quotaExhausted(message):
+            "This key has no Gemini quota left for this model. Try again tomorrow, or switch model (… menu → AI). \(message)"
         case let .server(status, message):
             "Gemini is having trouble (HTTP \(status)). \(message)"
         case let .http(status, message):

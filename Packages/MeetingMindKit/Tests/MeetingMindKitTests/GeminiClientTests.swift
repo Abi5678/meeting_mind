@@ -163,13 +163,13 @@ struct GeminiClientTests {
         #expect(delays == [2])
     }
 
-    @Test("Persistent 429s exhaust three retries and surface rateLimited")
+    @Test("Persistent 429s exhaust three retries and surface rateLimited with Gemini's message")
     func exhaustsRetries() async throws {
         let transport = StubTransport(repeating: Fixture.failure(429), times: 4)
         let recorder = DelayRecorder()
         let client = makeClient(transport: transport, recorder: recorder)
 
-        await #expect(throws: GeminiError.rateLimited(retryAfter: nil)) {
+        await #expect(throws: GeminiError.rateLimited(retryAfter: nil, message: "boom")) {
             try await client.analyze(transcript: "Hi.")
         }
 
@@ -177,6 +177,95 @@ struct GeminiClientTests {
         let delays = await recorder.delays
         #expect(callCount == 4)  // initial attempt + 3 retries
         #expect(delays == [2, 8, 30])
+    }
+
+    @Test("Per-minute 429s wait out the body's RetryInfo delay, then surface Gemini's message")
+    func perMinuteQuotaUsesRetryInfo() async throws {
+        let message = "Quota exceeded for metric: generate_content_free_tier_requests, limit: 10, model: gemini-3.8-flash"
+        let response = Fixture.quotaFailure(message: message, quotaId: Fixture.perMinuteQuota, quotaValue: "10")
+        let transport = StubTransport(repeating: response, times: 4)
+        let recorder = DelayRecorder()
+        let client = makeClient(transport: transport, recorder: recorder)
+
+        await #expect(throws: GeminiError.rateLimited(retryAfter: 17.5, message: message)) {
+            try await client.analyze(transcript: "Hi.")
+        }
+
+        let callCount = await transport.callCount
+        let delays = await recorder.delays
+        #expect(callCount == 4)
+        #expect(delays == [17.5, 17.5, 17.5])
+    }
+
+    @Test("A Retry-After header wins over the body's RetryInfo delay")
+    func retryAfterHeaderWinsOverBody() async throws {
+        let transport = StubTransport([
+            .response(Fixture.quotaFailure(message: "slow down", quotaId: Fixture.perMinuteQuota, headers: ["Retry-After": "7"])),
+            .response(Fixture.successAnalysis()),
+        ])
+        let recorder = DelayRecorder()
+
+        _ = try await makeClient(transport: transport, recorder: recorder).analyze(transcript: "Hi.")
+
+        let delays = await recorder.delays
+        #expect(delays == [7])
+    }
+
+    @Test("A 429 on a per-day quota fails at once with Gemini's message")
+    func dailyQuotaFailsFast() async throws {
+        let message = "You exceeded your current quota. Quota exceeded for metric: generate_content_free_tier_requests, limit: 50"
+        let transport = StubTransport([
+            .response(Fixture.quotaFailure(message: message, quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaValue: "50")),
+        ])
+        let recorder = DelayRecorder()
+        let client = makeClient(transport: transport, recorder: recorder)
+
+        await #expect(throws: GeminiError.quotaExhausted(message: message)) {
+            try await client.analyze(transcript: "Hi.")
+        }
+
+        let callCount = await transport.callCount
+        let delays = await recorder.delays
+        #expect(callCount == 1)
+        #expect(delays.isEmpty)
+    }
+
+    @Test("A 429 on a quota whose limit is 0 fails at once")
+    func zeroLimitFailsFast() async throws {
+        // Google says so in the message, the QuotaFailure's quotaValue, or both.
+        let cases: [(message: String, quotaValue: String?)] = [
+            ("Quota exceeded for metric: generate_content_free_tier_requests, limit: 0, model: gemini-3.1-pro", nil),
+            ("Quota exceeded.", "0"),
+        ]
+
+        for (message, quotaValue) in cases {
+            let response = Fixture.quotaFailure(message: message, quotaId: Fixture.perMinuteQuota, quotaValue: quotaValue)
+            let transport = StubTransport([.response(response)])
+            let recorder = DelayRecorder()
+            let client = makeClient(transport: transport, recorder: recorder)
+
+            await #expect(throws: GeminiError.quotaExhausted(message: message)) {
+                try await client.analyze(transcript: "Hi.")
+            }
+
+            let callCount = await transport.callCount
+            let delays = await recorder.delays
+            #expect(callCount == 1)
+            #expect(delays.isEmpty)
+        }
+    }
+
+    @Test("Quota and key errors say where to fix them, and keep Gemini's message")
+    func quotaCopy() {
+        let quota = GeminiError.quotaExhausted(message: "Quota exceeded, limit: 0.").localizedDescription
+        #expect(quota.contains("tomorrow"))
+        #expect(quota.contains("… menu → AI"))
+        #expect(quota.hasSuffix("Quota exceeded, limit: 0."))
+
+        let limited = GeminiError.rateLimited(retryAfter: 17.5, message: "Please retry in 17.5s.").localizedDescription
+        #expect(limited.hasSuffix("Please retry in 17.5s."))
+
+        #expect(GeminiError.missingAPIKey.localizedDescription.contains("… menu → AI"))
     }
 
     @Test("Persistent 5xx surfaces the server error with its message")
@@ -401,5 +490,39 @@ struct GeminiSchemaTests {
     func roundTrip() throws {
         let data = try JSONEncoder().encode(Fixture.analysis)
         #expect(try JSONDecoder().decode(MeetingAnalysis.self, from: data) == Fixture.analysis)
+    }
+}
+
+extension Fixture {
+    static let perMinuteQuota = "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"
+
+    /// A 429 shaped like Gemini's: the reason is in `details` (a QuotaFailure naming the quota, a Help
+    /// link, a RetryInfo with the wait), not in headers.
+    static func quotaFailure(
+        message: String,
+        quotaId: String,
+        quotaValue: String? = nil,
+        retryDelay: String = "17.5s",
+        headers: [String: String] = [:]
+    ) -> HTTPResponse {
+        var violation: [String: Any] = [
+            "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+            "quotaId": quotaId,
+            "quotaDimensions": ["location": "global", "model": "gemini-3.8-flash"],
+        ]
+        if let quotaValue { violation["quotaValue"] = quotaValue }
+
+        let body: [String: Any] = ["error": [
+            "code": 429,
+            "message": message,
+            "status": "RESOURCE_EXHAUSTED",
+            "details": [
+                ["@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [violation]],
+                ["@type": "type.googleapis.com/google.rpc.Help",
+                 "links": [["description": "Learn more", "url": "https://ai.google.dev/gemini-api/docs/rate-limits"]]],
+                ["@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retryDelay],
+            ],
+        ]]
+        return HTTPResponse(status: 429, headers: headers, body: try! JSONSerialization.data(withJSONObject: body))
     }
 }

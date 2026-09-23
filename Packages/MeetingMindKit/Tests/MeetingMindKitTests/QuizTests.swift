@@ -79,12 +79,12 @@ struct QuizTests {
         #expect(quiz.questions == Self.quiz.questions)
     }
 
-    @Test("A quiz with no gradeable questions surfaces as .malformedJSON")
+    @Test("A quiz with no gradeable questions surfaces as .notEnoughContent")
     func noPlayableQuestions() async throws {
         let empty = Quiz(title: "Nothing", questions: [])
         let text = String(data: try JSONEncoder().encode(empty), encoding: .utf8)!
         let transport = StubTransport([.response(Fixture.success(text: text))])
-        await #expect(throws: GeminiError.malformedJSON(text)) {
+        await #expect(throws: GeminiError.notEnoughContent) {
             try await makeClient(transport: transport).generateQuiz(fromNotes: "Notes")
         }
     }
