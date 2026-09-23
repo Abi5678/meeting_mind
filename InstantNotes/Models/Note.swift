@@ -23,6 +23,8 @@ final class Note {
     var paperStyle: String = PaperStyle.lined.rawValue
     /// PaperTint raw value; defaulted for the same reason as `paperStyle`.
     var paperTintName: String = PaperTint.cream.rawValue
+    /// PKDrawing data for the ink layer; optional so existing stores migrate lightweight.
+    @Attribute(.externalStorage) var drawingData: Data? = nil
     var recordings: [Recording]
     var meetingArtifact: MeetingArtifact?
 

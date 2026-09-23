@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import PencilKit
 import MeetingMindKit
 
 /// Where focus and the caret should land after an edit.
@@ -34,6 +35,12 @@ struct CanvasNoteEditorView: View {
     @State private var showQuiz = false
     @State private var isSuggestingTags = false
     @State private var tagError: String?
+    @State private var isDrawing = false
+    /// Bottom of the lowest stroke, so the page stays long enough to show it.
+    @State private var inkBottom: CGFloat = 0
+    @State private var showMeetingChat = false
+    @State private var scrollHandle = EditorScrollHandle()
+    @State private var exportError: String?
 
     private var metrics: EditorMetrics { EditorMetrics(dynamicTypeSize) }
 
@@ -55,6 +62,12 @@ struct CanvasNoteEditorView: View {
                         )
                         trailingSpace(viewport: geometry.size.height)
                     }
+                    // Over the whole page, inside the scroll view, so strokes scroll with the text.
+                    .overlay {
+                        NoteInkLayer(note: note, isDrawing: isDrawing)
+                            .allowsHitTesting(isDrawing)
+                    }
+                    .background(EnclosingScrollViewFinder(handle: scrollHandle))
                 }
                 .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
                 .onChange(of: scrollTarget) { _, target in
@@ -70,6 +83,19 @@ struct CanvasNoteEditorView: View {
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
         }
+        .sheet(isPresented: $showMeetingChat) {
+            if let artifact = note.meetingArtifact {
+                MeetingChatView(artifact: artifact, notesText: state.document.plainText)
+            }
+        }
+        .alert(
+            "Couldn't export PDF",
+            isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
+        }
         .alert(
             "Couldn't suggest tags",
             isPresented: Binding(get: { tagError != nil }, set: { if !$0 { tagError = nil } })
@@ -83,6 +109,15 @@ struct CanvasNoteEditorView: View {
             state.load(from: note)
             // A brand-new note opens ready to type.
             if state.document.isEmpty { focus(state.insertBlock(.paragraph, after: nil)) }
+            updateInkBottom()
+        }
+        .onChange(of: note.drawingData) { _, _ in updateInkBottom() }
+        .onChange(of: isDrawing) { _, drawing in
+            // The keyboard and the tool picker would fight over the bottom of the screen.
+            if drawing {
+                focusedBlockID = nil
+                titleFocused = false
+            }
         }
         .onChange(of: note.id) { _, _ in
             state.load(from: note)
@@ -188,7 +223,7 @@ struct CanvasNoteEditorView: View {
     /// just a strip below the text.
     private func trailingSpace(viewport: CGFloat) -> some View {
         let minimum = metrics.pitch * 4
-        let wanted = max(minimum, viewport - contentHeight)
+        let wanted = max(minimum, viewport - contentHeight, inkBottom + metrics.pitch - contentHeight)
         let height = (wanted / metrics.pitch).rounded(.up) * metrics.pitch
         return PaperRuling(style: note.paper, pitch: metrics.pitch)
             .frame(height: height)
@@ -229,7 +264,7 @@ struct CanvasNoteEditorView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.bar)
-        } else if let recording = note.recordings.first {
+        } else if !isDrawing, let recording = note.recordings.first {
             RecordingPlayerBar(recording: recording)
         }
     }
@@ -268,6 +303,20 @@ struct CanvasNoteEditorView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        if note.meetingArtifact?.fullTranscript?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showMeetingChat = true } label: {
+                    Image(systemName: "bubble.left.and.text.bubble.right")
+                }
+                .accessibilityLabel("Ask this meeting")
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { isDrawing.toggle() } label: {
+                Image(systemName: isDrawing ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle")
+            }
+            .accessibilityLabel(isDrawing ? "Stop drawing" : "Draw")
+        }
         // In the bar rather than floating over the page, where it hid text as the page scrolled.
         ToolbarItem(placement: .topBarTrailing) {
             AddBlockPicker(onInsert: insert)
@@ -279,6 +328,9 @@ struct CanvasNoteEditorView: View {
                     preview: SharePreview(markdownFile.name, image: Image(systemName: "doc.text"))
                 ) {
                     Label("Share as Markdown", systemImage: "square.and.arrow.up")
+                }
+                Button { exportPDF() } label: {
+                    Label("Share as PDF", systemImage: "doc.richtext")
                 }
                 Button { suggestTags() } label: {
                     Label("Suggest tags", systemImage: "tag")
@@ -326,12 +378,43 @@ struct CanvasNoteEditorView: View {
     }
 
     private var markdownFile: MarkdownFile {
+        MarkdownFile(name: exportFileName, text: NoteMarkdownExporter.markdown(title: note.title, document: state.document))
+    }
+
+    private var exportFileName: String {
         let trimmed = note.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = trimmed.isEmpty ? "Note" : trimmed
-        return MarkdownFile(
-            name: name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-"),
-            text: NoteMarkdownExporter.markdown(title: note.title, document: state.document)
-        )
+        return name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+    }
+
+    // MARK: Ink & PDF
+
+    private func updateInkBottom() {
+        let drawing = note.drawingData.flatMap { try? PKDrawing(data: $0) }
+        // An empty drawing's bounds are CGRect.null, whose maxY is infinite.
+        inkBottom = drawing.map { $0.strokes.isEmpty ? 0 : $0.bounds.maxY } ?? 0
+    }
+
+    private func exportPDF() {
+        focusedBlockID = nil
+        titleFocused = false
+        isDrawing = false
+        Task {
+            // Let the keyboard and tool picker leave so they don't change the page mid-export.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let scrollView = scrollHandle.scrollView else { return }
+            let data = NotePDFExporter.pdf(
+                of: scrollView,
+                height: max(contentHeight, inkBottom) + metrics.pitch,
+                background: UIColor(Color(paperTint: note.paperTint)),
+                title: note.title
+            )
+            do {
+                try NotePDFExporter.share(data, name: exportFileName, from: scrollView)
+            } catch {
+                exportError = error.localizedDescription
+            }
+        }
     }
 
     // MARK: Focus
@@ -398,7 +481,8 @@ struct CanvasNoteEditorView: View {
 
 private struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat { 0 }
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    // max, not the last value: the ink overlay and scroll finder report the default 0 after the content.
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// The note as a real `.md` file, so sharing it lands a document rather than a wall of text.

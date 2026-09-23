@@ -60,6 +60,38 @@ public enum PromptBuilder {
         """
     }
 
+    /// Builds the prompt for one question about a meeting. The answer must come from the
+    /// transcript and the user's notes on it; `history` is the conversation so far, oldest first.
+    public static func meetingQuestionPrompt(
+        question: String, transcript: String, notes: String, history: [MeetingChatTurn]
+    ) -> String {
+        let conversation = history.map { turn in
+            "\(turn.role == .user ? "USER" : "ASSISTANT"): \(turn.text)"
+        }.joined(separator: "\n")
+        return """
+        You answer questions about one meeting, using only its transcript and the notes taken \
+        on it. The transcript comes from automatic speech recognition, so expect misheard words \
+        and no reliable speaker labels.
+
+        Rules:
+        - Answer only from the transcript and notes. If they don't cover the question, say the \
+        meeting didn't cover it rather than guessing or using outside knowledge.
+        - Be brief: a sentence or two, or a few short lines starting with "- " for lists.
+        - When it helps, quote the transcript's own words.
+
+        TRANSCRIPT:
+        \(transcript)
+
+        NOTES:
+        \(notes.isEmpty ? "(none)" : notes)
+
+        CONVERSATION SO FAR:
+        \(conversation.isEmpty ? "(none)" : conversation)
+
+        QUESTION: \(question)
+        """
+    }
+
     /// Builds the tag prompt. Tags are for finding and grouping notes, so they name the topic,
     /// never the note's format, and reuse the user's existing vocabulary where it fits.
     public static func tagPrompt(title: String, notes: String, existingTags: [String]) -> String {
@@ -80,5 +112,18 @@ public enum PromptBuilder {
         NOTES:
         \(notes)
         """
+    }
+}
+
+/// One message in a conversation about a meeting.
+public struct MeetingChatTurn: Equatable, Sendable {
+    public enum Role: String, Sendable { case user, assistant }
+
+    public var role: Role
+    public var text: String
+
+    public init(role: Role, text: String) {
+        self.role = role
+        self.text = text
     }
 }

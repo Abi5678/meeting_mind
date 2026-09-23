@@ -137,11 +137,24 @@ enum GeminiSchema {
         required: ["tags"],
         description: nil
     )
+
+    static let meetingAnswer: Schema = .object(
+        properties: [
+            ("answer", .string(description: "The answer, in plain sentences or short dash-led lines.")),
+        ],
+        required: ["answer"],
+        description: nil
+    )
 }
 
 /// Mirrors `GeminiSchema.tags`.
 struct TagSuggestion: Decodable {
     let tags: [String]
+}
+
+/// Mirrors `GeminiSchema.meetingAnswer`.
+struct MeetingAnswer: Decodable {
+    let answer: String
 }
 
 // MARK: - Request

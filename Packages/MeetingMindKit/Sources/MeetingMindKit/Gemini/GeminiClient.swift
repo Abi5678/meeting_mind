@@ -106,6 +106,31 @@ public struct GeminiClient: Sendable {
         return Self.normalizedTags(try Self.decode(TagSuggestion.self, from: response.body).value.tags)
     }
 
+    /// Answers a question about a meeting from its transcript and the user's notes on it.
+    /// `history` is the conversation so far, oldest first, so follow-ups like "who owns that?" work.
+    public func answer(
+        question: String, transcript: String, notes: String = "", history: [MeetingChatTurn] = []
+    ) async throws -> String {
+        guard !apiKey.isEmpty else { throw GeminiError.missingAPIKey }
+
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GeminiError.emptyTranscript }
+
+        let response = try await send(
+            prompt: PromptBuilder.meetingQuestionPrompt(
+                question: question.trimmingCharacters(in: .whitespacesAndNewlines),
+                transcript: String(trimmed.prefix(configuration.maxTranscriptCharacters)),
+                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                history: history
+            ),
+            schema: GeminiSchema.meetingAnswer
+        )
+        let answer = try Self.decode(MeetingAnswer.self, from: response.body).value.answer
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !answer.isEmpty else { throw GeminiError.emptyResponse }
+        return answer
+    }
+
     /// Lowercased, `#` stripped, duplicates dropped, at most five.
     static func normalizedTags(_ tags: [String]) -> [String] {
         var seen = Set<String>()
