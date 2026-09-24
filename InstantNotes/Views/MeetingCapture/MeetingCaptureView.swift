@@ -289,6 +289,10 @@ final class MeetingCaptureViewModel: ObservableObject {
     /// Once saved, the audio belongs to a note and must not be deleted on the way out.
     private var isSaved = false
     private let recorderService = AudioRecorderService()
+    /// The saved Recording's id, known from the start so blocks written meanwhile can point at it.
+    private(set) var recordingID = UUID()
+    /// When the recorder started and each time it resumed, so ink can be matched to the audio.
+    private var clockSpans: [AudioClock.Span] = []
 
     /// Whether Cancel would throw away audio or a transcript.
     var hasCapture: Bool { phase == .recording || recording != nil || video != nil }
@@ -338,12 +342,18 @@ final class MeetingCaptureViewModel: ObservableObject {
             }
             phase = .recording
             levels = []
+            recordingID = UUID()
+            clockSpans = [.init(wallStart: .now, fileOffset: 0)]
             timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.phase == .recording else { return }
                     if let error = self.recorderService.error {
                         self.recordingStopped(by: error)
                         return
+                    }
+                    // Interruptions resume on their own, so resumes are noticed here rather than in resumeRecording().
+                    if self.isPaused, !self.recorderService.isPaused {
+                        self.clockSpans.append(.init(wallStart: .now, fileOffset: self.recorderService.recordingDuration))
                     }
                     self.isPaused = self.recorderService.isPaused
                     if !self.isPaused { self.resumeFailed = false }
@@ -422,6 +432,16 @@ final class MeetingCaptureViewModel: ObservableObject {
             return
         }
         await transcribe(url)
+    }
+
+    /// Where the recording is now, for stamping what's written meanwhile; nil when not recording.
+    var currentMark: AudioMark? {
+        phase == .recording ? AudioMark(recordingID: recordingID, time: recorderService.recordingDuration) : nil
+    }
+
+    func pauseRecording() {
+        recorderService.pauseRecording()
+        isPaused = recorderService.isPaused
     }
 
     func resumeRecording() {
@@ -599,34 +619,51 @@ final class MeetingCaptureViewModel: ObservableObject {
         return "Meeting notes · \(startedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
-    func save(in context: ModelContext) -> Note {
+    /// Saves as a new note, or, given `existing`, adds the recording to the end of that note under
+    /// a heading, keeping what was written there.
+    @discardableResult
+    func save(in context: ModelContext, into existing: Note? = nil) -> Note {
         isSaved = true
         let startedAt = recording?.startTime ?? .now
-        let title = video?.title ?? topicTitle(startedAt: startedAt, analysis: analysis, transcript: transcript)
-        let note = Note(title: title, summary: analysis?.summary)
         var blocks = MeetingNoteBuilder.blocks(analysis: analysis, transcript: transcript)
         if let video {
             // The editor shows runs as plain text, so the address itself is the visible link.
             blocks.insert(Block(type: .paragraph, runs: [InlineRun(text: video.watchURL.absoluteString, linkURL: video.watchURL)]), at: 0)
         }
-        note.blockDocument = BlockDocument(blocks: blocks)
-        context.insert(note)
+        let note: Note
+        if let existing {
+            note = existing
+            let heading = Block(type: .heading(level: 2),
+                                runs: [.plain("Recording · \(startedAt.formatted(.dateTime.month().day().hour().minute()))")])
+            note.blockDocument = BlockDocument(blocks: note.blockDocument.blocks + [heading] + blocks)
+            if note.summary == nil { note.summary = analysis?.summary }
+            note.touch()
+        } else {
+            let title = video?.title ?? topicTitle(startedAt: startedAt, analysis: analysis, transcript: transcript)
+            note = Note(title: title, summary: analysis?.summary)
+            note.blockDocument = BlockDocument(blocks: blocks)
+            context.insert(note)
+        }
 
         if let recording {
             // Saved from the failure screen, the transcript is missing or partial.
             let transcribed: Bool = if case .failed = phase { false } else { true }
             // File name only: the app container path changes between installs.
-            let saved = Recording(name: note.title, filePath: recording.url.lastPathComponent,
+            let saved = Recording(id: recordingID, name: note.title, filePath: recording.url.lastPathComponent,
                                   duration: recording.duration, createdAt: startedAt, isTranscribed: transcribed)
-            let artifact = MeetingArtifact(recordingId: saved.id,
-                                           status: (transcribed ? MeetingProcessingStatus.ready : .failed).rawValue,
-                                           summary: analysis?.summary, fullTranscript: transcript)
-            artifact.recording = saved
-            artifact.segments = pieces.map {
-                TranscriptSegment(artifactId: artifact.id, startTime: $0.start, endTime: $0.end, text: $0.text)
-            }
+            saved.clockSpans = clockSpans
             note.recordings.append(saved)
-            note.meetingArtifact = artifact
+            // A note keeps its first meeting's artifact; a later recording's transcript lives in its blocks.
+            if note.meetingArtifact == nil {
+                let artifact = MeetingArtifact(recordingId: saved.id,
+                                               status: (transcribed ? MeetingProcessingStatus.ready : .failed).rawValue,
+                                               summary: analysis?.summary, fullTranscript: transcript)
+                artifact.recording = saved
+                artifact.segments = pieces.map {
+                    TranscriptSegment(artifactId: artifact.id, startTime: $0.start, endTime: $0.end, text: $0.text)
+                }
+                note.meetingArtifact = artifact
+            }
         } else if video != nil {
             // No audio to point at: the artifact carries the timed captions, so the note can be
             // asked about and its transcript searched like a recorded meeting.

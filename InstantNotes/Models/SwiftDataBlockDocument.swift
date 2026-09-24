@@ -33,6 +33,8 @@ struct SwiftDataBlock: Codable {
     let indent: Int
     let isExpanded: Bool
     let isChecked: Bool
+    /// Optional so notes saved before audio marks existed still decode.
+    var audioMark: AudioMark?
 
     init(_ block: Block) {
         self.id = block.id.uuidString
@@ -53,6 +55,7 @@ struct SwiftDataBlock: Codable {
         self.indent = block.indent
         self.isExpanded = block.isExpanded
         self.isChecked = block.isChecked
+        self.audioMark = block.audioMark
     }
 
     func toBlock() -> Block {
@@ -75,7 +78,8 @@ struct SwiftDataBlock: Codable {
             runs: runs.map { $0.toInlineRun() },
             indent: indent,
             isExpanded: isExpanded,
-            isChecked: isChecked
+            isChecked: isChecked,
+            audioMark: audioMark
         )
     }
 }

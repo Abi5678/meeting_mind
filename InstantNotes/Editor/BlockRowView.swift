@@ -170,6 +170,11 @@ struct BlockRowView: View {
 
     let focus: (CaretTarget?) -> Void
     let setFocused: (Bool) -> Void
+    /// Where in the note's recording this block was written, shown in the margin; tapping plays from there.
+    var audioTime: TimeInterval? = nil
+    /// Whether playback is at this block.
+    var isPlayingHere = false
+    var onAudioTap: () -> Void = {}
 
     @EnvironmentObject private var state: CanvasEditorState
     @State private var isHovering = false
@@ -191,45 +196,65 @@ struct BlockRowView: View {
         }
         .padding(.leading, EditorLayout.leading)
         .padding(.trailing, EditorLayout.trailing)
+        .background(Color.accentColor.opacity(isPlayingHere ? 0.12 : 0))
         .background(PaperRuling(style: paper, pitch: metrics.pitch))
-        .overlay(alignment: .topLeading) { handle }
+        .overlay(alignment: .topLeading) {
+            if isFocused || isHovering { handle } else { audioChip }
+        }
+        .animation(.easeOut(duration: 0.2), value: isPlayingHere)
         .onHover { isHovering = $0 }
+    }
+
+    // MARK: Audio
+
+    @ViewBuilder
+    private var audioChip: some View {
+        if let audioTime {
+            Button(action: onAudioTap) {
+                Text(Duration.seconds(audioTime).formatted(.time(pattern: audioTime >= 3600 ? .hourMinuteSecond : .minuteSecond)))
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                    .foregroundStyle(isPlayingHere ? Color.accentColor : .secondary)
+                    .frame(width: EditorLayout.marginX - 2, height: metrics.pitch)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Play from here")
+        }
     }
 
     // MARK: Handle
 
-    @ViewBuilder
     private var handle: some View {
-        if isFocused || isHovering {
-            Menu {
-                if !turnIntoTypes.isEmpty {
-                    Menu("Turn into") {
-                        ForEach(turnIntoTypes, id: \.displayName) { type in
-                            Button { state.turn(block.id, into: type) } label: {
-                                Label(type.displayName, systemImage: type.iconName)
-                            }
+        Menu {
+            if !turnIntoTypes.isEmpty {
+                Menu("Turn into") {
+                    ForEach(turnIntoTypes, id: \.displayName) { type in
+                        Button { state.turn(block.id, into: type) } label: {
+                            Label(type.displayName, systemImage: type.iconName)
                         }
                     }
                 }
-                Button { state.move(block.id, by: -1) } label: { Label("Move up", systemImage: "arrow.up") }
-                Button { state.move(block.id, by: 1) } label: { Label("Move down", systemImage: "arrow.down") }
-                Button { state.indent(block.id, by: 1) } label: { Label("Indent", systemImage: "increase.indent") }
-                Button { state.indent(block.id, by: -1) } label: { Label("Outdent", systemImage: "decrease.indent") }
-                Divider()
-                Button(role: .destructive) { focus(state.remove(block.id)) } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary.opacity(0.55))
-                    .frame(width: 28, height: metrics.pitch)
-                    .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .accessibilityLabel("Block actions")
+            Button { state.move(block.id, by: -1) } label: { Label("Move up", systemImage: "arrow.up") }
+            Button { state.move(block.id, by: 1) } label: { Label("Move down", systemImage: "arrow.down") }
+            Button { state.indent(block.id, by: 1) } label: { Label("Indent", systemImage: "increase.indent") }
+            Button { state.indent(block.id, by: -1) } label: { Label("Outdent", systemImage: "decrease.indent") }
+            Divider()
+            Button(role: .destructive) { focus(state.remove(block.id)) } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.caption2)
+                .foregroundStyle(.secondary.opacity(0.55))
+                .frame(width: 28, height: metrics.pitch)
+                .contentShape(Rectangle())
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .accessibilityLabel("Block actions")
     }
 
     /// Divider is only worth offering on a block with nothing in it — turning written text

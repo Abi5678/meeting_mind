@@ -19,6 +19,7 @@ struct NoteListView: View {
     /// A note made in a sheet. Opened once the sheet has gone: on iPhone the collapsed split
     /// view ignores a selection that changes while a sheet is still dismissing.
     @State private var createdNoteID: UUID?
+    @EnvironmentObject private var recorder: NoteRecorder
     @State private var showMeetingCapture = false
     @State private var captureSource = CaptureSource.microphone
     @State private var showMediaImporter = false
@@ -323,6 +324,8 @@ struct NoteListView: View {
         ToolbarItem(placement: .navigationBarTrailing) {
             Menu {
                 Button("Record meeting", systemImage: "mic") { capture(.microphone) }
+                    // A note is already recording; there's one microphone.
+                    .disabled(recorder.session != nil)
                 Button("Import audio or video…", systemImage: "folder") { showMediaImporter = true }
                 Button("Video from Photos…", systemImage: "photo.on.rectangle") { showVideoPicker = true }
                 Button("Transcribe YouTube link…", systemImage: "play.rectangle") {
@@ -384,6 +387,7 @@ struct NoteListView: View {
 
 struct NoteRowView: View {
     let note: Note
+    @EnvironmentObject private var recorder: NoteRecorder
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -401,7 +405,15 @@ struct NoteRowView: View {
 
                 Spacer()
 
-                if note.meetingArtifact != nil {
+                if recorder.isRecording(into: note) {
+                    Label("Recording", systemImage: "circle.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                        .labelStyle(RecordingChipLabelStyle())
+                } else if note.meetingArtifact != nil {
                     Image(systemName: "waveform")
                         .font(.caption2)
                         .foregroundStyle(Color("InkColor"))
@@ -460,4 +472,14 @@ private func highlighterFill(for tag: String) -> Color {
     // Not `hashValue`: it is seeded per process, so tags would change colour on every launch.
     let idx = tag.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7fffffff } % palette.count
     return palette[idx]
+}
+
+/// A small dot before "Recording", tighter than the default label spacing.
+private struct RecordingChipLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.font(.system(size: 6))
+            configuration.title
+        }
+    }
 }
