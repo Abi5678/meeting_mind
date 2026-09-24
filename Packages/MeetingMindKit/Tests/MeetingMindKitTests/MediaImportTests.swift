@@ -99,6 +99,16 @@ struct YouTubeCaptionsTests {
         ])
     }
 
+    @Test("A refused request says so instead of failing to parse")
+    func refused() throws {
+        func response(_ status: Int) -> HTTPURLResponse {
+            HTTPURLResponse(url: URL(string: "https://www.youtube.com")!, statusCode: status, httpVersion: nil, headerFields: nil)!
+        }
+        #expect(throws: YouTubeCaptions.Failure.busy) { try YouTubeCaptions.check(response(429)) }
+        #expect(throws: YouTubeCaptions.Failure.unavailable(reason: nil)) { try YouTubeCaptions.check(response(403)) }
+        try YouTubeCaptions.check(response(200))
+    }
+
     /// Hits YouTube itself, so only on request: `YOUTUBE_LIVE=1 swift test --filter YouTube`.
     @Test("Fetches captions for a real video", .enabled(if: ProcessInfo.processInfo.environment["YOUTUBE_LIVE"] != nil))
     func live() async throws {
@@ -197,6 +207,86 @@ struct MediaImporterTests {
         sound.markAsFinished()
         await writer.finishWriting()
         try #require(writer.status == .completed, "\(String(describing: writer.error))")
+        return url
+    }
+}
+
+@Suite("Music check")
+struct MusicCheckTests {
+    @Test("Speech isn't mistaken for music")
+    func speech() throws {
+        let audio = try MediaImporterTests.spokenAudio()
+        defer { try? FileManager.default.removeItem(at: audio) }
+        #expect(try !MusicCheck.soundsLikeMusic(fileAt: audio))
+    }
+
+    @Test("A tune is heard as music, short or long enough to be sampled", arguments: [12.0, 90.0])
+    func tune(seconds: Double) throws {
+        let audio = try Self.tune(seconds: seconds)
+        defer { try? FileManager.default.removeItem(at: audio) }
+        #expect(try MusicCheck.soundsLikeMusic(fileAt: audio))
+    }
+
+    @Test("Captions marked as music read as a song")
+    func markedCaptions() {
+        let lines = ["[♪♪♪]", "♪ We're no strangers to love ♪", "♪ You know the rules and so do I ♪", "and a spoken line"]
+        #expect(MusicCheck.captionsLookLikeSong(Self.pieces(lines)))
+    }
+
+    @Test("Automatic captions with a repeating chorus read as a song")
+    func chorus() {
+        let verse = ["we walked along the river", "under lights that never fade", "every step a little closer"]
+        let chorus = ["hold on hold on to the night", "we're never letting go of the light"]
+        let lines = verse + chorus + chorus + ["the morning comes too soon", "and the city starts to wake"] + chorus + chorus
+        #expect(MusicCheck.captionsLookLikeSong(Self.pieces(lines)))
+    }
+
+    @Test("A meeting's captions don't, however short")
+    func meeting() {
+        let lines = [
+            "okay let's get started with the launch review", "Priya do you want to go first on the press release",
+            "sure the draft is done and legal has it now", "we should hear back from them by Friday at the latest",
+            "Marco what's left on the checklist", "mostly the store screenshots and the pricing page",
+            "can we ship on the fourteenth or is that too tight", "the fourteenth works if the screenshots land this week",
+            "great let's lock the fourteenth then", "I'll send a recap after this call",
+        ]
+        #expect(!MusicCheck.captionsLookLikeSong(Self.pieces(lines)))
+        #expect(!MusicCheck.captionsLookLikeSong(Self.pieces(["yeah", "yeah", "okay"])))
+        #expect(!MusicCheck.captionsLookLikeSong([]))
+    }
+
+    /// Hits YouTube itself, so only on request: `YOUTUBE_LIVE=1 swift test --filter Music`.
+    @Test("Real captions: songs, manual or automatic, read as songs and a talk doesn't",
+          .enabled(if: ProcessInfo.processInfo.environment["YOUTUBE_LIVE"] != nil),
+          arguments: [("dQw4w9WgXcQ", true), ("kJQP7kiw5Fk", true), ("8jPQjjsBbIc", false), ("arj7oStGLkU", false)])
+    func live(id: String, isSong: Bool) async throws {
+        let video = try await YouTubeCaptions.fetch("https://youtu.be/\(id)", preferredLanguages: ["en-US"])
+        #expect(MusicCheck.captionsLookLikeSong(video.pieces) == isSong, "\(video.title)")
+    }
+
+    static func pieces(_ lines: [String]) -> [TranscriptPiece] {
+        lines.enumerated().map { TranscriptPiece(start: Double($0) * 3, end: Double($0 + 1) * 3, text: $1) }
+    }
+
+    /// A plucked melody over sustained chords, the shape of a pop song.
+    static func tune(seconds: Double) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "tune-\(UUID()).caf")
+        let rate = 44_100.0
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1))
+        let frames = AVAudioFrameCount(rate * seconds)
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+        buffer.frameLength = frames
+        let samples = try #require(buffer.floatChannelData?[0])
+        func hz(_ note: Double) -> Double { 440 * pow(2, (note - 69) / 12) }
+        let chords: [[Double]] = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]]
+        let melody: [Double] = [72, 74, 76, 79, 76, 74, 72, 69]
+        for i in 0..<Int(frames) {
+            let t = Double(i) / rate
+            let pad = chords[Int(t / 3) % 4].reduce(0) { $0 + sin(2 * .pi * hz($1) * t) + 0.3 * sin(4 * .pi * hz($1) * t) }
+            let pluck = sin(2 * .pi * hz(melody[Int(t / 0.375) % 8]) * t) * exp(-t.truncatingRemainder(dividingBy: 0.375) * 6)
+            samples[i] = Float(pad * 0.08 + pluck * 0.3)
+        }
+        try AVAudioFile(forWriting: url, settings: format.settings).write(from: buffer)
         return url
     }
 }

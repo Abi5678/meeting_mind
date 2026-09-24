@@ -31,12 +31,14 @@ public enum YouTubeCaptions {
         case notYouTube
         case unavailable(reason: String?)
         case noCaptions
+        case busy
 
         public var errorDescription: String? {
             switch self {
             case .notYouTube: "That doesn't look like a YouTube video link."
             case let .unavailable(reason): "YouTube wouldn't share this video" + (reason.map { ": \($0)" } ?? ".")
             case .noCaptions: "YouTube didn't share captions for this video, so there's nothing to transcribe."
+            case .busy: "YouTube is turning away requests from this network for now. Try again in a few minutes."
             }
         }
     }
@@ -49,10 +51,12 @@ public enum YouTubeCaptions {
         session: URLSession = .shared
     ) async throws -> Video {
         guard let id = videoID(from: link) else { throw Failure.notYouTube }
-        let (playerData, _) = try await session.data(for: playerRequest(videoID: id))
+        let (playerData, playerResponse) = try await session.data(for: playerRequest(videoID: id))
+        try check(playerResponse)
         let (title, tracks) = try player(from: playerData)
         guard let track = bestTrack(tracks, preferredLanguages: preferredLanguages) else { throw Failure.noCaptions }
-        let (captionData, _) = try await session.data(from: json3URL(for: track))
+        let (captionData, captionResponse) = try await session.data(from: json3URL(for: track))
+        try check(captionResponse)
         let pieces = try Self.pieces(fromJSON3: captionData)
         guard !pieces.isEmpty else { throw Failure.noCaptions }
         return Video(id: id, title: title, pieces: pieces)
@@ -68,6 +72,13 @@ public enum YouTubeCaptions {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    /// YouTube answers too many requests with an HTML "Sorry" page, which would otherwise surface as
+    /// a baffling JSON error.
+    static func check(_ response: URLResponse) throws {
+        guard let status = (response as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) else { return }
+        throw status == 429 ? Failure.busy : Failure.unavailable(reason: nil)
     }
 
     // MARK: - Parsing

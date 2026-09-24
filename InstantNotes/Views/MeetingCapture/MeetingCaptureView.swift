@@ -38,6 +38,7 @@ struct MeetingCaptureView: View {
             switch viewModel.phase {
             case .idle, .recording: recorder
             case .preparing, .transcribing, .transcribingOnDevice, .analyzing: working
+            case .soundsLikeMusic: musicWarning
             case .done: results
             case let .failed(message): failure(message)
             }
@@ -190,6 +191,23 @@ struct MeetingCaptureView: View {
         }
     }
 
+    /// An imported song would come out as a meeting summary of its lyrics, so ask first.
+    private var musicWarning: some View {
+        let isYouTube = if case .youTube = source { true } else { false }
+        return ContentUnavailableView {
+            Label("This sounds like music", systemImage: "music.note")
+        } description: {
+            Text(isYouTube
+                 ? "Its captions read like song lyrics. Recapped summarizes people talking, so the notes may not be useful."
+                 : "Recapped summarizes people talking, and this sounds more like a song, so the notes may not be useful.")
+        } actions: {
+            Button(isYouTube ? "Summarize anyway" : "Transcribe anyway") { viewModel.continueAfterMusicWarning() }
+                .buttonStyle(.borderedProminent)
+            Button("Close") { dismiss() }
+                .buttonStyle(.bordered)
+        }
+    }
+
     private func failure(_ message: String) -> some View {
         ContentUnavailableView {
             Label("Couldn't finish", systemImage: "mic.slash")
@@ -225,6 +243,8 @@ final class MeetingCaptureViewModel: ObservableObject {
         case recording
         /// Bringing in a file or fetching captions; the text says which.
         case preparing(String)
+        /// An import that sounds like a song; waits for the user to carry on or close.
+        case soundsLikeMusic
         case transcribing(window: Int, total: Int)
         case transcribingOnDevice(percent: Int)
         case analyzing
@@ -360,7 +380,11 @@ final class MeetingCaptureViewModel: ObservableObject {
                     self.video = video
                     pieces = video.pieces
                     transcript = TranscriptPiece.joined(video.pieces)
-                    await analyze()
+                    if MusicCheck.captionsLookLikeSong(video.pieces) {
+                        phase = .soundsLikeMusic
+                    } else {
+                        await analyze()
+                    }
                     return
                 }
             } catch {
@@ -369,12 +393,35 @@ final class MeetingCaptureViewModel: ObservableObject {
                 return
             }
             guard let recording else { return }
-            guard await SpeechFileTranscriber.requestAuthorization() else {
-                phase = .failed(SpeechFileTranscriber.Failure.notAuthorized.localizedDescription)
-                return
+            phase = .preparing("Checking the audio…")
+            let url = recording.url
+            let isMusic = await Task.detached(priority: .userInitiated) { (try? MusicCheck.soundsLikeMusic(fileAt: url)) ?? false }.value
+            guard !Task.isCancelled else { return }
+            if isMusic {
+                phase = .soundsLikeMusic
+            } else {
+                await transcribeImport(recording.url)
             }
-            await transcribe(recording.url)
         }
+    }
+
+    /// Carries on past the music warning: a YouTube video to its summary, a file to transcription.
+    func continueAfterMusicWarning() {
+        work = Task {
+            if video != nil {
+                await analyze()
+            } else if let recording {
+                await transcribeImport(recording.url)
+            }
+        }
+    }
+
+    private func transcribeImport(_ url: URL) async {
+        guard await SpeechFileTranscriber.requestAuthorization() else {
+            phase = .failed(SpeechFileTranscriber.Failure.notAuthorized.localizedDescription)
+            return
+        }
+        await transcribe(url)
     }
 
     func resumeRecording() {
