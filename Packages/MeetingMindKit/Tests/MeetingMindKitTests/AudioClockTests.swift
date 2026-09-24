@@ -46,4 +46,22 @@ struct AudioClockTests {
         let data = try JSONEncoder().encode(mark)
         #expect(try JSONDecoder().decode(AudioMark.self, from: data) == mark)
     }
+
+    @Test("A transcript time is found in the recording whose part of the transcript holds it")
+    func sourceRecording() {
+        let starts: [TimeInterval] = [0, 120, 300]
+        #expect(AudioClock.source(at: 0, starts: starts) == 0)
+        #expect(AudioClock.source(at: 119, starts: starts) == 0)
+        #expect(AudioClock.source(at: 120, starts: starts) == 1)
+        #expect(AudioClock.source(at: 900, starts: starts) == 2)
+        #expect(AudioClock.source(at: 5, starts: [10]) == nil)
+        // Recordings saved before offsets existed all start at 0: the first one wins.
+        #expect(AudioClock.source(at: 5, starts: [0, 0]) == 0)
+    }
+
+    @Test("A block's ink floor survives, and defaults to none")
+    func blockMinY() {
+        #expect(Block(type: .paragraph).minY == nil)
+        #expect(Block(type: .paragraph, minY: 240).minY == 240)
+    }
 }

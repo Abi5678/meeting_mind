@@ -46,6 +46,9 @@ targets:
           - "**/*.swift~" # generated files to avoid compiler warnings
     dependencies:
       - package: MeetingMindKit
+    scheme:
+      testTargets:
+        - InstantNotesTests
     entitlements:
       path: InstantNotes/InstantNotes.entitlements
     resources:
@@ -84,6 +87,21 @@ targets:
         # No encryption beyond what iOS provides, so App Store Connect skips the export
         # compliance question on each build.
         ITSAppUsesNonExemptEncryption: false
+
+  # Runs inside the app on the simulator: `xcodebuild test -scheme InstantNotes`.
+  InstantNotesTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: InstantNotesTests
+    dependencies:
+      - target: InstantNotes
+      - package: MeetingMindKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.homezero1.instantnotes.tests
 
 packages:
   MeetingMindKit:

@@ -12,7 +12,7 @@ import MeetingMindKit
 @MainActor
 final class NoteRecorder: ObservableObject {
     /// The recording in progress, or being turned into notes.
-    @Published private(set) var session: MeetingCaptureViewModel?
+    @Published private(set) var session: MeetingSession?
     /// The note it belongs to.
     @Published private(set) var noteID: UUID?
     private var note: Note?
@@ -22,7 +22,7 @@ final class NoteRecorder: ObservableObject {
 
     func start(for note: Note) {
         guard session == nil else { return }
-        let session = MeetingCaptureViewModel()
+        let session = MeetingSession()
         self.session = session
         self.note = note
         noteID = note.id
@@ -63,7 +63,7 @@ final class NoteRecorder: ObservableObject {
 
 /// Shown over the bottom of a note while it's recording, and while the recording is processed.
 struct NoteRecordingBanner: View {
-    @ObservedObject var session: MeetingCaptureViewModel
+    @ObservedObject var session: MeetingSession
     @EnvironmentObject private var recorder: NoteRecorder
 
     var body: some View {
