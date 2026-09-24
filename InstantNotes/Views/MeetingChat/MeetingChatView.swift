@@ -27,7 +27,7 @@ struct MeetingChatView: View {
     ]
 
     private var messages: [MeetingChatMessage] {
-        artifact.chatMessages.sorted { $0.createdAt < $1.createdAt }
+        (artifact.chatMessages ?? []).sorted { $0.createdAt < $1.createdAt }
     }
 
     var body: some View {
@@ -147,7 +147,7 @@ struct MeetingChatView: View {
                 append(.assistant, answer)
             } catch {
                 // Put the question back to send again, rather than leave it unanswered in the history.
-                artifact.chatMessages.removeAll { $0.id == asked.id }
+                artifact.chatMessages?.removeAll { $0.id == asked.id }
                 modelContext.delete(asked)
                 if draft.isEmpty { draft = question }
                 self.error = error.localizedDescription
@@ -159,7 +159,7 @@ struct MeetingChatView: View {
     private func append(_ role: MeetingChatTurn.Role, _ content: String) -> MeetingChatMessage {
         let message = MeetingChatMessage(artifactId: artifact.id, role: role.rawValue, content: content)
         modelContext.insert(message)
-        artifact.chatMessages.append(message)
+        artifact.chatMessages = (artifact.chatMessages ?? []) + [message]
         return message
     }
 }

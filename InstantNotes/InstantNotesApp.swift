@@ -29,12 +29,16 @@ struct InstantNotesApp: App {
             ColumnEntity.self,
             RowEntity.self,
         ])
+        // Synced with the user's private iCloud database; without an iCloud account it simply
+        // stays on the device.
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false
+            cloudKitDatabase: .private(CloudSync.containerID)
         )
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            CloudSync.prepare(container.mainContext)
+            return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
