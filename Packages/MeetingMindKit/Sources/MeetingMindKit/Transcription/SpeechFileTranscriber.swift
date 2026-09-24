@@ -20,7 +20,7 @@ public struct SpeechFileTranscriber: Sendable {
 
         public var errorDescription: String? {
             switch self {
-            case .notAuthorized: "Speech recognition is off for Instant Notes. Turn it on in Settings."
+            case .notAuthorized: "Speech recognition is off for Recapped. Turn it on in Settings."
             case .unavailable: "Speech recognition isn't available for this language right now."
             case let .incomplete(_, failed, total): "\(failed) of \(total) parts of the recording couldn't be transcribed."
             }

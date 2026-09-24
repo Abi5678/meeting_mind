@@ -1,17 +1,17 @@
 //
 //  LaunchMarkView.swift
-//  Instant Notes
+//  Recapped
 //
-// The brand mark and the launch sequence that plays it: a waveform being consumed,
-// left to right, by the written lines it turns into. Same 220-unit geometry as the
-// app icon generator, so the icon and the splash are the same mark.
+// The brand mark and the launch sequence that plays it: a speech bubble in which a live
+// waveform is written up, left to right, as a bulleted recap. Same geometry as the app icon
+// generator (Tools/makeicon.swift), mapped from its 1024 tile onto 10...210 here, so the
+// icon and the splash are the same mark.
 
 import SwiftUI
-import MeetingMindKit
 
 /// The mark, drawn in a 220-unit square and scaled to whatever frame it is given.
 struct LaunchMarkView: View {
-    /// 0 = nothing written yet, 1 = fully written. Sweeps the sound/script boundary.
+    /// 0 = nothing written yet, 1 = fully written. Sweeps the sound/recap boundary.
     var progress: Double
     /// Elapsed seconds, so bars that have not resolved yet still move like live audio.
     var time: Double
@@ -19,17 +19,26 @@ struct LaunchMarkView: View {
     var rise: Double = 1
 
     // The shared design space. Mirrored in Tools/makeicon.swift.
-    static let barCount = 13
-    static let x0: Double = 72
-    static let x1: Double = 186
-    static let barWidth: Double = 4.5
-    static let midline: Double = 112
-    static let ruleY: [Double] = [76, 100, 124, 148]
-    /// Per-line maximum width, so the last line ends short and the block reads as writing.
-    static let lineWidth: [Double] = [114, 114, 98, 64]
+    static let bubble = CGRect(x: 43.2, y: 47.1, width: 133.6, height: 101.6)
+    static let rowY: [Double] = [78.75, 98.28, 117.8]
+    static let bulletX: Double = 63.1
+    static let bulletRadius: Double = 5.86
+    static let lineHeight: Double = 10.5
+    static let barCount = 9
+    static let x0: Double = 76.4
+    static let x1: Double = 164.7
+    static let barWidth: Double = 7.8
+    /// Per-row width once written, shortening down the list so it reads as a recap.
+    static let lineWidth: [Double] = [88, 72, 48]
+    /// Each row starts a beat after the one above, so the recap is written a line at a time.
+    static let rowLag: Double = 12
 
-    /// The legal-pad margin, matching `VerticalMarginLine` in the editor.
-    static let marginRed = Color(red: 0.85, green: 0.25, blue: 0.25)
+    // Fixed rather than adaptive: the mark is the icon, and the icon does not change in dark mode.
+    static let tileTop = Color(red: 0.318, green: 0.443, blue: 0.894)
+    static let tileBottom = Color(red: 0.176, green: 0.267, blue: 0.667)
+    static let paper = Color(red: 0.99, green: 0.97, blue: 0.91)
+    static let ink = Color(red: 0.110, green: 0.110, blue: 0.120)
+    static let accent = Color(red: 0.231, green: 0.357, blue: 0.800)
 
     /// Layered sines rather than random noise, so the mark animates identically every launch.
     static func amplitude(_ i: Int, _ t: Double) -> Double {
@@ -48,41 +57,49 @@ struct LaunchMarkView: View {
             func rect(_ x: Double, _ y: Double, _ w: Double, _ h: Double) -> CGRect {
                 CGRect(x: x * s, y: y * s, width: w * s, height: h * s)
             }
+            func point(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x * s, y: y * s) }
 
-            // The page itself. Cream in light, near-black in dark, same as the editor canvas.
+            // The tile, cornered like a home-screen icon.
             context.fill(
-                Path(roundedRect: rect(10, 10, 200, 200), cornerRadius: 46 * s),
-                with: .color(Color(paperTint: .cream))
+                Path(roundedRect: rect(10, 10, 200, 200), cornerRadius: 45 * s, style: .continuous),
+                with: .linearGradient(Gradient(colors: [Self.tileTop, Self.tileBottom]),
+                                      startPoint: point(0, 10), endPoint: point(0, 210))
             )
 
-            // The page is ruled before anything is written on it.
-            var rules = Path()
-            for y in Self.ruleY {
-                rules.move(to: CGPoint(x: Self.x0 * s, y: y * s))
-                rules.addLine(to: CGPoint(x: Self.x1 * s, y: y * s))
+            // The bubble and its tail, lifted off the tile.
+            let shape = Path(roundedRect: rect(Self.bubble.minX, Self.bubble.minY,
+                                               Self.bubble.width, Self.bubble.height),
+                             cornerRadius: 31.25 * s)
+            var tail = Path()
+            tail.move(to: point(61.2, 138.9))
+            tail.addQuadCurve(to: point(48.3, 174.5), control: point(62.3, 162.3))
+            tail.addQuadCurve(to: point(94.0, 146.7), control: point(76.4, 166.3))
+            tail.closeSubpath()
+            context.drawLayer { layer in
+                layer.addFilter(.shadow(color: Color(red: 0.05, green: 0.08, blue: 0.25).opacity(0.35),
+                                        radius: 4.7 * s, y: 3.5 * s))
+                // Filled apart: joined into one path, the tail's winding would punch a hole.
+                layer.fill(shape, with: .color(Self.paper))
+                layer.fill(tail, with: .color(Self.paper))
             }
-            context.stroke(rules, with: .color(Color("RuleColor")), lineWidth: 1.25 * s)
-
-            // The margin rail deepens as the page fills.
-            var rail = Path()
-            rail.move(to: CGPoint(x: 58 * s, y: 36 * s))
-            rail.addLine(to: CGPoint(x: 58 * s, y: 184 * s))
-            context.stroke(
-                rail,
-                with: .color(Self.marginRed.opacity(0.35 + 0.55 * progress)),
-                style: StrokeStyle(lineWidth: 2.5 * s, lineCap: .round)
-            )
 
             let boundary = Self.x0 + progress * (Self.x1 - Self.x0)
-            let ink = Color("InkColor")
 
-            // Written lines, revealed left to right.
-            for (i, y) in Self.ruleY.enumerated() {
-                let w = min(max(boundary - Self.x0, 0), Self.lineWidth[i])
+            // Bullets pop in as their row starts; written lines follow them.
+            for (i, y) in Self.rowY.enumerated() {
+                let written = boundary - Self.x0 - Double(i) * Self.rowLag
+                let pop = min(max(written / 8, 0), 1)
+                if pop > 0.01 {
+                    let r = Self.bulletRadius * pop
+                    context.fill(Path(ellipseIn: rect(Self.bulletX - r, y - r, r * 2, r * 2)),
+                                 with: .color(Self.accent))
+                }
+                let w = min(max(written, 0), Self.lineWidth[i])
                 guard w > 0.5 else { continue }
                 context.fill(
-                    Path(roundedRect: rect(Self.x0, y - 3.5, w, 3.5), cornerRadius: 1.75 * s),
-                    with: .color(ink.opacity(0.88))
+                    Path(roundedRect: rect(Self.x0, y - Self.lineHeight / 2, max(w, Self.lineHeight), Self.lineHeight),
+                         cornerRadius: Self.lineHeight / 2 * s),
+                    with: .color(Self.ink)
                 )
             }
 
@@ -92,11 +109,11 @@ struct LaunchMarkView: View {
                 let bx = Self.x0 + Double(i) * pitch
                 let alive = min(max((bx - boundary) / 22, 0), 1)
                 guard alive > 0.01 else { continue }
-                let h = 6 + Self.amplitude(i, time) * 74 * alive * rise
+                let h = Self.barWidth + Self.amplitude(i, time) * 52 * alive * rise
                 context.fill(
-                    Path(roundedRect: rect(bx, Self.midline - h / 2, Self.barWidth, h),
+                    Path(roundedRect: rect(bx, Self.rowY[1] - h / 2, Self.barWidth, h),
                          cornerRadius: Self.barWidth / 2 * s),
-                    with: .color(ink.opacity(0.92 * alive))
+                    with: .color(Self.ink.opacity(alive))
                 )
             }
         }
@@ -169,18 +186,17 @@ struct LaunchSplashView: View {
         }
     }
 
-    /// The product name. Weight carries the split rather than colour, so it stays legible
-    /// on either appearance without a second palette.
+    /// The product name. Rounded to match the bubble; the "Re" takes the accent, the colour
+    /// of the recap's bullets.
     private var wordmark: some View {
         HStack(spacing: 0) {
-            Text("Instant").fontWeight(.light)
-            Text(" Notes").fontWeight(.heavy)
+            Text("Re").foregroundStyle(Color("AccentColor"))
+            Text("capped").foregroundStyle(Color("InkColor"))
         }
-        .font(.system(size: 32))
-        .kerning(-0.6)
-        .foregroundStyle(Color("InkColor"))
+        .font(.system(size: 34, weight: .bold, design: .rounded))
+        .kerning(-0.8)
         .accessibilityElement()
-        .accessibilityLabel("Instant Notes")
+        .accessibilityLabel("Recapped")
     }
 
     /// Where `t` sits between two times, clamped to 0...1.

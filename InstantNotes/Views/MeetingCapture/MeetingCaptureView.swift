@@ -262,7 +262,7 @@ final class MeetingCaptureViewModel: ObservableObject {
     func startRecording() {
         work = Task {
             guard await recorderService.requestPermission() else {
-                phase = .failed("Microphone access is off. Turn it on for Instant Notes in Settings.")
+                phase = .failed("Microphone access is off. Turn it on for Recapped in Settings.")
                 return
             }
             // Ask now, not after an hour-long meeting has been recorded.

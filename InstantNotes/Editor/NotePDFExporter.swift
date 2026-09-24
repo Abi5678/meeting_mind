@@ -65,7 +65,7 @@ enum NotePDFExporter {
         }
 
         let format = UIGraphicsPDFRendererFormat()
-        format.documentInfo = [kCGPDFContextTitle as String: title, kCGPDFContextCreator as String: "Instant Notes"]
+        format.documentInfo = [kCGPDFContextTitle as String: title, kCGPDFContextCreator as String: "Recapped"]
         let pageCount = max(1, Int((height / pageSize.height).rounded(.up)))
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize), format: format)
         return renderer.pdfData { context in
