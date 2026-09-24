@@ -238,14 +238,22 @@ private extension String {
 
 // MARK: - Pieces
 
-private struct LoadingCard: View {
+/// Shared with flashcards, which bring their own emoji and lines.
+struct LoadingCard: View {
+    let emoji: String
+    let lines: [String]
     @State private var bounce = false
     @State private var line = 0
-    private let lines = ["Reading your notes…", "Sharpening pencils…", "Inventing sneaky wrong answers…", "Almost ready…"]
+
+    init(emoji: String = "🧠",
+         lines: [String] = ["Reading your notes…", "Sharpening pencils…", "Inventing sneaky wrong answers…", "Almost ready…"]) {
+        self.emoji = emoji
+        self.lines = lines
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("🧠")
+            Text(emoji)
                 .font(.system(size: 96))
                 .scaleEffect(bounce ? 1.12 : 0.92)
                 .rotationEffect(.degrees(bounce ? 6 : -6))

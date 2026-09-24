@@ -95,6 +95,15 @@ struct OnDeviceModelTests {
         #expect(quiz.questions.allSatisfy { $0.options.indices.contains($0.answerIndex) })
     }
 
+    @Test("Writes flashcards from notes")
+    @available(macOS 26, *)
+    func flashcards() async throws {
+        let deck = try await OnDeviceFlashcardWriter().deck(fromNotes: Self.script)
+        print("FLASHCARDS:", deck.title, deck.cards.map { ($0.front, $0.back) })
+        #expect(!deck.cards.isEmpty)
+        #expect(deck.cards.allSatisfy { !$0.front.isEmpty && !$0.back.isEmpty })
+    }
+
     @Test("Suggests lowercase topic tags, reusing existing ones")
     @available(macOS 26, *)
     func tags() async throws {
