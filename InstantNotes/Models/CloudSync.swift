@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import CoreData
 import MeetingMindKit
 
 enum CloudSync {
@@ -36,6 +37,34 @@ enum CloudSync {
         }
         if context.hasChanges { try? context.save() }
     }
+
+    #if DEBUG
+    /// Creates every record type in the iCloud Development database, so the schema can be
+    /// deployed to Production before each type has been saved once. Run the Debug build with
+    /// `-initCloudKitSchema` on a device signed into iCloud. Uses its own throwaway store.
+    static func initializeSchema(for types: [any PersistentModel.Type]) {
+        guard ProcessInfo.processInfo.arguments.contains("-initCloudKitSchema") else { return }
+        guard let model = NSManagedObjectModel.makeManagedObjectModel(for: types) else { return }
+        let url = FileManager.default.temporaryDirectory.appending(path: "schema-init.store")
+        let description = NSPersistentStoreDescription(url: url)
+        description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: containerID)
+        description.shouldAddStoreAsynchronously = false
+        let container = NSPersistentCloudKitContainer(name: "SchemaInit", managedObjectModel: model)
+        container.persistentStoreDescriptions = [description]
+        container.loadPersistentStores { _, error in
+            if let error { print("CloudKit schema: couldn't open the store: \(error)") }
+        }
+        do {
+            try container.initializeCloudKitSchema()
+            print("CloudKit schema: created in the Development database")
+        } catch {
+            print("CloudKit schema: failed: \(error)")
+        }
+        for store in container.persistentStoreCoordinator.persistentStores {
+            try? container.persistentStoreCoordinator.remove(store)
+        }
+    }
+    #endif
 
     /// The local file for `recording`, written from its synced audio when this device doesn't
     /// have it yet.
