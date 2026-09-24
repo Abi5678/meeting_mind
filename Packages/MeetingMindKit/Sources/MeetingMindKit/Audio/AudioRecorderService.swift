@@ -17,6 +17,12 @@ public struct AudioRecordingResult: Sendable {
     public let url: URL
     public let duration: TimeInterval
     public let startTime: Date
+
+    public init(url: URL, duration: TimeInterval, startTime: Date) {
+        self.url = url
+        self.duration = duration
+        self.startTime = startTime
+    }
 }
 
 /// iOS audio recording service with permission handling, interruptions, and auto-stop on background transition.
