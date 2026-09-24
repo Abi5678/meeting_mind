@@ -65,6 +65,26 @@ struct OnDeviceModelTests {
         print("LONG SUMMARY:", analysis.summary)
         #expect(!analysis.summary.isEmpty)
     }
+
+    @Test("Answers a question from notes and cites the source")
+    @available(macOS 26, *)
+    func askNotes() async throws {
+        let trip = UUID(), launch = UUID()
+        let index = SearchIndex(passages:
+            SearchPassage.passages(noteID: trip, title: "Trip plan", blocks: [
+                Block(type: .paragraph, runs: [.plain("Flights to Lisbon on October 3. Hotel near Alfama.")]),
+            ])
+            + SearchPassage.passages(noteID: launch, title: "Launch sync", blocks: [], transcript: [
+                TranscriptPiece(start: 62, end: 70, text: "We agreed to move the launch date to March fourteenth."),
+            ]))
+        let sources = NotesQuestion.sources(from: index.search("when is the launch date"),
+                                            titles: [trip: "Trip plan", launch: "Launch sync"])
+        let answer = try await OnDeviceNotesAnswerer().answer(question: "When is the launch?", sources: sources)
+        print("ANSWER:", answer)
+        #expect(answer.localizedCaseInsensitiveContains("march"))
+        let launchSource = try #require(sources.first { $0.hit.passage.noteID == launch })
+        #expect(NotesQuestion.cited(in: answer, count: sources.count).contains(launchSource.number))
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")

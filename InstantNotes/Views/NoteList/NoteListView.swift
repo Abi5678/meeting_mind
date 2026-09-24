@@ -30,6 +30,9 @@ struct NoteListView: View {
     @State private var results: [SearchResult] = []
     /// The query `results` answer, so "No matches" isn't shown while a search is still running.
     @State private var searchedQuery = ""
+    @State private var showAsk = false
+    /// A source picked in "Ask your notes", opened once its sheet has gone.
+    @State private var askedResultID: SearchResult.ID?
 
     var body: some View {
         NavigationSplitView {
@@ -133,13 +136,54 @@ struct NoteListView: View {
             }
         } else {
             let titles = Dictionary(allNotes.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
-            List(results, selection: $selectedNoteID) { result in
-                NavigationLink(value: result.id) {
-                    SearchHitRow(hit: result.hit, noteTitle: titles[result.hit.passage.noteID] ?? "Untitled")
+            List(selection: $selectedNoteID) {
+                if canAsk {
+                    Button { showAsk = true } label: { askRow }
+                }
+                ForEach(results) { result in
+                    NavigationLink(value: result.id) {
+                        SearchHitRow(hit: result.hit, noteTitle: titles[result.hit.passage.noteID] ?? "Untitled")
+                    }
                 }
             }
             .listStyle(.plain)
+            .sheet(isPresented: $showAsk, onDismiss: openAskedResult) {
+                AskNotesView(question: searchText.trimmingCharacters(in: .whitespaces), results: results,
+                             titles: titles) { askedResultID = $0 }
+            }
         }
+    }
+
+    /// Asking needs Apple's on-device model; without it the row isn't offered.
+    private var canAsk: Bool {
+        if #available(iOS 26, *) { OnDeviceNotesAnswerer.isAvailable } else { false }
+    }
+
+    private var askRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.body)
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ask your notes")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color("InkColor"))
+                Text("“\(searchText.trimmingCharacters(in: .whitespaces))” · answered on this device")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 4)
+        .listRowSeparatorTint(Color("RuleColor"))
+    }
+
+    private func openAskedResult() {
+        guard let id = askedResultID else { return }
+        askedResultID = nil
+        selectedNoteID = id
     }
 
     @ViewBuilder

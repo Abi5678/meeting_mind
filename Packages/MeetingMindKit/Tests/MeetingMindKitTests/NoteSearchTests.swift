@@ -144,3 +144,48 @@ struct TranscriptChunkerTests {
         #expect(chunks.map { $0.split(separator: " ").count } == [10, 10, 5])
     }
 }
+
+@Suite("Ask your notes")
+struct NotesQuestionTests {
+    static let trip = UUID()
+    static let launch = UUID()
+    static let index = SearchIndex(passages:
+        SearchPassage.passages(noteID: trip, title: "Trip plan", blocks: [
+            Block(type: .paragraph, runs: [.plain("Flights to Lisbon on October 3. Hotel near Alfama.")]),
+        ])
+        + SearchPassage.passages(noteID: launch, title: "Launch sync", blocks: [], transcript: [
+            TranscriptPiece(start: 0, end: 4, text: "Morning everyone."),
+            TranscriptPiece(start: 62, end: 70, text: "We agreed to move the launch to March 14."),
+        ]))
+    static let titles = [trip: "Trip plan", launch: "Launch sync"]
+
+    @Test("Hits become numbered sources, and the prompt says where each came from")
+    func prompt() {
+        let sources = NotesQuestion.sources(from: Self.index.search("when is the launch?"), titles: Self.titles)
+        #expect(sources.map(\.number) == Array(1...sources.count))
+        let prompt = NotesQuestion.prompt(question: "When is the launch?", sources: sources)
+        #expect(prompt.contains("[1] Launch sync — "))
+        #expect(prompt.contains("said in the meeting at 1:02"))
+        #expect(prompt.contains("March 14"))
+        #expect(prompt.hasSuffix("Question: When is the launch?"))
+    }
+
+    @Test("Sources stop at the word budget")
+    func budget() {
+        let long = (0..<120).map { "budget\($0 % 3 == 0 ? "" : " word")" }.joined(separator: " ")
+        let hits = SearchIndex(passages: (0..<5).map { _ in
+            SearchPassage(noteID: UUID(), source: .title, text: long)
+        }).search("budget")
+        #expect(NotesQuestion.sources(from: hits, titles: [:], wordBudget: 450).count == 2)
+        #expect(NotesQuestion.sources(from: hits, titles: [:], wordBudget: 450).allSatisfy { $0.noteTitle == "Untitled" })
+    }
+
+    @Test("Citations are read from the answer; made-up numbers are dropped")
+    func citations() {
+        let answer = "The launch moved to March 14 [2]. Flights are on October 3 [1, 3]. Hotel [9]. See [ 1 ]."
+        let found = NotesQuestion.citations(in: answer, count: 2)
+        #expect(found.map(\.numbers) == [[2], [1], [1]])
+        #expect(found.map { String(answer[$0.range]) } == ["[2]", "[1, 3]", "[ 1 ]"])
+        #expect(NotesQuestion.cited(in: answer, count: 2) == [2, 1])
+    }
+}
