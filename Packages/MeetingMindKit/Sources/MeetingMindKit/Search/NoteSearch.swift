@@ -1,7 +1,7 @@
 import Foundation
 
 /// A stretch of a note that search can land on: the title, a text block, a moment of a
-/// recorded meeting, or the words in a photo.
+/// recorded meeting, the words in a photo, or the note's handwriting.
 public struct SearchPassage: Sendable, Equatable {
     public enum Source: Sendable, Hashable {
         case title
@@ -9,6 +9,8 @@ public struct SearchPassage: Sendable, Equatable {
         /// Seconds into the note's recording.
         case transcript(start: TimeInterval)
         case photo(UUID)
+        /// Words written in ink on the note.
+        case ink
     }
 
     public let noteID: UUID
@@ -42,6 +44,7 @@ public struct SearchPassage: Sendable, Equatable {
     /// Everything searchable in one note.
     /// - Parameters:
     ///   - photoText: recognized text per photo id; photos with none are skipped.
+    ///   - inkText: the words read from the note's handwriting, if any.
     ///   - transcript: timed pieces of the note's recording, grouped into passages of about
     ///     `wordsPerPassage` words so a hit can seek the audio.
     ///   - transcriptBlockText: the text of the block that holds the same transcript untimed; it is
@@ -51,6 +54,7 @@ public struct SearchPassage: Sendable, Equatable {
         title: String,
         blocks: [Block],
         photoText: [UUID: String] = [:],
+        inkText: String? = nil,
         transcript: [TranscriptPiece] = [],
         transcriptBlockText: String? = nil,
         wordsPerPassage: Int = 50
@@ -73,6 +77,12 @@ public struct SearchPassage: Sendable, Equatable {
             // shows the part that matched.
             for piece in wordWindows(text, size: wordsPerPassage * 2) {
                 result.append(SearchPassage(noteID: noteID, source: .block(block.id), text: piece))
+            }
+        }
+        let ink = (inkText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !ink.isEmpty {
+            for piece in wordWindows(ink, size: wordsPerPassage * 2) {
+                result.append(SearchPassage(noteID: noteID, source: .ink, text: piece))
             }
         }
         var words = 0

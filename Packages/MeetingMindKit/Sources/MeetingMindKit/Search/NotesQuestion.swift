@@ -47,6 +47,7 @@ public enum NotesQuestion {
         case .block: "note text"
         case let .transcript(start): "said in the meeting at " + Duration.seconds(start).formatted(.time(pattern: .minuteSecond))
         case .photo: "text in a photo"
+        case .ink: "handwriting in the note"
         }
     }
 

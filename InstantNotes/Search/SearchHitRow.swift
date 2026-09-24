@@ -71,6 +71,7 @@ struct SearchHitRow: View {
         case .block: "text.alignleft"
         case .transcript: "waveform"
         case .photo: "photo"
+        case .ink: "scribble"
         }
     }
 
@@ -81,6 +82,7 @@ struct SearchHitRow: View {
         case .block: "Note"
         case let .transcript(start): "▶︎ " + Duration.seconds(start).formatted(.time(pattern: .minuteSecond))
         case .photo: "In photo"
+        case .ink: "Handwriting"
         }
     }
 

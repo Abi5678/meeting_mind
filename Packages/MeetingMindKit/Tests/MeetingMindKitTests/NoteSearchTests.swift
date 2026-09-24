@@ -61,6 +61,15 @@ struct NoteSearchTests {
         #expect(hit.passage.source == .photo(Self.photo))
     }
 
+    @Test("Handwriting is found, and blank handwriting adds nothing")
+    func inkText() throws {
+        let sketch = UUID()
+        let passages = SearchPassage.passages(noteID: sketch, title: "", blocks: [], inkText: "Call the florist\nbudget 400")
+        let hit = try #require(SearchIndex(passages: passages).search("florist").first)
+        #expect(hit.passage == SearchPassage(noteID: sketch, source: .ink, text: "Call the florist\nbudget 400"))
+        #expect(SearchPassage.passages(noteID: sketch, title: "", blocks: [], inkText: " \n").isEmpty)
+    }
+
     @Test("Plurals, capitals and accents don't get in the way")
     func folding() {
         #expect(Self.index.search("PASSPORTS").first?.passage.noteID == Self.trip)
