@@ -1,6 +1,6 @@
 //
 //  makeicon.swift
-//  Recapped
+//  Quolio
 //
 // Renders the app icon from the same mark as LaunchMarkView: a speech bubble holding a
 // bulleted recap — the splash's last frame, once the waveform has been written up. Run it

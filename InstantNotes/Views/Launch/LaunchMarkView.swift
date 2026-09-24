@@ -1,6 +1,6 @@
 //
 //  LaunchMarkView.swift
-//  Recapped
+//  Quolio
 //
 // The brand mark and the launch sequence that plays it: a speech bubble in which a live
 // waveform is written up, left to right, as a bulleted recap. Same geometry as the app icon
@@ -186,17 +186,17 @@ struct LaunchSplashView: View {
         }
     }
 
-    /// The product name. Rounded to match the bubble; the "Re" takes the accent, the colour
+    /// The product name. Rounded to match the bubble; the "Q" takes the accent, the colour
     /// of the recap's bullets.
     private var wordmark: some View {
         HStack(spacing: 0) {
-            Text("Re").foregroundStyle(Color("AccentColor"))
-            Text("capped").foregroundStyle(Color("InkColor"))
+            Text("Q").foregroundStyle(Color("AccentColor"))
+            Text("uolio").foregroundStyle(Color("InkColor"))
         }
         .font(.system(size: 34, weight: .bold, design: .rounded))
         .kerning(-0.8)
         .accessibilityElement()
-        .accessibilityLabel("Recapped")
+        .accessibilityLabel("Quolio")
     }
 
     /// Where `t` sits between two times, clamped to 0...1.

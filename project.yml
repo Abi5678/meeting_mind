@@ -62,7 +62,7 @@ targets:
     info:
       path: InstantNotes/Info.plist
       properties:
-        CFBundleDisplayName: Recapped
+        CFBundleDisplayName: Quolio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
@@ -81,13 +81,13 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiredDeviceCapabilities:
           - arm64
-        NSSpeechRecognitionUsageDescription: Recapped turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.
+        NSSpeechRecognitionUsageDescription: Quolio turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.
         UIBackgroundModes:
           - audio
           - remote-notification
-        NSMicrophoneUsageDescription: Recapped needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
-        NSCameraUsageDescription: Recapped uses the camera to take photos you add to your notes.
-        NSPhotoLibraryAddUsageDescription: Recapped saves the photos you share from a note to your library.
+        NSMicrophoneUsageDescription: Quolio needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
+        NSCameraUsageDescription: Quolio uses the camera to take photos you add to your notes.
+        NSPhotoLibraryAddUsageDescription: Quolio saves the photos you share from a note to your library.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         UIApplicationSupportsIndirectInputEvents: true
