@@ -72,12 +72,12 @@ let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                           colors: [tileTop, tileBottom] as CFArray, locations: [0, 1])!
 ctx.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: side), options: [])
 
-// The bubble and its tail, lifted off the tile by a soft shadow.
-let tail = CGMutablePath()
-tail.move(to: CGPoint(x: 262, y: 660))
-tail.addQuadCurve(to: CGPoint(x: 196, y: 842), control: CGPoint(x: 268, y: 780))
-tail.addQuadCurve(to: CGPoint(x: 430, y: 700), control: CGPoint(x: 340, y: 800))
-tail.closeSubpath()
+// The bubble and its tail, lifted off the tile by a soft shadow. The tail is the wordmark's
+// Q tail, round-ended and at the same angle out of the lower right, so the bubble reads as a Q.
+let tailStroke = CGMutablePath()
+tailStroke.move(to: CGPoint(x: 677, y: 644))
+tailStroke.addLine(to: CGPoint(x: 786, y: 800))
+let tail = tailStroke.copy(strokingWithWidth: 104, lineCap: .round, lineJoin: .round, miterLimit: 10)
 
 ctx.saveGState()
 ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 48,
