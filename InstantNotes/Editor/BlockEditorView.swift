@@ -36,6 +36,7 @@ struct CanvasNoteEditorView: View {
     @State private var scrollTarget: UUID?
     @State private var contentHeight: CGFloat = 0
     @State private var showQuiz = false
+    @State private var showFlashcards = false
     @State private var isSuggestingTags = false
     @State private var tagError: String?
     @State private var isDrawing = false
@@ -87,6 +88,9 @@ struct CanvasNoteEditorView: View {
         .toolbar { toolbarContent }
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
+        }
+        .fullScreenCover(isPresented: $showFlashcards) {
+            FlashcardsView(noteTitle: note.title, notesText: state.document.plainText)
         }
         .modifier(PhotoInput(source: $photoSource, onPick: insertPhotos))
         .sheet(item: Binding(get: { postImages.map(PostImages.init) }, set: { postImages = $0?.images })) { post in
@@ -392,8 +396,11 @@ struct CanvasNoteEditorView: View {
             .accessibilityLabel("More")
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { showQuiz = true } label: {
-                Label("Quiz me", systemImage: "brain.head.profile")
+            Menu {
+                Button { showQuiz = true } label: { Label("Quiz me", systemImage: "brain.head.profile") }
+                Button { showFlashcards = true } label: { Label("Flashcards", systemImage: "rectangle.on.rectangle.angled") }
+            } label: {
+                Label("Study", systemImage: "brain.head.profile")
                     .labelStyle(.titleAndIcon)
                     .font(.subheadline.bold())
             }
