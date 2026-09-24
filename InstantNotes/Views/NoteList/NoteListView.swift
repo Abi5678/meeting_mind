@@ -56,8 +56,11 @@ struct NoteListView: View {
                 Button("Rename") { rename(note) }
             }
             .task(id: searchText) { await runSearch() }
-            // Photos added before search could read them.
-            .task { await PhotoTextRecognition.recognizePending(in: modelContext) }
+            // Photos and ink added before search could read them.
+            .task {
+                await PhotoTextRecognition.recognizePending(in: modelContext)
+                await InkTextRecognition.recognizePending(in: modelContext)
+            }
         } detail: {
             if let note = allNotes.first(where: { $0.id == openNoteID }) {
                 // Keyed by the selection, so a second hit in the same note jumps again.

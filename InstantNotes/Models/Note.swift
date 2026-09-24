@@ -25,6 +25,9 @@ final class Note {
     var paperTintName: String = PaperTint.cream.rawValue
     /// PKDrawing data for the ink layer; optional so existing stores migrate lightweight.
     @Attribute(.externalStorage) var drawingData: Data? = nil
+    /// Words read from the ink, for search: nil until read (and again after the ink changes),
+    /// "" when there are none.
+    var inkText: String? = nil
     var recordings: [Recording]
     /// Photos shown by the note's image blocks; optional so existing stores migrate lightweight.
     @Relationship(deleteRule: .cascade, inverse: \NoteImage.note) var images: [NoteImage]? = []

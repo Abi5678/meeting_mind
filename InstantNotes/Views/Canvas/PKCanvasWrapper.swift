@@ -108,9 +108,11 @@ struct NoteInkLayer: UIViewRepresentable {
             Task {
                 guard note.modelContext != nil else { return } // deleted meanwhile
                 note.drawingData = data
+                note.inkText = nil // read again for search
                 note.touch()
                 // Saved now, not at the next autosave (~10 s later), so quitting right after drawing keeps the ink.
                 try? note.modelContext?.save()
+                if let context = note.modelContext { await InkTextRecognition.recognizePending(in: context) }
             }
         }
     }
