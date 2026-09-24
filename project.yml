@@ -81,6 +81,9 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         UIApplicationSupportsIndirectInputEvents: true
+        # No encryption beyond what iOS provides, so App Store Connect skips the export
+        # compliance question on each build.
+        ITSAppUsesNonExemptEncryption: false
 
 packages:
   MeetingMindKit:
