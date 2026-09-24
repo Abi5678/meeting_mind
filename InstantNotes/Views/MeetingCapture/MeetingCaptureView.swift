@@ -2,8 +2,8 @@
 //  MeetingCaptureView.swift
 //  Instant Notes
 //
-// Records a meeting, transcribes it with Apple Speech, summarizes it (on the device when Apple
-// Intelligence is available, otherwise with Gemini), and saves it as a note.
+// Records a meeting, transcribes it with Apple Speech, summarizes it on the device with Apple
+// Intelligence, and saves it as a note.
 
 import SwiftUI
 import SwiftData
@@ -17,7 +17,6 @@ struct MeetingCaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var confirmingDiscard = false
-    @State private var showKeySettings = false
 
     var body: some View {
         Group {
@@ -48,11 +47,6 @@ struct MeetingCaptureView: View {
         }
         .interactiveDismissDisabled(viewModel.phase != .idle)
         .onDisappear { viewModel.cancel() }
-        .sheet(isPresented: $showKeySettings, onDismiss: {
-            if GeminiKey.current != nil { viewModel.summarize() }
-        }) {
-            NavigationStack { AISettingsView() }
-        }
     }
 
     private func saveAndDismiss() {
@@ -140,14 +134,8 @@ struct MeetingCaptureView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                        if viewModel.needsAPIKey {
-                            // Retrying can't help without a working key; the summary reruns when settings close.
-                            Button("Add API key") { showKeySettings = true }
-                                .buttonStyle(.borderedProminent)
-                        } else {
-                            Button("Try summary again") { viewModel.summarize() }
-                                .buttonStyle(.bordered)
-                        }
+                        Button("Try summary again") { viewModel.summarize() }
+                            .buttonStyle(.bordered)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(16)
@@ -210,7 +198,7 @@ final class MeetingCaptureViewModel: ObservableObject {
         case recording
         case transcribing(window: Int, total: Int)
         case transcribingOnDevice(percent: Int)
-        case analyzing(onDevice: Bool)
+        case analyzing
         case done
         case failed(String)
 
@@ -219,8 +207,7 @@ final class MeetingCaptureViewModel: ObservableObject {
             case let .transcribing(window, total) where total > 1: "Transcribing part \(window) of \(total)…"
             case .transcribing: "Transcribing…"
             case let .transcribingOnDevice(percent): "Transcribing on this device… \(percent)%"
-            case .analyzing(onDevice: true): "Summarizing on this device…"
-            case .analyzing: "Summarizing with Gemini…"
+            case .analyzing: "Summarizing on this device…"
             default: ""
             }
         }
@@ -240,10 +227,8 @@ final class MeetingCaptureViewModel: ObservableObject {
     /// The transcript with timings, when the on-device model made it; saved so search can seek.
     private var pieces: [TranscriptPiece] = []
     @Published private(set) var analysis: MeetingAnalysis?
-    /// Set when transcription worked but Gemini did not; the transcript can still be saved.
+    /// Set when transcription worked but the summary did not; the transcript can still be saved.
     @Published private(set) var analysisError: String?
-    /// The summary failed for want of a working Gemini key, so the results card offers to add one.
-    @Published private(set) var needsAPIKey = false
     /// The finished audio. Kept through a failed transcription so it can be retried or saved.
     @Published private(set) var recording: AudioRecordingResult?
 
@@ -369,7 +354,6 @@ final class MeetingCaptureViewModel: ObservableObject {
         pieces = []
         analysis = nil
         analysisError = nil
-        needsAPIKey = false
         recording = nil
     }
 
@@ -461,35 +445,17 @@ final class MeetingCaptureViewModel: ObservableObject {
 
     private func analyze() async {
         analysisError = nil
-        needsAPIKey = false
-        if #available(iOS 26, *), OnDeviceMeetingAnalyzer.isAvailable {
-            phase = .analyzing(onDevice: true)
-            do {
-                analysis = try await OnDeviceMeetingAnalyzer().analyze(transcript: transcript)
-                phase = .done
-                return
-            } catch {
-                guard !Task.isCancelled else { return }
-                // Refused or out of its depth (e.g. a language it doesn't speak): Gemini may still manage.
-                analysisError = error.localizedDescription
-            }
-        }
-        guard let key = GeminiKey.current else {
-            analysisError = "Add a Gemini API key (… menu → AI) to get a summary. You can still save the transcript."
-            needsAPIKey = true
+        guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
+            analysisError = (AppleIntelligence.unavailableReason ?? "") + " You can still save the transcript."
             phase = .done
             return
         }
-
-        phase = .analyzing(onDevice: false)
-        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
+        phase = .analyzing
         do {
-            analysis = try await GeminiClient(apiKey: key, configuration: .init(model: model)).analyze(transcript: transcript)
+            analysis = try await OnDeviceMeetingAnalyzer().analyze(transcript: transcript)
         } catch {
             guard !Task.isCancelled else { return }
             analysisError = error.localizedDescription
-            // 400–403 is how Gemini rejects a malformed, revoked or unauthorized key.
-            if case GeminiError.http(status: 400..<404, _) = error { needsAPIKey = true }
         }
         phase = .done
     }

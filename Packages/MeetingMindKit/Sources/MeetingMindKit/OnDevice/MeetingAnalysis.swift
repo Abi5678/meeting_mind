@@ -1,10 +1,10 @@
 import Foundation
 
-/// The structured analysis Gemini returns for a single meeting transcript.
-///
-/// The shape here is mirrored by `GeminiSchema.meetingAnalysis`, which is sent as the
-/// request's `responseSchema`. Keep the two in sync.
+/// The summary, decisions, action items and recap email written for one meeting.
 public struct MeetingAnalysis: Codable, Equatable, Sendable {
+    /// The owner of an action item when the transcript names nobody.
+    public static let unassignedOwner = "Unassigned"
+
     public var summary: String
     public var keyDecisions: [String]
     public var actionItems: [ActionItem]
@@ -24,7 +24,7 @@ public struct MeetingAnalysis: Codable, Equatable, Sendable {
 
     public struct ActionItem: Codable, Equatable, Sendable {
         public var task: String
-        /// `PromptBuilder.unassignedOwner` when the transcript names nobody.
+        /// `MeetingAnalysis.unassignedOwner` when the transcript names nobody.
         public var owner: String?
         /// Free text as spoken ("Friday", "end of Q3"), not a parsed date.
         public var due: String?

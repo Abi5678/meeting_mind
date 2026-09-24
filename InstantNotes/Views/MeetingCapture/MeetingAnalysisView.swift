@@ -2,7 +2,7 @@
 //  MeetingAnalysisView.swift
 //  Instant Notes
 //
-// Displays Gemini analysis results as blocks using the paper design identity.
+// Displays the meeting summary as blocks using the paper design identity.
 
 import SwiftUI
 import MeetingMindKit

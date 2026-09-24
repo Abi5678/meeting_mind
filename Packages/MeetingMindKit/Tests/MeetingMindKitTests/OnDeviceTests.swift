@@ -85,6 +85,39 @@ struct OnDeviceModelTests {
         let launchSource = try #require(sources.first { $0.hit.passage.noteID == launch })
         #expect(NotesQuestion.cited(in: answer, count: sources.count).contains(launchSource.number))
     }
+
+    @Test("Writes a gradeable quiz from notes")
+    @available(macOS 26, *)
+    func quiz() async throws {
+        let quiz = try await OnDeviceQuizWriter().quiz(fromNotes: Self.script)
+        print("QUIZ:", quiz.title, quiz.questions.map { ($0.prompt, $0.options, $0.answerIndex) })
+        #expect(!quiz.questions.isEmpty)
+        #expect(quiz.questions.allSatisfy { $0.options.indices.contains($0.answerIndex) })
+    }
+
+    @Test("Suggests lowercase topic tags, reusing existing ones")
+    @available(macOS 26, *)
+    func tags() async throws {
+        let tags = try await OnDeviceTagSuggester().tags(title: "Launch sync", notes: Self.script,
+                                                         existingTags: ["launch", "recipes"])
+        print("TAGS:", tags)
+        #expect((1...5).contains(tags.count))
+        #expect(tags.allSatisfy { $0 == $0.lowercased() && !$0.hasPrefix("#") })
+    }
+
+    @Test("Answers a question about a meeting, and a follow-up")
+    @available(macOS 26, *)
+    func meetingChat() async throws {
+        let chat = OnDeviceMeetingChat()
+        let first = try await chat.answer(question: "Who is writing the press release?", transcript: Self.script)
+        let followUp = try await chat.answer(question: "By when?", transcript: Self.script, history: [
+            MeetingChatTurn(role: .user, text: "Who is writing the press release?"),
+            MeetingChatTurn(role: .assistant, text: first),
+        ])
+        print("CHAT:", first, "|", followUp)
+        #expect(first.localizedCaseInsensitiveContains("priya"))
+        #expect(followUp.localizedCaseInsensitiveContains("friday"))
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")

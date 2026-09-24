@@ -129,8 +129,8 @@ struct AskNotesView: View {
 
     private func ask() async {
         guard answer == nil else { return }
-        guard #available(iOS 26, *), OnDeviceNotesAnswerer.isAvailable else {
-            error = "Asking your notes needs Apple Intelligence turned on in Settings."
+        guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
+            error = AppleIntelligence.unavailableReason
             return
         }
         do {

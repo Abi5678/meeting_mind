@@ -13,7 +13,7 @@ InstantNotes/          ← iOS app (SwiftUI, SwiftData)
 
 MeetingMindKit/        ← Shared Swift package (already built & tested)
 ├── Blocks/            ← Block model + BlockDocument ✅
-├── Gemini/            ← Gemini client + retry logic ✅
+├── OnDevice/          ← Apple Foundation Models: summary, quiz, tags, meeting chat, Ask ✅
 ├── NotionImport/      ← MarkdownBlockParser + CSVTableParser ✅
 ├── Audio/             ← SyncEngine + AudioRecorderService + PlaybackController (new)
 ├── Transcription/     ← WhisperContext protocol layer (new)
@@ -33,7 +33,7 @@ NoteStyle Studio/      ← Visual design reference only (React/Vite, never ships
 | 5 | Canvas + Notes core (PKCanvasView wrapper, NoteListView) | ✅ Complete (scaffold — PencilKit integration pending) |
 | 6 | Meeting capture (WaveformBanner, MeetingCaptureView, ViewModel) | ✅ Complete (stub — whisper.cpp pending) |
 | 7 | Notion import views (ImportCoordinator, ImportView) | ✅ Complete |
-| 8 | AI organize (AIService, AISettingsView) | ✅ Complete |
+| 8 | AI on device (summary, quiz, tags, meeting chat, Ask your notes) | ✅ Complete |
 | 9 | Polish + paid account | ⏳ Gated on $99 Apple Developer account |
 
 ## Getting Started (macOS)
@@ -85,6 +85,6 @@ Based on **NoteStyle Studio** visual reference — "a calm notebook identity tha
 |----------|--------|-----|
 | Block editor | TextKit 2 single UITextView + custom NSTextLayoutFragment | Native text stack; fallback: markdown (Bear model) if spike fails |
 | Persistence | SwiftData, CloudKit-shaped from day one | Sync becomes config flip later |
-| AI provider | Google Gemini Flash (free tier) | Meets quota, responseSchema for constrained output |
+| AI provider | Apple Foundation Models, on device (iOS 26+, Apple Intelligence) | No key, no network, notes never leave the device; `@Generable` for constrained output |
 | Speech-to-text | whisper.cpp xcframework (MPS-backed on Apple Silicon) | Offline, low latency |
-| Meeting capture | AVAudioRecorder → ChunkPlanner windows → whisper.cpp per chunk → Gemini analyze | Flat memory, no 90-min file in RAM |
+| Meeting capture | AVAudioRecorder → ChunkPlanner windows → whisper.cpp per chunk → on-device analyze | Flat memory, no 90-min file in RAM |

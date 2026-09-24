@@ -1,9 +1,6 @@
 import Foundation
 
-/// A multiple-choice quiz Gemini writes from a note.
-///
-/// The shape here is mirrored by `GeminiSchema.quiz`, which is sent as the request's
-/// `responseSchema`. Keep the two in sync.
+/// A multiple-choice quiz written from a note.
 public struct Quiz: Codable, Equatable, Sendable {
     public var title: String
     public var questions: [Question]

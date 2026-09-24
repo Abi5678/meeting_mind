@@ -524,13 +524,17 @@ struct CanvasNoteEditorView: View {
     // MARK: Tags
 
     private func suggestTags() {
+        guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
+            tagError = AppleIntelligence.unavailableReason
+            return
+        }
         let existing = Set(((try? modelContext.fetch(FetchDescriptor<Note>())) ?? []).flatMap(\.tags)).sorted()
         isSuggestingTags = true
         Task {
             defer { isSuggestingTags = false }
             do {
-                let suggested = try await AIService.shared.suggestTags(
-                    for: note.title, notes: state.document.plainText, existingTags: existing
+                let suggested = try await OnDeviceTagSuggester().tags(
+                    title: note.title, notes: state.document.plainText, existingTags: existing
                 )
                 note.tags += suggested.filter { !note.tags.contains($0) }
                 note.touch()

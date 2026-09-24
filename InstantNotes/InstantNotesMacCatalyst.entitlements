@@ -6,9 +6,6 @@
 	     gets implicitly have to be asked for by name here. -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
-	<!-- Gemini summaries, quizzes and tag suggestions are outbound HTTPS calls. -->
-	<key>com.apple.security.network.client</key>
-	<true/>
 	<!-- Meeting capture records from the microphone. -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>

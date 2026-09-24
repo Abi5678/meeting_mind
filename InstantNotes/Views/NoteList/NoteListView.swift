@@ -18,7 +18,6 @@ struct NoteListView: View {
     /// A note made in a sheet. Opened once the sheet has gone: on iPhone the collapsed split
     /// view ignores a selection that changes while a sheet is still dismissing.
     @State private var createdNoteID: UUID?
-    @State private var showSettings = false
     @State private var showMeetingCapture = false
     @State private var showImport = false
     @State private var renamingNote: Note?
@@ -281,11 +280,6 @@ struct NoteListView: View {
                     Text("Title A–Z").tag(SortOption.title)
                 }
                 Button {
-                    showSettings = true
-                } label: {
-                    Label("AI", systemImage: "sparkles")
-                }
-                Button {
                     showImport = true
                 } label: {
                     Label("Import from Notion", systemImage: "square.and.arrow.down")
@@ -304,9 +298,6 @@ struct NoteListView: View {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel("More")
-            .sheet(isPresented: $showSettings) {
-                NavigationStack { AISettingsView() }
-            }
         }
 
         ToolbarItem(placement: .navigationBarTrailing) {

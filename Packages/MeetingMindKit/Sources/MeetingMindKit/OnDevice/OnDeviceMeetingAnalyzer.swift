@@ -55,7 +55,7 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     private static let instructions = """
         You summarize meetings from automatic speech recognition, so expect misheard words and \
         no speaker names. Only state what was said: never invent a name, number, decision or \
-        deadline. If nobody was named for a task, the owner is "\(PromptBuilder.unassignedOwner)". \
+        deadline. If nobody was named for a task, the owner is "\(MeetingAnalysis.unassignedOwner)". \
         If no deadline was said, due is nil.
         """
 
@@ -71,7 +71,7 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
         /// The model sometimes fills a missing deadline with a placeholder instead of nil.
         var spokenDue: String? {
             guard let due = due?.trimmingCharacters(in: .whitespaces), !due.isEmpty,
-                  !["due", "none", "n/a", "na", "unknown", "not specified", "unspecified", "tbd"].contains(due.lowercased())
+                  !["due", "none", "nil", "null", "n/a", "na", "unknown", "not specified", "unspecified", "tbd"].contains(due.lowercased())
             else { return nil }
             return due
         }
@@ -112,7 +112,7 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
                 summary: summary,
                 keyDecisions: keyDecisions,
                 actionItems: actionItems.map {
-                    .init(task: $0.task, owner: $0.owner.isEmpty ? PromptBuilder.unassignedOwner : $0.owner,
+                    .init(task: $0.task, owner: $0.owner.isEmpty ? MeetingAnalysis.unassignedOwner : $0.owner,
                           due: $0.spokenDue)
                 },
                 followUpEmail: .init(subject: emailSubject, body: emailBody)

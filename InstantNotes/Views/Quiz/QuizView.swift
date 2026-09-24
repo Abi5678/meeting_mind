@@ -2,7 +2,8 @@
 //  QuizView.swift
 //  Instant Notes
 //
-// "Quiz me": Gemini turns the open note into a multiple-choice quiz, played one card at a time.
+// "Quiz me": Apple's on-device model turns the open note into a multiple-choice quiz, played one
+// card at a time.
 
 import SwiftUI
 import MeetingMindKit
@@ -17,7 +18,6 @@ struct QuizView: View {
     @State private var picked: Int?
     @State private var results: [Bool] = []
     @State private var shake = 0
-    @State private var showSettings = false
 
     enum Phase {
         case loading
@@ -27,7 +27,7 @@ struct QuizView: View {
     }
 
     /// What the failure card offers. Retrying thin notes can't work: the snapshot is fixed while the quiz is open.
-    enum Fix { case addKey, retry, backToNote }
+    enum Fix { case unavailable, retry, backToNote }
 
     var body: some View {
         ZStack {
@@ -53,9 +53,6 @@ struct QuizView: View {
             .padding(.leading, 16)
             .accessibilityLabel("Close quiz")
         }
-        .sheet(isPresented: $showSettings, onDismiss: { Task { await load() } }) {
-            NavigationStack { AISettingsView() }
-        }
         .task { await load() }
     }
 
@@ -67,21 +64,18 @@ struct QuizView: View {
         picked = nil
         results = []
 
-        guard let key = GeminiKey.current else {
-            phase = .failed(message: "Add your free Gemini API key to turn notes into quizzes.", fix: .addKey)
+        guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
+            phase = .failed(message: AppleIntelligence.unavailableReason ?? "", fix: .unavailable)
             return
         }
-        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
-        let client = GeminiClient(apiKey: key, configuration: .init(model: model))
         let notes = "\(noteTitle)\n\n\(notesText)"
 
         do {
-            let quiz = try await client.generateQuiz(fromNotes: notesText.isBlank ? "" : notes)
+            let quiz = try await OnDeviceQuizWriter().quiz(fromNotes: notesText.isBlank ? "" : notes)
             withAnimation(.spring) { phase = .playing(quiz) }
         } catch {
             let fix: Fix = switch error {
-            case GeminiError.http(status: 400..<404, _): .addKey
-            case GeminiError.emptyNotes, GeminiError.notEnoughContent: .backToNote
+            case OnDeviceAIError.emptyNotes, OnDeviceAIError.notEnoughContent: .backToNote
             default: .retry
             }
             phase = .failed(message: error.localizedDescription, fix: fix)
@@ -204,7 +198,7 @@ struct QuizView: View {
 
     private func failure(_ message: String, fix: Fix) -> some View {
         let (emoji, title, label) = switch fix {
-        case .addKey: ("🔑", "One quick setup", "Add API key")
+        case .unavailable: ("✨", "Needs Apple Intelligence", "Back to note")
         case .retry: ("😵‍💫", "That didn't work", "Try again")
         case .backToNote: ("📝", "Nothing to quiz yet", "Back to note")
         }
@@ -218,9 +212,8 @@ struct QuizView: View {
                 .foregroundStyle(.secondary)
             Button(label) {
                 switch fix {
-                case .addKey: showSettings = true
                 case .retry: Task { await load() }
-                case .backToNote: dismiss()
+                case .unavailable, .backToNote: dismiss()
                 }
             }
             .font(.system(.headline, design: .rounded, weight: .bold))
@@ -231,24 +224,11 @@ struct QuizView: View {
         }
         .padding(32)
 
-        // Gemini's quota messages run several lines; scroll rather than clip the button in landscape.
+        // Long messages run several lines; scroll rather than clip the button in landscape.
         return ViewThatFits(in: .vertical) {
             card
             ScrollView { card }
         }
-    }
-}
-
-// MARK: - Key lookup
-
-enum GeminiKey {
-    static var current: String? {
-        if let key = KeychainHelper().getString(forKey: "gemini_api_key"), !key.isEmpty { return key }
-        #if DEBUG
-        // Lets a simulator run read the key from the launch environment instead of typing it into the UI.
-        if let key = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !key.isEmpty { return key }
-        #endif
-        return nil
     }
 }
 

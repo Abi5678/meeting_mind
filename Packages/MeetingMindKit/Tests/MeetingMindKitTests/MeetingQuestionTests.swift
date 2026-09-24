@@ -5,61 +5,61 @@ import Testing
 
 @Suite("Meeting questions")
 struct MeetingQuestionTests {
-    private func makeClient(transport: StubTransport) -> GeminiClient {
-        GeminiClient(apiKey: "test-key", transport: transport, sleep: DelayRecorder().sleep)
-    }
-
-    @Test("The answer comes back trimmed")
-    func returnsAnswer() async throws {
-        let transport = StubTransport([.response(Fixture.success(text: #"{"answer":"  Priya owns the launch plan.\n"}"#))])
-        let answer = try await makeClient(transport: transport)
-            .answer(question: "Who owns the launch?", transcript: "Priya will own the launch plan.")
-        #expect(answer == "Priya owns the launch plan.")
-    }
-
-    @Test("The request sends the answer schema and a prompt with the transcript, notes, history and question")
-    func requestShape() async throws {
-        let transport = StubTransport([.response(Fixture.success(text: #"{"answer":"Friday."}"#))])
-        _ = try await makeClient(transport: transport).answer(
-            question: " When is it due? ",
-            transcript: "Priya will own the launch plan, due Friday.",
-            notes: "Launch prep",
+    @Test("The prompt has the excerpts, the conversation so far and the question")
+    func prompt() {
+        let prompt = MeetingChat.prompt(
+            question: "When is it due?",
+            excerpts: ["Launch prep", "Priya will own the launch plan, due Friday."],
             history: [
                 MeetingChatTurn(role: .user, text: "Who owns the launch?"),
                 MeetingChatTurn(role: .assistant, text: "Priya."),
             ]
         )
-
-        let request = await transport.received[0]
-        let properties = (request.generationConfig["responseSchema"] as? [String: Any])?["properties"] as? [String: Any]
-        #expect(properties?["answer"] != nil)
-        #expect(request.promptText.contains("Priya will own the launch plan, due Friday."))
-        #expect(request.promptText.contains("NOTES:\nLaunch prep"))
-        #expect(request.promptText.contains("USER: Who owns the launch?\nASSISTANT: Priya."))
-        #expect(request.promptText.contains("QUESTION: When is it due?"))
+        #expect(prompt.contains("EXCERPTS FROM THE MEETING:\nLaunch prep\n\nPriya will own the launch plan, due Friday."))
+        #expect(prompt.contains("User: Who owns the launch?\nYou: Priya."))
+        #expect(prompt.hasSuffix("QUESTION: When is it due?"))
     }
 
-    @Test("A first question says there is no conversation or notes yet")
+    @Test("A first question says there is no conversation yet")
     func firstQuestion() {
-        let prompt = PromptBuilder.meetingQuestionPrompt(question: "Q", transcript: "T", notes: "", history: [])
-        #expect(prompt.contains("NOTES:\n(none)"))
-        #expect(prompt.contains("CONVERSATION SO FAR:\n(none)"))
+        #expect(MeetingChat.prompt(question: "Q", excerpts: ["T"], history: []).contains("CONVERSATION SO FAR:\n(none)"))
     }
 
-    @Test("A blank transcript fails before any network call")
-    func emptyTranscript() async {
-        let transport = StubTransport([])
-        await #expect(throws: GeminiError.emptyTranscript) {
-            try await makeClient(transport: transport).answer(question: "Anything?", transcript: " \n")
-        }
-        #expect(await transport.callCount == 0)
+    @Test("Only the last few turns go along")
+    func historyCap() {
+        let history = (1...10).map { MeetingChatTurn(role: .user, text: "turn\($0)") }
+        let prompt = MeetingChat.prompt(question: "Q", excerpts: [], history: history)
+        #expect(!prompt.contains("turn6\n") && prompt.contains("turn7") && prompt.contains("turn10"))
     }
 
-    @Test("A blank answer is an empty response, not a blank chat bubble")
-    func blankAnswer() async {
-        let transport = StubTransport([.response(Fixture.success(text: #"{"answer":"  "}"#))])
-        await #expect(throws: GeminiError.emptyResponse) {
-            try await makeClient(transport: transport).answer(question: "Anything?", transcript: "Hello.")
-        }
+    @Test("A short meeting goes whole, and a transcript already in the notes isn't sent twice")
+    func wholeMeeting() {
+        let transcript = "Priya will own the launch plan."
+        #expect(MeetingChat.excerpts(question: "Who?", transcript: transcript, notes: "Launch prep.", history: [])
+            == ["Launch prep.", transcript])
+        #expect(MeetingChat.excerpts(question: "Who?", transcript: transcript, notes: "Summary.\n\n\(transcript)", history: [])
+            .joined().components(separatedBy: "Priya").count == 2)
+    }
+
+    @Test("A long meeting sends the parts that answer the question, in order, within the budget")
+    func longMeeting() {
+        let filler = (1...40).map { "We talked about item number \($0) for a while and moved on." }.joined(separator: " ")
+        let transcript = filler + " Priya will write the press release by Friday. " + filler
+        let excerpts = MeetingChat.excerpts(question: "Who writes the press release?", transcript: transcript,
+                                            notes: "", history: [], wordBudget: 300)
+        #expect(excerpts.joined(separator: " ").contains("press release by Friday"))
+        #expect(excerpts.joined(separator: " ").split(whereSeparator: \.isWhitespace).count <= 300)
+        // Topped up from the start once the matches are in.
+        #expect(excerpts.first?.hasPrefix("We talked about item number 1 ") == true)
+    }
+
+    @Test("A follow-up finds its answer through the question before it")
+    func followUp() {
+        let filler = (1...40).map { "We talked about item number \($0) for a while and moved on." }.joined(separator: " ")
+        let transcript = filler + " Priya will write the press release by Friday. " + filler
+        let excerpts = MeetingChat.excerpts(
+            question: "When is that due?", transcript: transcript, notes: "",
+            history: [MeetingChatTurn(role: .user, text: "Who writes the press release?")], wordBudget: 150)
+        #expect(excerpts.joined(separator: " ").contains("press release by Friday"))
     }
 }

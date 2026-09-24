@@ -125,8 +125,8 @@ struct MeetingChatView: View {
     private func send(_ text: String) {
         let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !isThinking else { return }
-        guard let key = GeminiKey.current else {
-            error = "Add a Gemini API key (… menu → AI) to ask questions about a meeting."
+        guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
+            error = AppleIntelligence.unavailableReason
             return
         }
         // Earlier turns go along so follow-ups like "and who owns that?" make sense.
@@ -138,12 +138,11 @@ struct MeetingChatView: View {
         error = nil
         isThinking = true
 
-        let model = UserDefaults.standard.string(forKey: "gemini_model") ?? "gemini-3.8-flash"
         let transcript = artifact.fullTranscript ?? ""
         Task {
             defer { isThinking = false }
             do {
-                let answer = try await GeminiClient(apiKey: key, configuration: .init(model: model))
+                let answer = try await OnDeviceMeetingChat()
                     .answer(question: question, transcript: transcript, notes: notesText, history: history)
                 append(.assistant, answer)
             } catch {

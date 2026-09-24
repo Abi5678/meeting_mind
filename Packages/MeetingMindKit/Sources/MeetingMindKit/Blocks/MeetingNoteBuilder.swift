@@ -3,7 +3,7 @@ import Foundation
 /// Lays a recorded meeting out as note blocks: summary, decisions, action items as to-dos, the
 /// follow-up email, then the full transcript last so the useful parts come first.
 public enum MeetingNoteBuilder {
-    /// - Parameter analysis: nil when Gemini could not run (no key, offline); the note then
+    /// - Parameter analysis: nil when the summary could not be written (no Apple Intelligence, or it refused); the note then
     ///   holds the transcript alone.
     public static func blocks(analysis: MeetingAnalysis?, transcript: String) -> [Block] {
         var blocks: [Block] = []

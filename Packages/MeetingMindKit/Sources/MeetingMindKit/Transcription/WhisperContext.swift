@@ -112,7 +112,7 @@ public struct TranscriptionService: Sendable {
     private init() {}
 
     /// Run the full meeting capture pipeline:
-    /// AudioRecording → ChunkPlanner windows → WhisperContext per chunk → Gemini analyze
+    /// AudioRecording → ChunkPlanner windows → WhisperContext per chunk → on-device analyze
     @available(*, deprecated, message: "Stub — will use real whisper.cpp when xcframework is integrated")
     public func analyzeMeeting(audioURL: URL) async throws -> MeetingAnalysis {
         // Stub implementation
