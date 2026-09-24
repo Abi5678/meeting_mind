@@ -67,6 +67,29 @@ struct NoteSearchTests {
         #expect(Self.index.search("bánana").first?.passage.noteID == Self.shopping)
     }
 
+    @Test("An -ing word meets its root", arguments: [
+        ("booking", "book"), ("planning", "plan"), ("making", "make"), ("sharing", "share"),
+        ("scheduling", "schedule"), ("meetings", "meet"), ("calling", "call"), ("agreeing", "agree"),
+        ("adding", "add"), ("seeing", "see"),
+    ])
+    func ing(_ word: String, _ root: String) {
+        #expect(SearchText.stem(word) == SearchText.stem(root))
+    }
+
+    @Test("Short and vowel-less -ing words are left alone, and a silent e doesn't eat a word")
+    func ingLeftAlone() {
+        for word in ["thing", "string", "bring", "sing"] { #expect(SearchText.stem(word) == word) }
+        #expect(SearchText.stem("note") != SearchText.stem("not"))
+        #expect(SearchText.stem("hoping") != SearchText.stem("hopping"))
+    }
+
+    @Test("A question with -ing finds the note that says the root, even half-typed")
+    func ingSearch() {
+        #expect(Self.index.search("booking trams").first?.passage.noteID == Self.trip)
+        #expect(Self.index.search("bookin").first?.passage.noteID == Self.trip)
+        #expect(Self.index.search("booki").first?.passage.noteID == Self.trip)
+    }
+
     @Test("The last word matches as a prefix while typing, but not once finished")
     func prefix() {
         #expect(Self.index.search("roadm").first?.passage.source == .photo(Self.photo))

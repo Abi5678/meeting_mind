@@ -167,6 +167,11 @@ public struct SearchIndex: Sendable {
                 for term in documentFrequency.keys where term.count > word.count && term.hasPrefix(word) {
                     terms[term] = max(terms[term] ?? 0, 0.8)
                 }
+                // A half-typed "-ing" word is on its way to one stored as its root: "bookin" → "book".
+                for ending in ["g", "ng"] where (word + ending).hasSuffix("ing") {
+                    let root = SearchText.stem(word + ending)
+                    if root != word + ending { terms[root] = max(terms[root] ?? 0, 0.8) }
+                }
             }
             for (term, weight) in expand(word) {
                 for stemmed in SearchText.terms(term) where terms[stemmed] == nil {
@@ -252,15 +257,56 @@ enum SearchText {
         word.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
     }
 
-    /// Just enough to make plurals and possessives meet their singular.
+    /// Just enough to make plurals, possessives and -ing forms meet their root, after Porter:
+    /// "booking" and "book", "planning" and "plan", "making" and "make" come out the same.
     static func stem(_ word: String) -> String {
         var w = word
         if w.hasSuffix("'s") || w.hasSuffix("’s") { w.removeLast(2) }
         guard w.count > 3, w.allSatisfy(\.isLetter) else { return w }
-        if w.hasSuffix("ies") { return String(w.dropLast(3)) + "y" }
-        if w.hasSuffix("sses") || w.hasSuffix("xes") || w.hasSuffix("ches") || w.hasSuffix("shes") { return String(w.dropLast(2)) }
-        if w.hasSuffix("s"), !w.hasSuffix("ss"), !w.hasSuffix("us"), !w.hasSuffix("is") { return String(w.dropLast()) }
+        if w.hasSuffix("ies") { w = String(w.dropLast(3)) + "y" }
+        else if w.hasSuffix("sses") || w.hasSuffix("xes") || w.hasSuffix("ches") || w.hasSuffix("shes") { w.removeLast(2) }
+        else if w.hasSuffix("s"), !w.hasSuffix("ss"), !w.hasSuffix("us"), !w.hasSuffix("is") { w.removeLast() }
+
+        if w.hasSuffix("ing") {
+            var root = Array(w.dropLast(3))
+            if root.count >= 3, root.indices.contains(where: { isVowel(root, $0) }) {
+                let last = root.count - 1
+                if root.count > 3, root[last] == root[last - 1], !isVowel(root, last), !"lsz".contains(root[last]) {
+                    root.removeLast()  // planning → plan
+                } else if measure(root) == 1, endsShortSyllable(root) {
+                    root.append("e")  // making → make
+                }
+                w = String(root)
+            }
+        }
+        // A silent e goes, so "schedule" meets "scheduling"; "note" keeps its e and stays apart from "not".
+        if w.count > 3, w.hasSuffix("e") {
+            let root = Array(w.dropLast())
+            let m = measure(root)
+            if m > 1 || (m == 1 && !endsShortSyllable(root)) { w.removeLast() }
+        }
         return w
+    }
+
+    private static func isVowel(_ w: [Character], _ i: Int) -> Bool {
+        switch w[i] {
+        case "a", "e", "i", "o", "u": true
+        case "y": i > 0 && !isVowel(w, i - 1)
+        default: false
+        }
+    }
+
+    /// Porter's measure: the number of vowel-then-consonant runs ("book" 1, "open" 2).
+    private static func measure(_ w: [Character]) -> Int {
+        var m = 0
+        for i in w.indices.dropFirst() where isVowel(w, i - 1) && !isVowel(w, i) { m += 1 }
+        return m
+    }
+
+    /// Consonant, vowel, consonant (not w, x or y) at the end, as in "mak" or "hop".
+    private static func endsShortSyllable(_ w: [Character]) -> Bool {
+        let n = w.count
+        return n >= 3 && !isVowel(w, n - 3) && isVowel(w, n - 2) && !isVowel(w, n - 1) && !"wxy".contains(w[n - 1])
     }
 
     /// About `width` characters around the first matching word, cut at word boundaries.
