@@ -1,6 +1,6 @@
 //
 //  makeicon.swift
-//  Recapped
+//  Quolio
 //
 // Renders the app icon from the same mark as LaunchMarkView: a speech bubble holding a
 // bulleted recap — the splash's last frame, once the waveform has been written up. Run it
@@ -72,11 +72,12 @@ let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                           colors: [tileTop, tileBottom] as CFArray, locations: [0, 1])!
 ctx.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: side), options: [])
 
-// The bubble and its tail, lifted off the tile by a soft shadow.
+// The bubble and its tail, lifted off the tile by a soft shadow. The tail comes off the lower
+// right, where a Q's does, so the bubble reads as the Q in Quolio.
 let tail = CGMutablePath()
-tail.move(to: CGPoint(x: 262, y: 660))
-tail.addQuadCurve(to: CGPoint(x: 196, y: 842), control: CGPoint(x: 268, y: 780))
-tail.addQuadCurve(to: CGPoint(x: 430, y: 700), control: CGPoint(x: 340, y: 800))
+tail.move(to: CGPoint(x: 762, y: 660))
+tail.addQuadCurve(to: CGPoint(x: 828, y: 842), control: CGPoint(x: 756, y: 780))
+tail.addQuadCurve(to: CGPoint(x: 594, y: 700), control: CGPoint(x: 684, y: 800))
 tail.closeSubpath()
 
 ctx.saveGState()

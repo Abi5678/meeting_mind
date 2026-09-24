@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Recapped</string>
+	<string>Quolio</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,13 +25,13 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Recapped uses the camera to take photos you add to your notes.</string>
+	<string>Quolio uses the camera to take photos you add to your notes.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Recapped needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.</string>
+	<string>Quolio needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Recapped saves the photos you share from a note to your library.</string>
+	<string>Quolio saves the photos you share from a note to your library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Recapped turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.</string>
+	<string>Quolio turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
