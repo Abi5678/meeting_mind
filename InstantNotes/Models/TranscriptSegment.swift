@@ -8,11 +8,11 @@ import SwiftData
 
 @Model
 final class TranscriptSegment {
-    @Attribute(.unique) var id: UUID
-    var artifactId: UUID
-    var startTime: TimeInterval
-    var endTime: TimeInterval
-    var text: String
+    var id: UUID = UUID()
+    var artifactId: UUID = UUID()
+    var startTime: TimeInterval = 0
+    var endTime: TimeInterval = 0
+    var text: String = ""
 
     var artifact: MeetingArtifact?
 
@@ -33,11 +33,11 @@ final class TranscriptSegment {
 
 @Model
 final class MeetingChatMessage {
-    @Attribute(.unique) var id: UUID
-    var artifactId: UUID
-    var role: String // "user" or "assistant"
-    var content: String
-    var createdAt: Date
+    var id: UUID = UUID()
+    var artifactId: UUID = UUID()
+    var role: String = "user" // "user" or "assistant"
+    var content: String = ""
+    var createdAt: Date = Date.now
 
     var artifact: MeetingArtifact?
 

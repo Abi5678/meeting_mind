@@ -64,10 +64,10 @@ struct RecordingPlayerBar: View {
     }
 
     /// Loads `recording` into `player`. Only the file name is stored: the app container path
-    /// changes between installs.
+    /// changes between installs. A recording synced from another device gets its file here.
     static func load(_ recording: Recording, into player: PlaybackController) {
         player.error = nil
-        player.load(url: AudioRecorderService.defaultRecordingsDirectory().appending(path: recording.filePath))
+        player.load(url: CloudSync.audioURL(for: recording))
     }
 
     static func play(_ player: PlaybackController) {

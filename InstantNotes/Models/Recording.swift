@@ -9,12 +9,16 @@ import MeetingMindKit
 
 @Model
 final class Recording {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var filePath: String
-    var duration: TimeInterval
-    var createdAt: Date
-    var isTranscribed: Bool
+    var id: UUID = UUID()
+    var name: String = ""
+    /// The audio file's name in the recordings folder, a local copy of `audioData`.
+    var filePath: String = ""
+    var duration: TimeInterval = 0
+    var createdAt: Date = Date.now
+    var isTranscribed: Bool = false
+    /// The audio itself, stored in the database so it syncs with iCloud; the file at `filePath`
+    /// is written from it on a device that doesn't have one yet.
+    @Attribute(.externalStorage) var audioData: Data? = nil
     /// JSON [AudioClock.Span] for a recording made inside a note, so ink can find its moment in
     /// the audio; nil for other recordings. Defaulted so existing stores migrate lightweight.
     var clockSpansJSON: String? = nil
@@ -22,8 +26,9 @@ final class Recording {
     /// recordings end to end. 0 for the first, and for recordings saved before this existed.
     var transcriptOffset: TimeInterval = 0
 
-    // Relationship back to the note (CloudKit-shaped: optional with inverse)
+    // Relationships back to the note and its meeting; the inverses are declared on the other side.
     var note: Note?
+    var artifact: MeetingArtifact?
 
     init(
         id: UUID = UUID(),

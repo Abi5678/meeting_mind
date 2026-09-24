@@ -11,10 +11,10 @@ import UIKit
 
 @Model
 final class NoteImage {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     /// JPEG, at most `maxPixels` on the long side.
-    @Attribute(.externalStorage) var data: Data
-    var createdAt: Date
+    @Attribute(.externalStorage) var data: Data = Data()
+    var createdAt: Date = Date.now
     var note: Note?
     /// The words in the photo, read on the device so search can find them. Nil until read; empty
     /// when the photo has none.

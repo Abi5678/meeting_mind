@@ -429,11 +429,13 @@ final class MeetingSession: ObservableObject {
             let saved = Recording(id: recordingID, name: note.title, filePath: recording.url.lastPathComponent,
                                   duration: recording.duration, createdAt: startedAt, isTranscribed: transcribed)
             saved.clockSpans = clockSpans
+            // The audio goes in the database too, so it syncs to the note's other devices.
+            saved.audioData = try? Data(contentsOf: recording.url, options: .mappedIfSafe)
             if let artifact = note.meetingArtifact {
                 Self.append(saved, pieces: pieces, transcript: transcript, summary: analysis?.summary,
-                            to: artifact, after: note.recordings)
+                            to: artifact, after: note.recordings ?? [])
             }
-            note.recordings.append(saved)
+            note.recordings = (note.recordings ?? []) + [saved]
             if note.meetingArtifact == nil {
                 let artifact = MeetingArtifact(recordingId: saved.id,
                                                status: (transcribed ? MeetingProcessingStatus.ready : .failed).rawValue,
@@ -467,10 +469,10 @@ final class MeetingSession: ObservableObject {
     /// every recording already in it, so chat and transcript search cover it too.
     static func append(_ recording: Recording, pieces: [TranscriptPiece], transcript: String, summary: String?,
                        to artifact: MeetingArtifact, after earlier: [Recording]) {
-        let offset = max(artifact.segments.map(\.endTime).max() ?? 0,
+        let offset = max((artifact.segments ?? []).map(\.endTime).max() ?? 0,
                          earlier.map { $0.transcriptOffset + $0.duration }.max() ?? 0)
         recording.transcriptOffset = offset
-        artifact.segments += pieces.map {
+        artifact.segments = (artifact.segments ?? []) + pieces.map {
             TranscriptSegment(artifactId: artifact.id, startTime: offset + $0.start, endTime: offset + $0.end, text: $0.text)
         }
         artifact.fullTranscript = joined(artifact.fullTranscript, transcript)

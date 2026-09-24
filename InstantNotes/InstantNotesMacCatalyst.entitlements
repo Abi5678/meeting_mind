@@ -15,5 +15,16 @@
 	<!-- A YouTube link is transcribed from captions fetched over the network. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Notes sync through the user's private iCloud database, with pushes for changes. -->
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.homezero1.instantnotes</string>
+	</array>
+	<key>com.apple.developer.aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

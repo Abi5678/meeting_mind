@@ -8,17 +8,18 @@ import SwiftData
 
 @Model
 final class MeetingArtifact {
-    @Attribute(.unique) var id: UUID
-    var recordingId: UUID
-    var status: Int // raw value of MeetingProcessingStatus
+    var id: UUID = UUID()
+    var recordingId: UUID = UUID()
+    var status: Int = 0 // raw value of MeetingProcessingStatus
     var summary: String?
     var highlightsJSON: String? // JSON-encoded [MeetingHighlight]
     var fullTranscript: String?
-    var createdAt: Date
+    var createdAt: Date = Date.now
 
-    var segments: [TranscriptSegment]
-    var chatMessages: [MeetingChatMessage]
-    var recording: Recording?
+    @Relationship(inverse: \TranscriptSegment.artifact) var segments: [TranscriptSegment]? = []
+    @Relationship(inverse: \MeetingChatMessage.artifact) var chatMessages: [MeetingChatMessage]? = []
+    @Relationship(inverse: \Recording.artifact) var recording: Recording?
+    var note: Note?
 
     init(
         id: UUID = UUID(),

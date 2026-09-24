@@ -51,6 +51,12 @@ targets:
         - InstantNotesTests
     entitlements:
       path: InstantNotes/InstantNotes.entitlements
+      # Notes sync through the user's private iCloud database; the push entitlement lets
+      # CloudKit tell the app when another device changed something.
+      properties:
+        com.apple.developer.icloud-services: [CloudKit]
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.homezero1.instantnotes]
+        aps-environment: development
     resources:
       - path: InstantNotes/PrivacyInfo.xcprivacy
     info:
@@ -78,6 +84,7 @@ targets:
         NSSpeechRecognitionUsageDescription: Recapped turns meeting recordings into text for summaries. Transcription uses on-device recognition when available; otherwise audio may be sent to Apple for speech recognition.
         UIBackgroundModes:
           - audio
+          - remote-notification
         NSMicrophoneUsageDescription: Recapped needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
         NSCameraUsageDescription: Recapped uses the camera to take photos you add to your notes.
         NSPhotoLibraryAddUsageDescription: Recapped saves the photos you share from a note to your library.

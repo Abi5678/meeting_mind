@@ -3,7 +3,8 @@
 //  Instant Notes
 //
 // Core note entity with blocks, recordings, and AI metadata.
-// CloudKit-shaped schema from day one: all relationships optional with inverses.
+// Synced with iCloud, so the schema keeps to CloudKit's rules: no unique attributes, a default
+// for every value, and optional relationships with explicit inverses.
 
 import Foundation
 import SwiftData
@@ -11,14 +12,14 @@ import MeetingMindKit
 
 @Model
 final class Note {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var createdAt: Date
-    var modifiedAt: Date
+    var id: UUID = UUID()
+    var title: String = "Untitled"
+    var createdAt: Date = Date.now
+    var modifiedAt: Date = Date.now
     var summary: String?
-    var tagsJSON: String // JSON-compressed [String]
+    var tagsJSON: String = "[]" // JSON-compressed [String]
 
-    var blocksJSON: String // JSON-encoded BlockDocument state
+    var blocksJSON: String = "[]" // JSON-encoded BlockDocument state
     /// PaperStyle raw value; the default lets existing stores migrate without a schema version.
     var paperStyle: String = PaperStyle.lined.rawValue
     /// PaperTint raw value; defaulted for the same reason as `paperStyle`.
@@ -28,10 +29,10 @@ final class Note {
     /// Words read from the ink, for search: nil until read (and again after the ink changes),
     /// "" when there are none.
     var inkText: String? = nil
-    var recordings: [Recording]
+    @Relationship(inverse: \Recording.note) var recordings: [Recording]? = []
     /// Photos shown by the note's image blocks; optional so existing stores migrate lightweight.
     @Relationship(deleteRule: .cascade, inverse: \NoteImage.note) var images: [NoteImage]? = []
-    var meetingArtifact: MeetingArtifact?
+    @Relationship(inverse: \MeetingArtifact.note) var meetingArtifact: MeetingArtifact?
 
     init(
         id: UUID = UUID(),

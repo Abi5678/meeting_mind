@@ -355,11 +355,11 @@ struct CanvasNoteEditorView: View {
 
     /// Oldest first, so the first is the meeting the note was made from.
     private var recordings: [Recording] {
-        note.recordings.sorted { $0.createdAt < $1.createdAt }
+        (note.recordings ?? []).sorted { $0.createdAt < $1.createdAt }
     }
 
     private func recording(_ id: UUID) -> Recording? {
-        note.recordings.first { $0.id == id }
+        note.recordings?.first { $0.id == id }
     }
 
     /// The one in the player: the last one played, or the note's first.
@@ -369,7 +369,7 @@ struct CanvasNoteEditorView: View {
 
     /// Whether any recording was made in this note, so its ink can be replayed.
     private var hasTimedInk: Bool {
-        note.drawingData != nil && note.recordings.contains { $0.clockSpansJSON != nil }
+        note.drawingData != nil && (note.recordings ?? []).contains { $0.clockSpansJSON != nil }
     }
 
     /// New and first-edited blocks are stamped with the moment of this note's recording.

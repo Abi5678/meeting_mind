@@ -242,13 +242,13 @@ struct NoteListView: View {
         if openNoteID == note.id { selectedNoteID = nil }
         // The relationships have no cascade rule, so the meeting's rows and audio go explicitly.
         let recordingsDirectory = AudioRecorderService.defaultRecordingsDirectory()
-        for recording in note.recordings {
+        for recording in note.recordings ?? [] {
             try? FileManager.default.removeItem(at: recordingsDirectory.appending(path: recording.filePath))
             modelContext.delete(recording)
         }
         if let artifact = note.meetingArtifact {
-            artifact.segments.forEach(modelContext.delete)
-            artifact.chatMessages.forEach(modelContext.delete)
+            artifact.segments?.forEach(modelContext.delete)
+            artifact.chatMessages?.forEach(modelContext.delete)
             modelContext.delete(artifact)
         }
         modelContext.delete(note)

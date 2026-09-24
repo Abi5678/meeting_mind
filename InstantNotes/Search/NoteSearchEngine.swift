@@ -35,7 +35,7 @@ extension Note {
         hasher.combine(tags)
         hasher.combine(images?.filter { $0.recognizedText != nil }.count ?? 0)
         hasher.combine(inkText)
-        hasher.combine(meetingArtifact?.segments.count ?? 0)
+        hasher.combine(meetingArtifact?.segments?.count ?? 0)
         return hasher.finalize()
     }
 
