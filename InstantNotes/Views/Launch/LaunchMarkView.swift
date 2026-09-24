@@ -66,14 +66,15 @@ struct LaunchMarkView: View {
                                       startPoint: point(0, 10), endPoint: point(0, 210))
             )
 
-            // The bubble and its tail, lifted off the tile. The tail is the wordmark's Q tail.
+            // The bubble and its tail, lifted off the tile. The tail is on the lower right, like a Q's.
             let shape = Path(roundedRect: rect(Self.bubble.minX, Self.bubble.minY,
                                                Self.bubble.width, Self.bubble.height),
                              cornerRadius: 31.25 * s)
-            var tailStroke = Path()
-            tailStroke.move(to: point(142.2, 135.8))
-            tailStroke.addLine(to: point(163.5, 166.3))
-            let tail = tailStroke.strokedPath(StrokeStyle(lineWidth: 20.3 * s, lineCap: .round))
+            var tail = Path()
+            tail.move(to: point(158.8, 138.9))
+            tail.addQuadCurve(to: point(171.7, 174.5), control: point(157.7, 162.3))
+            tail.addQuadCurve(to: point(126.0, 146.7), control: point(143.6, 166.3))
+            tail.closeSubpath()
             context.drawLayer { layer in
                 layer.addFilter(.shadow(color: Color(red: 0.05, green: 0.08, blue: 0.25).opacity(0.35),
                                         radius: 4.7 * s, y: 3.5 * s))
