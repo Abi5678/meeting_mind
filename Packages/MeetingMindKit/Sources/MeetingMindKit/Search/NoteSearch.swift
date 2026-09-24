@@ -261,11 +261,12 @@ enum SearchText {
         word.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
     }
 
-    /// Just enough to make plurals, possessives, -ing and -ed forms meet their root, after Porter:
-    /// "booking", "booked" and "book", "planned" and "plan", "making" and "make" come out the same.
+    /// Just enough to make plurals, possessives, past tenses and -ing forms meet their root, after Porter:
+    /// "booking", "booked" and "book", "planned" and "plan", "making", "made" and "make" come out the same.
     static func stem(_ word: String) -> String {
         var w = word
         if w.hasSuffix("'s") || w.hasSuffix("’s") { w.removeLast(2) }
+        if let base = irregular[w] { w = base }
         guard w.count > 3, w.allSatisfy(\.isLetter) else { return w }
         if w.hasSuffix("ies") || w.hasSuffix("ied") { w = String(w.dropLast(3)) + "y" }
         else if w.hasSuffix("sses") || w.hasSuffix("xes") || w.hasSuffix("ches") || w.hasSuffix("shes") { w.removeLast(2) }
@@ -294,6 +295,34 @@ enum SearchText {
         }
         return w
     }
+
+    /// Past forms no suffix rule reaches, pointed at their verb: "met" → "meet", "went" → "go".
+    /// Left out where the word is more often something else: left, rose, ground, drew, bit, fell.
+    static let irregular: [String: String] = {
+        let forms = [
+            "arise": "arose arisen", "become": "became", "begin": "began begun", "break": "broke broken",
+            "bring": "brought", "build": "built", "buy": "bought", "catch": "caught", "choose": "chose chosen",
+            "come": "came", "deal": "dealt", "dig": "dug", "drive": "drove driven", "eat": "ate eaten",
+            "feed": "fed", "feel": "felt", "fight": "fought", "find": "found", "fly": "flew flown",
+            "forget": "forgot forgotten", "freeze": "froze frozen", "get": "got gotten", "give": "gave given",
+            "go": "goes going went gone", "grow": "grew grown", "hang": "hung", "hear": "heard",
+            "hide": "hid hidden", "hold": "held", "keep": "kept", "know": "knew known", "lead": "led",
+            "learn": "learnt", "lend": "lent", "lose": "lost", "make": "made", "mean": "meant", "meet": "met",
+            "pay": "paid", "ride": "rode ridden", "ring": "rang rung", "rise": "risen", "run": "ran",
+            "say": "said", "see": "saw seen", "seek": "sought", "sell": "sold", "send": "sent",
+            "shake": "shook shaken", "shoot": "shot", "show": "shown", "sing": "sang sung", "sit": "sat",
+            "sleep": "slept", "speak": "spoke spoken", "spend": "spent", "stand": "stood",
+            "steal": "stole stolen", "strike": "struck", "swim": "swam swum", "take": "took taken",
+            "teach": "taught", "tell": "told", "think": "thought", "throw": "threw thrown",
+            "understand": "understood", "wake": "woke woken", "wear": "wore worn", "win": "won",
+            "withdraw": "withdrew withdrawn", "write": "wrote written",
+        ]
+        var table: [String: String] = [:]
+        for (base, past) in forms {
+            for form in past.split(separator: " ") { table[String(form)] = base }
+        }
+        return table
+    }()
 
     private static func isVowel(_ w: [Character], _ i: Int) -> Bool {
         switch w[i] {

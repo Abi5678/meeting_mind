@@ -85,6 +85,31 @@ struct NoteSearchTests {
         #expect(SearchText.stem(word) == SearchText.stem(root))
     }
 
+    @Test("An irregular past tense meets its root", arguments: [
+        ("made", "make"), ("met", "meet"), ("met", "meeting"), ("went", "go"), ("gone", "going"),
+        ("bought", "buy"), ("thought", "think"), ("wrote", "write"), ("written", "writing"),
+        ("took", "take"), ("sent", "send"), ("Said", "says"), ("taught", "teaching"),
+    ])
+    func irregular(_ word: String, _ root: String) {
+        #expect(SearchText.stem(SearchText.fold(word)) == SearchText.stem(root))
+    }
+
+    @Test("Past tenses that are usually other words are left alone")
+    func irregularLeftAlone() {
+        for word in ["left", "rose", "drew", "ground"] { #expect(SearchText.stem(word) == word) }
+    }
+
+    @Test("A question in one tense finds a note in another")
+    func irregularSearch() {
+        let note = UUID()
+        let index = SearchIndex(passages: [
+            SearchPassage(noteID: UUID(), source: .title, text: "Vendor list"),
+            SearchPassage(noteID: note, source: .block(UUID()), text: "Sam met the vendor and made a deal"),
+        ])
+        #expect(index.search("who is meeting the vendor").first?.passage.noteID == note)
+        #expect(index.search("make a deal").first?.passage.noteID == note)
+    }
+
     @Test("Words that only end like -ed are left alone")
     func edLeftAlone() {
         for word in ["need", "speed", "shed", "red", "bed"] { #expect(SearchText.stem(word) == word) }
