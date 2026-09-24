@@ -1,15 +1,18 @@
 //
 //  makeicon.swift
-//  Instant Notes
+//  Recapped
 //
-// Renders the app icon from the same mark as LaunchMarkView. The icon is not a scaled
-// copy of that geometry: an icon is masked to a squircle and read at 40pt, so the forms
-// here are fewer and much heavier. Run it when the mark changes:
+// Renders the app icon from the same mark as LaunchMarkView: a speech bubble holding a
+// bulleted recap — the splash's last frame, once the waveform has been written up. Run it
+// when the mark changes:
 //
 //   swift Tools/makeicon.swift InstantNotes/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 //
-// Colours are the asset-catalogue values, in light appearance. An app icon is a fixed
-// image — iOS does not re-render it for dark mode — so there is no dark variant here.
+// Pass `--logo` after the path for a standalone logo: the same art with rounded,
+// transparent corners, for use outside the App Store (web, press, slides).
+//
+// An app icon is a fixed image — iOS does not re-render it for dark mode — so there is no
+// dark variant here.
 
 import Foundation
 import CoreGraphics
@@ -17,39 +20,29 @@ import ImageIO
 import UniformTypeIdentifiers
 
 let side = 1024.0
+let logo = CommandLine.arguments.contains("--logo")
 
-// PaperTint.cream, the colour the editor actually draws a page on.
+// The tile: AccentColor (#3B5BCC) sits in the middle of this gradient.
+let tileTop = CGColor(srgbRed: 0.318, green: 0.443, blue: 0.894, alpha: 1)
+let tileBottom = CGColor(srgbRed: 0.176, green: 0.267, blue: 0.667, alpha: 1)
+// PaperTint.cream, the colour the editor draws a page on.
 let paper = CGColor(srgbRed: 0.99, green: 0.97, blue: 0.91, alpha: 1)
 // InkColor, light appearance.
 let ink = CGColor(srgbRed: 0.110, green: 0.110, blue: 0.120, alpha: 1)
-// RuleColor, light appearance.
-let rule = CGColor(srgbRed: 0.720, green: 0.840, blue: 0.960, alpha: 1)
-// The VerticalMarginLine red from the editor.
-let margin = CGColor(srgbRed: 0.85, green: 0.25, blue: 0.25, alpha: 1)
+// AccentColor.
+let accent = CGColor(srgbRed: 0.231, green: 0.357, blue: 0.800, alpha: 1)
 
-// Three rows rather than the splash's four: at icon sizes, fewer and thicker reads better.
-// Everything below is optically centred on the 1024 square — the leftmost edge is the
-// margin rail at 157 and the rightmost is the last bar at 867, so the mark sits on 512.
-let rowY = [370.0, 512.0, 654.0]
-let contentX0 = 266.0
-let contentX1 = 867.0
-/// Per-row written width. The last row is short, so the block rags right like real writing.
-let rowWidth = [320.0, 320.0, 215.0]
-let inkHeight = 58.0
+// The bubble, optically centred once its tail is counted.
+let bubble = CGRect(x: 170, y: 190, width: 684, height: 520)
+let bubbleRadius = 160.0
 
-/// The rail, drawn heavy enough to survive being scaled to a 40pt home-screen icon.
-let railX = 171.0
-let railTop = 250.0
-let railBottom = 775.0
-let railWidth = 28.0
-
-/// Ruling runs under the written lines and on through the waveform, which is the point:
-/// both halves sit on the same baselines.
-let ruleWidth = 14.0
-
-let barX = [611.0, 679.0, 747.0, 815.0]
-let barHeights = [210.0, 400.0, 270.0, 340.0]
-let barWidth = 52.0
+// Three recap rows, shortening down the list. LaunchMarkView.lineWidth scaled to this tile.
+let rowY = [352.0, 452.0, 552.0]
+let bulletX = 272.0
+let bulletRadius = 30.0
+let lineX = 340.0
+let rowWidth = [450.0, 369.0, 246.0]
+let lineHeight = 54.0
 
 guard let ctx = CGContext(
     data: nil,
@@ -58,7 +51,7 @@ guard let ctx = CGContext(
     bitsPerComponent: 8,
     bytesPerRow: 0,
     space: CGColorSpace(name: CGColorSpace.sRGB)!,
-    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+    bitmapInfo: logo ? CGImageAlphaInfo.premultipliedLast.rawValue : CGImageAlphaInfo.noneSkipLast.rawValue
 ) else {
     FileHandle.standardError.write(Data("could not create the bitmap context\n".utf8))
     exit(1)
@@ -68,46 +61,54 @@ guard let ctx = CGContext(
 ctx.translateBy(x: 0, y: side)
 ctx.scaleBy(x: 1, y: -1)
 
-// The page, full bleed — an icon must not supply its own corners or transparency.
-ctx.setFillColor(paper)
-ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
-
-// Ruling, drawn first so the waveform crosses it.
-ctx.setStrokeColor(rule)
-ctx.setLineWidth(ruleWidth)
-ctx.setLineCap(.round)
-for y in rowY {
-    ctx.move(to: CGPoint(x: contentX0, y: y))
-    ctx.addLine(to: CGPoint(x: contentX1, y: y))
+// The tile, full bleed for the icon — an icon must not supply its own corners or
+// transparency. The logo rounds them itself.
+if logo {
+    ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: side, height: side),
+                       cornerWidth: side * 0.225, cornerHeight: side * 0.225, transform: nil))
+    ctx.clip()
 }
-ctx.strokePath()
+let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                          colors: [tileTop, tileBottom] as CFArray, locations: [0, 1])!
+ctx.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: side), options: [])
 
-// The margin rail.
-ctx.setStrokeColor(margin)
-ctx.setLineWidth(railWidth)
-ctx.move(to: CGPoint(x: railX, y: railTop))
-ctx.addLine(to: CGPoint(x: railX, y: railBottom))
-ctx.strokePath()
+// The bubble and its tail, lifted off the tile by a soft shadow.
+let tail = CGMutablePath()
+tail.move(to: CGPoint(x: 262, y: 660))
+tail.addQuadCurve(to: CGPoint(x: 196, y: 842), control: CGPoint(x: 268, y: 780))
+tail.addQuadCurve(to: CGPoint(x: 430, y: 700), control: CGPoint(x: 340, y: 800))
+tail.closeSubpath()
 
-// Written lines, each sitting on its rule.
+ctx.saveGState()
+ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 48,
+              color: CGColor(srgbRed: 0.05, green: 0.08, blue: 0.25, alpha: 0.35))
+ctx.setFillColor(paper)
+// One transparency layer, so the shadow is cast once by the joined outline.
+ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+ctx.addPath(CGPath(roundedRect: bubble, cornerWidth: bubbleRadius, cornerHeight: bubbleRadius, transform: nil))
+ctx.fillPath()
+ctx.addPath(tail)
+ctx.fillPath()
+ctx.endTransparencyLayer()
+ctx.restoreGState()
+
+// Bullets, in the accent, so the rows read as a recap rather than as prose.
+ctx.setFillColor(accent)
+for y in rowY {
+    ctx.fillEllipse(in: CGRect(x: bulletX - bulletRadius, y: y - bulletRadius,
+                               width: bulletRadius * 2, height: bulletRadius * 2))
+}
+
+// Written lines.
 ctx.setFillColor(ink)
 for (i, y) in rowY.enumerated() {
-    let box = CGRect(x: contentX0, y: y - inkHeight, width: rowWidth[i], height: inkHeight)
-    ctx.addPath(CGPath(roundedRect: box, cornerWidth: inkHeight / 2,
-                       cornerHeight: inkHeight / 2, transform: nil))
+    let box = CGRect(x: lineX, y: y - lineHeight / 2, width: rowWidth[i], height: lineHeight)
+    ctx.addPath(CGPath(roundedRect: box, cornerWidth: lineHeight / 2,
+                       cornerHeight: lineHeight / 2, transform: nil))
 }
 ctx.fillPath()
 
-// The waveform that has not been written down yet.
-for (i, x) in barX.enumerated() {
-    let h = barHeights[i]
-    let box = CGRect(x: x, y: 512 - h / 2, width: barWidth, height: h)
-    ctx.addPath(CGPath(roundedRect: box, cornerWidth: barWidth / 2,
-                       cornerHeight: barWidth / 2, transform: nil))
-}
-ctx.fillPath()
-
-let outPath = CommandLine.arguments.count > 1
+let outPath = CommandLine.arguments.count > 1 && !CommandLine.arguments[1].hasPrefix("--")
     ? CommandLine.arguments[1]
     : "AppIcon.png"
 

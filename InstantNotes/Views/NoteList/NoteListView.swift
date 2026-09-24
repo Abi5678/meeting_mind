@@ -39,7 +39,7 @@ struct NoteListView: View {
                 searchField
                 noteList
             }
-            .navigationTitle("Instant Notes")
+            .navigationTitle("Recapped")
             .toolbar { toolbarContent }
             // Not on the toolbar button: importing re-renders the list, which would reset the sheet mid-import.
             .sheet(isPresented: $showImport) { ImportView() }
