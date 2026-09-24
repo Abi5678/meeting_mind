@@ -18,6 +18,9 @@ final class Recording {
     /// JSON [AudioClock.Span] for a recording made inside a note, so ink can find its moment in
     /// the audio; nil for other recordings. Defaulted so existing stores migrate lightweight.
     var clockSpansJSON: String? = nil
+    /// Where this recording's words start in its note's meeting transcript, which runs a note's
+    /// recordings end to end. 0 for the first, and for recordings saved before this existed.
+    var transcriptOffset: TimeInterval = 0
 
     // Relationship back to the note (CloudKit-shaped: optional with inverse)
     var note: Note?

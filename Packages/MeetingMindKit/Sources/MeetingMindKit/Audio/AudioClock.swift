@@ -49,4 +49,15 @@ public enum AudioClock {
         }
         return best?.id
     }
+
+    /// A note's transcript runs its recordings end to end, each starting at its offset. The index
+    /// of the recording a transcript `time` falls in: the latest start at or before it, the
+    /// earliest recording on a tie. Nil when every recording starts later.
+    public static func source(at time: TimeInterval, starts: [TimeInterval]) -> Int? {
+        var best: Int?
+        for (index, start) in starts.enumerated() where start <= time {
+            if best.map({ start > starts[$0] }) ?? true { best = index }
+        }
+        return best
+    }
 }

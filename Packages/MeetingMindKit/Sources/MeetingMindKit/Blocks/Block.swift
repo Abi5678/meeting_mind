@@ -17,6 +17,9 @@ public struct Block: Identifiable, Equatable, Sendable {
     public var isChecked: Bool
     /// Where in a recording this block was written, when it was written while recording.
     public var audioMark: AudioMark?
+    /// How far down the page, in points, this block starts at the least, so it clears ink drawn
+    /// above where it was added. Nil for blocks that simply follow the one before.
+    public var minY: Double?
 
     public init(
         id: UUID = UUID(),
@@ -25,7 +28,8 @@ public struct Block: Identifiable, Equatable, Sendable {
         indent: Int = 0,
         isExpanded: Bool = true,
         isChecked: Bool = false,
-        audioMark: AudioMark? = nil
+        audioMark: AudioMark? = nil,
+        minY: Double? = nil
     ) {
         self.id = id
         self.type = type
@@ -34,6 +38,7 @@ public struct Block: Identifiable, Equatable, Sendable {
         self.isExpanded = isExpanded
         self.isChecked = isChecked
         self.audioMark = audioMark
+        self.minY = minY
     }
 
     /// The block's text with all inline formatting stripped, for search and export.

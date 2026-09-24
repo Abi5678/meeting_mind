@@ -63,10 +63,15 @@ struct CanvasNoteEditorView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
+                        InkFloorStack(pitch: metrics.pitch) {
                             header
                             ForEach(state.visibleBlocks) { block in
+                                if block.minY != nil {
+                                    PaperRuling(style: note.paper, pitch: metrics.pitch)
+                                        .layoutValue(key: InkGap.self, value: true)
+                                }
                                 row(for: block).id(block.id)
+                                    .layoutValue(key: InkFloor.self, value: block.minY.map { CGFloat($0) })
                             }
                         }
                         .background(
@@ -100,6 +105,12 @@ struct CanvasNoteEditorView: View {
         }
         .background(Color(paperTint: note.paperTint).ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
+        // While drawing, the tool picker covers the bottom of the screen, so Stop moves up here.
+        .safeAreaInset(edge: .top) {
+            if isDrawing, recorder.isRecording(into: note), let session = recorder.session {
+                NoteRecordingBanner(session: session).padding(.top, 8)
+            }
+        }
         .toolbar { toolbarContent }
         .fullScreenCover(isPresented: $showQuiz) {
             QuizView(noteTitle: note.title, notesText: state.document.plainText)
@@ -143,7 +154,12 @@ struct CanvasNoteEditorView: View {
             case let .block(id): scrollTarget = id
             case let .photo(imageID): scrollTarget = state.document.blocks.first { $0.type == .image(id: imageID) }?.id
             // A second early, so the words searched for aren't clipped.
-            case let .transcript(start): if let first = recordings.first { play(first, from: start - 1) }
+            case let .transcript(start):
+                // The transcript runs the note's recordings end to end; find the one this moment is in.
+                let all = recordings
+                if let index = AudioClock.source(at: start, starts: all.map(\.transcriptOffset)) {
+                    play(all[index], from: start - all[index].transcriptOffset - 1)
+                }
             default: break
             }
         }
@@ -290,7 +306,7 @@ struct CanvasNoteEditorView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            if recorder.isRecording(into: note), let session = recorder.session {
+            if !isDrawing, recorder.isRecording(into: note), let session = recorder.session {
                 NoteRecordingBanner(session: session)
             }
             blockBarOrPlayer
@@ -666,6 +682,55 @@ struct CanvasNoteEditorView: View {
 private struct PostImages: Identifiable {
     let images: [UIImage]
     var id: Int { images.count }
+}
+
+/// A row's `Block.minY`: it starts no higher than this.
+private struct InkFloor: LayoutValueKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+/// Marks the ruled filler placed just before a row with an `InkFloor`.
+private struct InkGap: LayoutValueKey {
+    static let defaultValue = false
+}
+
+/// Stacks rows top to bottom like a VStack, except that a row with an `InkFloor` is pushed down
+/// to the first ruled line at or below it, so text added under a drawing doesn't land on the ink.
+/// The `InkGap` filler before that row takes up the space it skips.
+private struct InkFloorStack: Layout {
+    let pitch: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = frames(for: subviews, width: proposal.width)
+        return CGSize(width: proposal.width ?? frames.map(\.maxX).max() ?? 0, height: frames.last?.maxY ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (subview, frame) in zip(subviews, frames(for: subviews, width: bounds.width)) {
+            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                          proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func frames(for subviews: Subviews, width: CGFloat?) -> [CGRect] {
+        var y: CGFloat = 0
+        var frames: [CGRect] = []
+        for index in subviews.indices {
+            let height: CGFloat
+            var frameWidth = width ?? 0
+            if subviews[index][InkGap.self] {
+                let floor = index + 1 < subviews.endIndex ? subviews[index + 1][InkFloor.self] : nil
+                height = floor.map { max(0, ($0 / pitch).rounded(.up) * pitch - y) } ?? 0
+            } else {
+                let size = subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil))
+                height = size.height
+                frameWidth = size.width
+            }
+            frames.append(CGRect(x: 0, y: y, width: frameWidth, height: height))
+            y += height
+        }
+        return frames
+    }
 }
 
 private struct ContentHeightKey: PreferenceKey {
