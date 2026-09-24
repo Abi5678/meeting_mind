@@ -12,7 +12,7 @@ import MeetingMindKit
 @main
 struct InstantNotesApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
+        let types: [any PersistentModel.Type] = [
             // Phase 3 models (core)
             Note.self,
             Recording.self,
@@ -28,7 +28,11 @@ struct InstantNotesApp: App {
             TableEntity.self,
             ColumnEntity.self,
             RowEntity.self,
-        ])
+        ]
+        let schema = Schema(types)
+        #if DEBUG
+        CloudSync.initializeSchema(for: types)
+        #endif
         // Synced with the user's private iCloud database; without an iCloud account it simply
         // stays on the device.
         let modelConfiguration = ModelConfiguration(
