@@ -97,15 +97,3 @@ public final class SyncEngine: ObservableObject {
         }
     }
 }
-
-/// Convert an array of `TimedMark` entries into `SyncMark` objects.
-public func syncMarks(from marks: [TimedMark]) -> [SyncMark] {
-    marks.map { mark in
-        SyncMark(
-            id: mark.id,
-            timeOffset: mark.timeOffset,
-            strokeIndexStart: mark.strokeIndexStart,
-            strokeIndexEnd: mark.strokeIndexEnd
-        )
-    }
-}

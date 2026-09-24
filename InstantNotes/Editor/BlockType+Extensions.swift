@@ -7,22 +7,23 @@
 import SwiftUI
 import MeetingMindKit
 
-extension Block.BlockType {
+extension BlockType {
     /// SF Symbol name for this block type's icon in toolbars and menus.
     var iconName: String {
         switch self {
         case .paragraph: return "textformat"
-        case .heading(level: 1): return "headline"
-        case .heading(level: 2): return "headline.fill"
-        case .heading(level: 3): return "heading"
+        case .heading(level: 1): return "1.square"
+        case .heading(level: 2): return "2.square"
+        case .heading: return "3.square"
         case .bulletedList: return "list.bullet"
         case .numberedList: return "list.number"
         case .todo: return "checkmark.circle"
         case .toggle: return "chevron.right.circle"
-        case .quote: return "quote.left"
+        case .quote: return "text.quote"
         case .callout: return "lightbulb"
-        case .code: return "bookmark"
+        case .code: return "chevron.left.forwardslash.chevron.right"
         case .divider: return "minus"
+        case .image: return "photo"
         }
     }
 
@@ -32,7 +33,7 @@ extension Block.BlockType {
         case .paragraph: return "Type something…"
         case .heading(level: _): return "Heading"
         case .bulletedList: return "Item"
-        case .numberedList: return "First item"
+        case .numberedList: return "List item"
         case .todo: return "Todo"
         case .toggle: return "Toggle content"
         case .quote: return "Quoted text"
@@ -44,7 +45,7 @@ extension Block.BlockType {
                 return "// \(lang.capitalized) code here…"
             }
             return "// Code here…"
-        case .divider: return ""
+        case .divider, .image: return ""
         }
     }
 
@@ -61,6 +62,15 @@ extension Block.BlockType {
         case .callout: "Callout"
         case .code: "Code"
         case .divider: "Divider"
+        case .image: "Photo"
+        }
+    }
+
+    /// Dividers and photos have no text to type in: no caret, no indent, no merging.
+    var holdsText: Bool {
+        switch self {
+        case .divider, .image: return false
+        default: return true
         }
     }
 
@@ -68,5 +78,24 @@ extension Block.BlockType {
     var isHeading: Bool {
         if case .heading = self { return true }
         return false
+    }
+
+    /// Code keeps its own newlines and tabs instead of splitting into blocks.
+    var isCode: Bool {
+        if case .code = self { return true }
+        return false
+    }
+
+    /// Whether Return at the end of this block starts another one just like it.
+    var continuesOnReturn: Bool {
+        switch self {
+        case .bulletedList, .numberedList, .todo: return true
+        default: return false
+        }
+    }
+
+    /// What the block Return creates below this one becomes.
+    var continuation: BlockType {
+        continuesOnReturn ? self : .paragraph
     }
 }

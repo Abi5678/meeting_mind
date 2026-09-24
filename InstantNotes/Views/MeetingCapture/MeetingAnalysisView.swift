@@ -2,7 +2,7 @@
 //  MeetingAnalysisView.swift
 //  Instant Notes
 //
-// Displays Gemini analysis results as blocks using the paper design identity.
+// Displays the meeting summary as blocks using the paper design identity.
 
 import SwiftUI
 import MeetingMindKit
@@ -34,9 +34,9 @@ struct MeetingAnalysisView: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.secondary)
 
-                    ForEach(analysis.keyDecisions.indices.map { String($0) }, id: \.self) { _ in
+                    ForEach(analysis.keyDecisions, id: \.self) { decision in
                         // Render each decision as a block
-                        Text("• \(getDecision(at: Int(_)!).text)")
+                        Text("• \(decision)")
                             .font(.body)
                             .lineSpacing(2)
                     }
@@ -52,8 +52,8 @@ struct MeetingAnalysisView: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.secondary)
 
-                    ForEach(analysis.actionItems.indices.map { String($0) }, id: \.self) { i in
-                        let item = analysis.actionItems[Int(i)!]
+                    ForEach(analysis.actionItems.indices, id: \.self) { i in
+                        let item = analysis.actionItems[i]
                         HStack(spacing: 8) {
                             Image(systemName: "circle")
                                 .font(.caption2)
@@ -77,7 +77,8 @@ struct MeetingAnalysisView: View {
             }
 
             // Follow-up email draft
-            if let email = analysis.followUpEmail, !email.subject.isEmpty || !email.body.isEmpty {
+            let email = analysis.followUpEmail
+            if !email.subject.isEmpty || !email.body.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Follow-up Draft", systemImage: "envelope")
                         .font(.subheadline.bold())
@@ -97,56 +98,6 @@ struct MeetingAnalysisView: View {
                 .padding(16)
                 .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))
             }
-
-            // Insert as note button
-            Button { /* action: convert analysis to blocks and insert into current note */ } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "note.text.badge.plus")
-                    Text("Insert into Note")
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
         }
-    }
-
-    private func getDecision(at index: Int) -> MeetingAnalysis.Decision {
-        guard index >= 0, index < analysis.keyDecisions.count else {
-            return MeetingAnalysis.Decision(text: "")
-        }
-        return analysis.keyDecisions[index]
-    }
-}
-
-extension MeetingAnalysis {
-    struct Decision: Codable {
-        var text: String
-    }
-
-    struct ActionItem: Codable {
-        var task: String
-        var owner: String? = nil
-        var due: String? = nil
-    }
-
-    struct FollowUpEmail: Codable {
-        var subject: String = ""
-        var body: String = ""
-    }
-}
-
-struct MeetingAnalysis: Codable, Identifiable {
-    let id = UUID()
-    let summary: String
-    let keyDecisions: [Decision]
-    let actionItems: [ActionItem]
-    let followUpEmail: FollowUpEmail?
-
-    enum CodingKeys: String, CodingKey {
-        case summary, keyDecisions, actionItems, followUpEmail
     }
 }

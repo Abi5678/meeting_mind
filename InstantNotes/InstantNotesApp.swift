@@ -19,6 +19,7 @@ struct InstantNotesApp: App {
             MeetingArtifact.self,
             TranscriptSegment.self,
             MeetingChatMessage.self,
+            NoteImage.self,
 
             // Tagging and organization
             Tag.self,
@@ -27,9 +28,6 @@ struct InstantNotesApp: App {
             TableEntity.self,
             ColumnEntity.self,
             RowEntity.self,
-
-            // Block document storage wrapper
-            SwiftDataBlockDocument.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
@@ -44,9 +42,29 @@ struct InstantNotesApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NoteListView() // Entry point — replaces hello-world placeholder
-                .navigationViewStyle(.stack)
+            RootView()
         }
         .modelContainer(sharedModelContainer)
+    }
+}
+
+/// The note list with the launch mark over it. The mark plays once per launch and then
+/// removes itself, so the list is already loaded behind it by the time it clears.
+private struct RootView: View {
+    /// Per process, not per scene, so a new iPad or Mac window opens straight to the list.
+    @MainActor private static var didShowLaunchMark = false
+    @State private var showLaunchMark = !RootView.didShowLaunchMark
+
+    var body: some View {
+        NoteListView() // Entry point — replaces hello-world placeholder
+            .navigationViewStyle(.stack)
+            .overlay {
+                if showLaunchMark {
+                    // The splash fades itself out at the end of its own sequence, so this
+                    // just removes it afterwards rather than animating a second time.
+                    LaunchSplashView { showLaunchMark = false }
+                        .onAppear { Self.didShowLaunchMark = true }
+                }
+            }
     }
 }

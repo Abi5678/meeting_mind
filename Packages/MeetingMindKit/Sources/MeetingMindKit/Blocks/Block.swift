@@ -49,6 +49,8 @@ public enum BlockType: Equatable, Sendable {
     case callout(emoji: String)
     case code(language: String?)
     case divider
+    /// A photo; the image data is stored by the app under this id, not in the block.
+    case image(id: UUID)
 }
 
 /// A run of inline text sharing one set of formatting attributes.

@@ -2,116 +2,116 @@
 //  PKCanvasWrapper.swift
 //  Instant Notes
 //
-// PencilKit canvas wrapper for iOS ink input.
+// PencilKit ink layer drawn over a note's content.
 
 #if os(iOS)
 import SwiftUI
 import UIKit
 import PencilKit
 
-/// SwiftUI representable wrapping PKCanvasView for ink drawing on notes.
-struct InkCanvasOverlay: UIViewRepresentable {
-    @Binding var drawing: PKDrawing
-    @EnvironmentObject private var state: CanvasEditorState
+/// Transparent PencilKit layer for one note. Fills whatever frame SwiftUI gives it.
+struct NoteInkLayer: UIViewRepresentable {
+    let note: Note
+    /// true: captures strokes, shows the PKToolPicker, becomes first responder.
+    /// false: inert (isUserInteractionEnabled = false) and the tool picker is hidden. Existing strokes stay visible.
+    let isDrawing: Bool
 
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
-        canvas.drawingPolicy = .anyInput
-        canvas.tool = PKInkingTool(.pen(color: .label, lineWidth: 2))
+        canvas.backgroundColor = .clear
+        canvas.isOpaque = false
+        // The editor's ScrollView scrolls the layer with the text, so the canvas itself never scrolls.
+        canvas.isScrollEnabled = false
+        canvas.contentInset = .zero
+        canvas.contentInsetAdjustmentBehavior = .never
+        // Follows the system setting: Pencil-only on an iPad paired with a Pencil (a finger scrolls),
+        // finger, mouse and simulator input everywhere else.
+        canvas.drawingPolicy = .default
+        canvas.isUserInteractionEnabled = false
         canvas.delegate = context.coordinator
+
+        let pen = PKInkingTool(.pen, color: .black)
+        canvas.tool = pen
+        context.coordinator.toolPicker.selectedTool = pen
+        context.coordinator.toolPicker.addObserver(canvas)
+
+        context.coordinator.load(note, into: canvas)
         return canvas
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        // Sync binding direction — user draws on PKCanvasView → updates drawing binding
-        if let lastDrawing = context.coordinator.lastDrawing {
-            drawing = lastDrawing
-        }
+    func updateUIView(_ canvas: PKCanvasView, context: Context) {
+        context.coordinator.load(note, into: canvas)
+        context.coordinator.setDrawing(isDrawing)
+    }
+
+    static func dismantleUIView(_ canvas: PKCanvasView, coordinator: Coordinator) {
+        coordinator.setDrawing(false)
+        coordinator.flush()
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(self)
+        Coordinator()
     }
 
-    class Coordinator: NSObject, PKCanvasViewDelegate {
-        let parent: InkCanvasOverlay
-        var lastDrawing: PKDrawing?
+    @MainActor
+    final class Coordinator: NSObject, PKCanvasViewDelegate {
+        let toolPicker = PKToolPicker()
+        private weak var canvas: PKCanvasView?
+        private var note: Note?
+        private var isDrawing = false
+        private var isLoading = false
+        private var pendingSave: Task<Void, Never>?
 
-        init(_ parent: InkCanvasOverlay) {
-            self.parent = parent
+        /// Shows `note`'s strokes, first saving any pending strokes to the note shown before.
+        func load(_ note: Note, into canvas: PKCanvasView) {
+            guard note !== self.note else { return }
+            flush()
+            self.note = note
+            self.canvas = canvas
+            // Setting `drawing` calls the delegate; that change isn't the user's, so don't save it.
+            isLoading = true
+            canvas.drawing = note.drawingData.flatMap { try? PKDrawing(data: $0) } ?? PKDrawing()
+            isLoading = false
         }
 
-        func canvasDrawingChanged(_ canvas: PKCanvasView, drawing: PKDrawing) {
-            // Debounced save to SwiftData — in production use a timer
-            lastDrawing = drawing
-        }
-    }
-}
-
-// MARK: - Canvas toolbar for tool selection
-
-struct CanvasToolbarView: View {
-    @Binding var selectedTool: CanvasTool
-    let onExport: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ForEach(CanvasTool.allCases, id: \.self) { tool in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        selectedTool = tool
-                    }
-                } label: {
-                    Image(systemName: tool.iconName)
-                        .font(.caption2)
-                        .foregroundStyle(selectedTool == tool ? .white : .primary)
-                        .padding(6)
-                        .background(
-                            Circle()
-                                .fill(selectedTool == tool ? Color.accentColor : Color.secondary.opacity(0.1))
-                        )
-                }
-                .buttonStyle(.plain)
+        func setDrawing(_ isDrawing: Bool) {
+            guard let canvas, isDrawing != self.isDrawing else { return }
+            self.isDrawing = isDrawing
+            canvas.isUserInteractionEnabled = isDrawing
+            toolPicker.setVisible(isDrawing, forFirstResponder: canvas)
+            if isDrawing {
+                // Deferred a tick: on the first update the canvas isn't in a window yet.
+                Task { if self.isDrawing { canvas.becomeFirstResponder() } }
+            } else {
+                canvas.resignFirstResponder()
+                flush()
             }
+        }
 
-            Spacer()
-
-            Button { onExport() } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.caption2)
-                    .foregroundStyle(.primary)
-                    .padding(6)
-                    .background(Circle().fill(Color.secondary.opacity(0.1)))
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            guard !isLoading else { return }
+            pendingSave?.cancel()
+            pendingSave = Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                self.flush()
             }
-            .buttonStyle(.plain)
         }
-    }
-}
 
-enum CanvasTool: String, CaseIterable, Identifiable {
-    case pen, marker, highlighter, eraser
-
-    var id: String { rawValue }
-
-    var iconName: String {
-        switch self {
-        case .pen: return "pencil.tip"
-        case .marker: return "highlighter"
-        case .highlighter: return "circle.hexagongrid.fill"
-        case .eraser: return "hand.draw"
-        }
-    }
-
-    var pkTool: PKTool {
-        switch self {
-        case .pen:
-            return PKInkingTool(.pen(color: .label, lineWidth: 2))
-        case .marker:
-            return PKInkingTool(.marker(color: .label, opacity: 0.8, lineWidth: .large))
-        case .highlighter:
-            return PKInkingTool(.highlighter(color: UIColor(white: 0.95, alpha: 0.6), lineWidth: .extraLarge))
-        case .eraser:
-            return PKEraserTool(.path)
+        /// Writes unsaved strokes to the note now.
+        func flush() {
+            guard pendingSave != nil, let canvas, let note else { return }
+            pendingSave?.cancel()
+            pendingSave = nil
+            let data = canvas.drawing.dataRepresentation()
+            // Written a tick later because this can run inside a SwiftUI view update.
+            Task {
+                guard note.modelContext != nil else { return } // deleted meanwhile
+                note.drawingData = data
+                note.touch()
+                // Saved now, not at the next autosave (~10 s later), so quitting right after drawing keeps the ink.
+                try? note.modelContext?.save()
+            }
         }
     }
 }

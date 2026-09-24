@@ -8,9 +8,12 @@
 
 import Foundation
 import AVFoundation
+#if os(iOS)
+import UIKit
+#endif
 
 /// Result of a completed recording.
-public struct AudioRecordingResult {
+public struct AudioRecordingResult: Sendable {
     public let url: URL
     public let duration: TimeInterval
     public let startTime: Date
@@ -18,9 +21,14 @@ public struct AudioRecordingResult {
 
 /// iOS audio recording service with permission handling, interruptions, and auto-stop on background transition.
 @MainActor
-public final class AudioRecorderService: ObservableObject {
+public final class AudioRecorderService: NSObject, ObservableObject {
     @Published public var isRecording = false
+    /// True while an interruption (a call, Siri, an alarm) holds a recording; `resumeRecording()` carries on.
+    @Published public private(set) var isPaused = false
+    /// Recorded time only: pauses and interruptions don't count.
     @Published public var recordingDuration: TimeInterval = 0
+    /// Microphone loudness from 0 (silence) to 1, refreshed about 20 times a second while recording.
+    @Published public private(set) var level: Double = 0
     @Published public var error: Error?
 
     private var audioRecorder: AVAudioRecorder?
@@ -31,31 +39,26 @@ public final class AudioRecorderService: ObservableObject {
 
     // MARK: - Initialization
 
-    public init(recordingsDirectory: URL = Self.defaultRecordingsDirectory()) {
+    public init(recordingsDirectory: URL = AudioRecorderService.defaultRecordingsDirectory()) {
         self.recordingsDirectory = recordingsDirectory
+        super.init()
         setupFileManager()
-        setupAudioSession()
         observeInterruptions()
         observeBackgroundNotifications()
-    }
-
-    deinit {
-        stopRecording()
     }
 
     // MARK: - Recording API
 
     public func startRecording(name: String = "Recording") -> URL {
-        let timestamp = Date().formatted(date: .numeric, time: .standard)
+        let timestamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
         let filename = "\(name)_\(timestamp).m4a"
         let url = recordingsDirectory.appending(path: filename)
 
         do {
             stopRecording() // clean up any previous recording
+            error = nil
             try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
-            guard FileManager.default.isReadableFile(atPath: recordingsDirectory.path) || FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true) else {
-                throw RecordingError.directoryCreationFailed
-            }
+            try activateAudioSession()
 
             let settings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -67,13 +70,21 @@ public final class AudioRecorderService: ObservableObject {
             audioRecorder = try AVAudioRecorder(url: url, settings: settings)
             audioRecorder?.delegate = self
             audioRecorder?.isMeteringEnabled = true
-            audioRecorder?.record()
+            // record() reports a busy or missing input by returning false, not by throwing.
+            guard audioRecorder?.record() == true else {
+                audioRecorder?.deleteRecording()
+                audioRecorder = nil
+                throw RecordingError.recordingFailed(Self.microphoneBusy)
+            }
 
             lastRecordingURL = url
             recordingStartTime = .now
             isRecording = true
+            isPaused = false
             recordingDuration = 0
             startTimer()
+        } catch let failure as RecordingError {
+            self.error = failure
         } catch {
             self.error = RecordingError.recordingFailed(error.localizedDescription)
         }
@@ -81,44 +92,48 @@ public final class AudioRecorderService: ObservableObject {
         return url
     }
 
+    @discardableResult
     public func stopRecording() -> AudioRecordingResult? {
         guard isRecording else { return nil }
 
         let url = audioRecorder?.url ?? lastRecordingURL
         let duration = recordingDuration
+        let startTime = recordingStartTime ?? .now
 
         audioRecorder?.stop()
         audioRecorder = nil
         stopTimer()
 
         isRecording = false
+        isPaused = false
         recordingDuration = 0
         recordingStartTime = nil
 
         guard let url else { return nil }
-        return AudioRecordingResult(url: url, duration: duration, startTime: lastRecordingURL == url ? recordingStartTime ?? .now : .now)
+        return AudioRecordingResult(url: url, duration: duration, startTime: startTime)
     }
 
     public func pauseRecording() {
-        guard isRecording, audioRecorder?.isRecording == true else { return }
+        // After an interruption the system has already paused the recorder; pausing again is harmless.
+        guard isRecording, !isPaused else { return }
         audioRecorder?.pause()
+        isPaused = true
+        stopTimer()
     }
 
-    public func resumeRecording() {
-        guard isRecording, audioRecorder?.isRecording == false else { return }
-        recordingStartTime = Date().addingTimeInterval(-recordingDuration)
-        audioRecorder?.record()
+    /// Returns false while the microphone is still held elsewhere (e.g. the call hasn't ended).
+    @discardableResult
+    public func resumeRecording() -> Bool {
+        guard isRecording, isPaused else { return false }
+        guard (try? activateAudioSession()) != nil, audioRecorder?.record() == true else { return false }
+        isPaused = false
         startTimer()
+        return true
     }
 
     /// Request microphone permission asynchronously. Returns true if granted.
     public func requestPermission() async -> Bool {
-        let (granted, error) = await withCheckedContinuation { cont in
-            AVAudioApplication.shared.requestRecordPermission { granted in
-                cont.resume(returning: (granted, nil))
-            }
-        }
-        return granted
+        await AVAudioApplication.requestRecordPermission()
     }
 
     public func isRecordingAvailable() -> Bool {
@@ -132,23 +147,34 @@ public final class AudioRecorderService: ObservableObject {
     // MARK: - Private helpers
 
     private func setupFileManager() {
-        do {
-            try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
-        } catch {}
+        try? FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
     }
 
-    private func setupAudioSession() {
+    private static let microphoneBusy = "The microphone is in use by a call or another app, or isn't available."
+
+    /// Run before every start and resume, not once up front: a call or another app can take the input at any time.
+    private func activateAudioSession() throws {
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-        try? session.setActive(true, options: [.notifyOthersOnDeactivation])
+        do {
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+            try session.setActive(true, options: [.notifyOthersOnDeactivation])
+        } catch {
+            throw RecordingError.recordingFailed(Self.microphoneBusy)
+        }
+        guard session.isInputAvailable else { throw RecordingError.recordingFailed("No microphone is connected.") }
+        #endif
     }
 
     private func startTimer() {
         stopTimer()
-        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self, let startTime = self.recordingStartTime else { return }
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self.recordingDuration = Date().timeIntervalSince(startTime)
+                guard let self, let recorder = self.audioRecorder, recorder.isRecording else { return }
+                // The recorder's own clock, so time the system spent paused (an interruption) isn't counted.
+                self.recordingDuration = recorder.currentTime
+                recorder.updateMeters()
+                self.level = Self.normalizedLevel(decibels: recorder.averagePower(forChannel: 0))
             }
         }
     }
@@ -156,9 +182,18 @@ public final class AudioRecorderService: ObservableObject {
     private func stopTimer() {
         meteringTimer?.invalidate()
         meteringTimer = nil
+        level = 0
     }
 
-    private static func defaultRecordingsDirectory() -> URL {
+    /// Maps average power (-160…0 dBFS) to 0…1. Anything under -50 dB is room noise and reads as
+    /// silence; the square root lifts normal speech so the waveform visibly moves.
+    nonisolated static func normalizedLevel(decibels: Float) -> Double {
+        let floor: Float = -50
+        guard decibels.isFinite, decibels > floor else { return 0 }
+        return Double(min(1, (decibels - floor) / -floor)).squareRoot()
+    }
+
+    public nonisolated static func defaultRecordingsDirectory() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport.appending(path: "com.instantnotes.app/Recordings")
     }
@@ -170,33 +205,10 @@ public final class AudioRecorderService: ObservableObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleInterruption(_:)),
-            name: AVAudioSession.interruitionNotification,
+            name: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance()
         )
         #endif
-    }
-
-    @objc private func handleInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-
-        switch type {
-        case .began:
-            // OS is pausing audio — our recorder may be paused by the system too.
-            // We keep state; if we called pause() this would be redundant.
-            break
-        case .ended:
-            let options = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-            if options.rawValue == AVAudioSession.InterruptionOptions.shouldResume.rawValue {
-                Task { @MainActor in
-                    try? await AVAudioSession.sharedInstance().setActive(true)
-                    resumeRecording()
-                }
-            }
-        @unknown default:
-            break
-        }
     }
 
     private func observeBackgroundNotifications() {
@@ -210,14 +222,34 @@ public final class AudioRecorderService: ObservableObject {
         #endif
     }
 
-    @objc private func handleWillEnterForeground(_ notification: Notification) {
-        // If we were paused by the OS during background transition, resume if still marked as recording.
-        if isRecording {
-            Task { @MainActor in
-                try? await AVAudioSession.sharedInstance().setActive(true)
+    #if os(iOS)
+    @objc private func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        switch type {
+        case .began:
+            // The system has paused the recorder; say so, so the UI stops showing a live recording.
+            pauseRecording()
+        case .ended:
+            // Without .shouldResume (often after an answered call) it stays paused until the user resumes.
+            let rawOptions = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            if AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume) {
+                resumeRecording()
             }
+        @unknown default:
+            break
         }
     }
+
+    @objc private func handleWillEnterForeground(_ notification: Notification) {
+        // If we were paused by the OS during background transition, reactivate the session.
+        if isRecording {
+            try? AVAudioSession.sharedInstance().setActive(true)
+        }
+    }
+    #endif
 
     // MARK: - Error types
 
@@ -236,18 +268,20 @@ public final class AudioRecorderService: ObservableObject {
     }
 }
 
-// MARK: - AVAudioRecorderDelegate conformance — moved to separate extension for clarity
+// MARK: - AVAudioRecorderDelegate
 
-@MainActor
 extension AudioRecorderService: AVAudioRecorderDelegate {
-    public func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        if !flag {
+    public nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        guard !flag else { return }
+        Task { @MainActor in
             self.error = RecordingError.recordingFailed("Recording failed unexpectedly.")
         }
     }
 
-    public func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
-        guard let error else { return }
-        self.error = RecordingError.recordingFailed(error.localizedDescription)
+    public nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
+        guard let message = error?.localizedDescription else { return }
+        Task { @MainActor in
+            self.error = RecordingError.recordingFailed(message)
+        }
     }
 }

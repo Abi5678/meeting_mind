@@ -44,6 +44,19 @@ struct ChunkPlannerTests {
         ])
     }
 
+    @Test("A custom window size replaces the 120 s default")
+    func customWindow() {
+        let window = 50 * Self.sampleRate
+        let total = 130 * Self.sampleRate
+        let ranges = ChunkPlanner.plan(totalSamples: total, sampleRate: Self.sampleRate, windowSeconds: 50, energy: Self.flat)
+
+        #expect(ranges == [
+            ChunkRange(startSample: 0, endSample: window),
+            ChunkRange(startSample: window, endSample: 2 * window),
+            ChunkRange(startSample: 2 * window, endSample: total),
+        ])
+    }
+
     @Test("The cut snaps to the end of the quietest frame in the search tail")
     func snapsToQuietestFrame() {
         let total = 240 * Self.sampleRate
