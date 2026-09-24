@@ -6,6 +6,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 import MeetingMindKit
 
 struct NoteListView: View {
@@ -19,6 +20,12 @@ struct NoteListView: View {
     /// view ignores a selection that changes while a sheet is still dismissing.
     @State private var createdNoteID: UUID?
     @State private var showMeetingCapture = false
+    @State private var captureSource = CaptureSource.microphone
+    @State private var showMediaImporter = false
+    @State private var showVideoPicker = false
+    @State private var pickedVideo: PhotosPickerItem?
+    @State private var showYouTubeLink = false
+    @State private var youTubeLink = ""
     @State private var showImport = false
     @State private var renamingNote: Note?
     @State private var renameText = ""
@@ -311,17 +318,50 @@ struct NoteListView: View {
         }
 
         ToolbarItem(placement: .navigationBarTrailing) {
-            Button { showMeetingCapture = true } label: {
+            Menu {
+                Button("Record meeting", systemImage: "mic") { capture(.microphone) }
+                Button("Import audio or video…", systemImage: "folder") { showMediaImporter = true }
+                Button("Video from Photos…", systemImage: "photo.on.rectangle") { showVideoPicker = true }
+                Button("Transcribe YouTube link…", systemImage: "play.rectangle") {
+                    youTubeLink = ""
+                    showYouTubeLink = true
+                }
+            } label: {
                 Image(systemName: "mic.fill")
             }
+            .menuStyle(.button)
             .buttonStyle(.borderedProminent)
-            .accessibilityLabel("Record meeting")
+            .accessibilityLabel("Record or import a meeting")
+            .fileImporter(isPresented: $showMediaImporter, allowedContentTypes: [.audio, .movie]) { result in
+                if case let .success(url) = result { capture(.file(url)) }
+            }
+            .photosPicker(isPresented: $showVideoPicker, selection: $pickedVideo, matching: .videos)
+            .onChange(of: pickedVideo) { _, item in
+                guard let item else { return }
+                pickedVideo = nil
+                capture(.video(item))
+            }
+            .alert("Transcribe a YouTube video", isPresented: $showYouTubeLink) {
+                TextField("youtube.com/watch?v=…", text: $youTubeLink)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                Button("Cancel", role: .cancel) {}
+                Button("Transcribe") { capture(.youTube(youTubeLink)) }
+            } message: {
+                Text("Paste a link to a video with captions. Recapped summarizes the captions; no video is downloaded.")
+            }
             .sheet(isPresented: $showMeetingCapture, onDismiss: openCreatedNote) {
                 NavigationStack {
-                    MeetingCaptureView { createdNoteID = $0.id }
+                    MeetingCaptureView(source: captureSource) { createdNoteID = $0.id }
                 }
             }
         }
+    }
+
+    private func capture(_ source: CaptureSource) {
+        captureSource = source
+        showMeetingCapture = true
     }
 
     private func openCreatedNote() {

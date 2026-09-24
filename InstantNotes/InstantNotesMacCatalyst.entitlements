@@ -12,5 +12,8 @@
 	<!-- The Notion importer opens a ZIP the user picks in the file dialog. -->
 	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
+	<!-- A YouTube link is transcribed from captions fetched over the network. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

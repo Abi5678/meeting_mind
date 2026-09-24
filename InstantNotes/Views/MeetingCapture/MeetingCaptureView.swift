@@ -3,13 +3,28 @@
 //  Instant Notes
 //
 // Records a meeting, transcribes it with Apple Speech, summarizes it on the device with Apple
-// Intelligence, and saves it as a note.
+// Intelligence, and saves it as a note. An audio or video file, or a YouTube video's captions,
+// go through the same steps in place of the microphone.
 
 import SwiftUI
 import SwiftData
+import PhotosUI
+import CoreTransferable
 import MeetingMindKit
 
+/// Where the meeting comes from.
+enum CaptureSource: Equatable {
+    case microphone
+    /// An audio or video file picked in Files (or Finder on the Mac).
+    case file(URL)
+    /// A video from the photo library.
+    case video(PhotosPickerItem)
+    /// A YouTube link, as the user pasted it.
+    case youTube(String)
+}
+
 struct MeetingCaptureView: View {
+    var source: CaptureSource = .microphone
     /// Called with the saved note so the list can open it.
     var onSave: (Note) -> Void = { _ in }
 
@@ -22,12 +37,12 @@ struct MeetingCaptureView: View {
         Group {
             switch viewModel.phase {
             case .idle, .recording: recorder
-            case .transcribing, .transcribingOnDevice, .analyzing: working
+            case .preparing, .transcribing, .transcribingOnDevice, .analyzing: working
             case .done: results
             case let .failed(message): failure(message)
             }
         }
-        .navigationTitle("Meeting")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -46,7 +61,16 @@ struct MeetingCaptureView: View {
             }
         }
         .interactiveDismissDisabled(viewModel.phase != .idle)
+        .onAppear { if source != .microphone, viewModel.phase == .idle { viewModel.importMeeting(from: source) } }
         .onDisappear { viewModel.cancel() }
+    }
+
+    private var title: String {
+        switch source {
+        case .microphone: "Meeting"
+        case .file, .video: "Import"
+        case .youTube: "YouTube"
+        }
     }
 
     private func saveAndDismiss() {
@@ -180,9 +204,12 @@ struct MeetingCaptureView: View {
                     saveAndDismiss()
                 }
                 .buttonStyle(.bordered)
+                if source == .microphone { Button("Record again") { viewModel.reset() } }
+            } else if source == .microphone {
                 Button("Record again") { viewModel.reset() }
+                    .buttonStyle(.borderedProminent)
             } else {
-                Button("Record again") { viewModel.reset() }
+                Button("Close") { dismiss() }
                     .buttonStyle(.borderedProminent)
             }
         }
@@ -196,6 +223,8 @@ final class MeetingCaptureViewModel: ObservableObject {
     enum Phase: Equatable {
         case idle
         case recording
+        /// Bringing in a file or fetching captions; the text says which.
+        case preparing(String)
         case transcribing(window: Int, total: Int)
         case transcribingOnDevice(percent: Int)
         case analyzing
@@ -208,6 +237,7 @@ final class MeetingCaptureViewModel: ObservableObject {
             case .transcribing: "Transcribing…"
             case let .transcribingOnDevice(percent): "Transcribing on this device… \(percent)%"
             case .analyzing: "Summarizing on this device…"
+            case let .preparing(text): text
             default: ""
             }
         }
@@ -231,6 +261,8 @@ final class MeetingCaptureViewModel: ObservableObject {
     @Published private(set) var analysisError: String?
     /// The finished audio. Kept through a failed transcription so it can be retried or saved.
     @Published private(set) var recording: AudioRecordingResult?
+    /// Set for a YouTube video: its captions stand in for a recording.
+    private var video: YouTubeCaptions.Video?
 
     private var timer: Timer?
     private var work: Task<Void, Never>?
@@ -239,7 +271,7 @@ final class MeetingCaptureViewModel: ObservableObject {
     private let recorderService = AudioRecorderService()
 
     /// Whether Cancel would throw away audio or a transcript.
-    var hasCapture: Bool { phase == .recording || recording != nil }
+    var hasCapture: Bool { phase == .recording || recording != nil || video != nil }
 
     /// iOS 26.4+ simulators can't run SFSpeechRecognizer (kLSRErrorDomain 300); launch with
     /// `-debugTranscript "…"` to exercise the rest of the pipeline there.
@@ -301,6 +333,47 @@ final class MeetingCaptureViewModel: ObservableObject {
                     self.levels = (self.levels + [self.recorderService.level]).suffix(WaveformBanner.barCount)
                 }
             }
+        }
+    }
+
+    /// Brings in a file, a library video or a YouTube video's captions, then carries on exactly as
+    /// a recording would once it stops.
+    func importMeeting(from source: CaptureSource) {
+        work = Task {
+            do {
+                switch source {
+                case .microphone:
+                    return
+                case let .file(url):
+                    phase = .preparing("Importing…")
+                    recording = try await MediaImporter.importMedia(from: url)
+                case let .video(item):
+                    phase = .preparing("Importing video…")
+                    guard let movie = try await item.loadTransferable(type: PickedMovie.self) else {
+                        throw MediaImporter.Failure.unreadable
+                    }
+                    defer { try? FileManager.default.removeItem(at: movie.url) }
+                    recording = try await MediaImporter.importMedia(from: movie.url)
+                case let .youTube(link):
+                    phase = .preparing("Getting captions from YouTube…")
+                    let video = try await YouTubeCaptions.fetch(link)
+                    self.video = video
+                    pieces = video.pieces
+                    transcript = TranscriptPiece.joined(video.pieces)
+                    await analyze()
+                    return
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                phase = .failed(error.localizedDescription)
+                return
+            }
+            guard let recording else { return }
+            guard await SpeechFileTranscriber.requestAuthorization() else {
+                phase = .failed(SpeechFileTranscriber.Failure.notAuthorized.localizedDescription)
+                return
+            }
+            await transcribe(recording.url)
         }
     }
 
@@ -482,8 +555,14 @@ final class MeetingCaptureViewModel: ObservableObject {
     func save(in context: ModelContext) -> Note {
         isSaved = true
         let startedAt = recording?.startTime ?? .now
-        let note = Note(title: topicTitle(startedAt: startedAt, analysis: analysis, transcript: transcript), summary: analysis?.summary)
-        note.blockDocument = BlockDocument(blocks: MeetingNoteBuilder.blocks(analysis: analysis, transcript: transcript))
+        let title = video?.title ?? topicTitle(startedAt: startedAt, analysis: analysis, transcript: transcript)
+        let note = Note(title: title, summary: analysis?.summary)
+        var blocks = MeetingNoteBuilder.blocks(analysis: analysis, transcript: transcript)
+        if let video {
+            // The editor shows runs as plain text, so the address itself is the visible link.
+            blocks.insert(Block(type: .paragraph, runs: [InlineRun(text: video.watchURL.absoluteString, linkURL: video.watchURL)]), at: 0)
+        }
+        note.blockDocument = BlockDocument(blocks: blocks)
         context.insert(note)
 
         if let recording {
@@ -501,7 +580,29 @@ final class MeetingCaptureViewModel: ObservableObject {
             }
             note.recordings.append(saved)
             note.meetingArtifact = artifact
+        } else if video != nil {
+            // No audio to point at: the artifact carries the timed captions, so the note can be
+            // asked about and its transcript searched like a recorded meeting.
+            let artifact = MeetingArtifact(recordingId: UUID(), status: MeetingProcessingStatus.ready.rawValue,
+                                           summary: analysis?.summary, fullTranscript: transcript)
+            artifact.segments = pieces.map {
+                TranscriptSegment(artifactId: artifact.id, startTime: $0.start, endTime: $0.end, text: $0.text)
+            }
+            note.meetingArtifact = artifact
         }
         return note
+    }
+}
+
+/// A video from the photo library, copied out so it can be read after the picker lets go of it.
+struct PickedMovie: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { SentTransferredFile($0.url) } importing: { received in
+            let copy = FileManager.default.temporaryDirectory.appending(path: "\(UUID())-\(received.file.lastPathComponent)")
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return PickedMovie(url: copy)
+        }
     }
 }
