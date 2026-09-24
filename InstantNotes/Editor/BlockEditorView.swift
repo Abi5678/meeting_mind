@@ -28,6 +28,7 @@ struct CanvasNoteEditorView: View {
     @StateObject private var state = CanvasEditorState()
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var recorder: NoteRecorder
 
     @State private var focusedBlockID: UUID?
     @FocusState private var titleFocused: Bool
@@ -47,6 +48,13 @@ struct CanvasNoteEditorView: View {
     @State private var exportError: String?
     @State private var photoSource: PhotoSource?
     @State private var postImages: [UIImage]?
+    /// Held in @State rather than observed, so playback ticking doesn't redraw the whole page;
+    /// the bar observes it, and the page follows `playingBlockID`.
+    @State private var player = PlaybackController()
+    @State private var loadedRecordingID: UUID?
+    @State private var playingBlockID: UUID?
+    /// Taps on the page play the ink under them instead of editing.
+    @State private var isReplaying = false
 
     private var metrics: EditorMetrics { EditorMetrics(dynamicTypeSize) }
 
@@ -72,6 +80,13 @@ struct CanvasNoteEditorView: View {
                     .overlay {
                         NoteInkLayer(note: note, isDrawing: isDrawing)
                             .allowsHitTesting(isDrawing)
+                    }
+                    .overlay {
+                        if isReplaying, !isDrawing {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .gesture(SpatialTapGesture().onEnded { playInk(at: $0.location) })
+                        }
                     }
                     .background(EnclosingScrollViewFinder(handle: scrollHandle))
                 }
@@ -120,14 +135,24 @@ struct CanvasNoteEditorView: View {
         .environmentObject(state)
         .onAppear {
             state.load(from: note)
+            installClock()
             // A brand-new note opens ready to type.
             if state.document.isEmpty { focus(state.insertBlock(.paragraph, after: nil)) }
             updateInkBottom()
             switch jump {
             case let .block(id): scrollTarget = id
             case let .photo(imageID): scrollTarget = state.document.blocks.first { $0.type == .image(id: imageID) }?.id
+            // A second early, so the words searched for aren't clipped.
+            case let .transcript(start): if let first = recordings.first { play(first, from: start - 1) }
             default: break
             }
+        }
+        .onDisappear { player.stop() }
+        .onReceive(player.$currentTime) { time in
+            let id = loadedRecordingID.flatMap { recording in
+                player.isPlaying || time > 0 ? AudioClock.currentBlock(in: state.document.blocks, recordingID: recording, at: time) : nil
+            }
+            if id != playingBlockID { playingBlockID = id }
         }
         .onChange(of: note.drawingData) { _, _ in updateInkBottom() }
         .onChange(of: isDrawing) { _, drawing in
@@ -139,7 +164,11 @@ struct CanvasNoteEditorView: View {
         }
         .onChange(of: note.id) { _, _ in
             state.load(from: note)
+            installClock()
             focusedBlockID = nil
+            player.stop()
+            loadedRecordingID = nil
+            isReplaying = false
         }
         .onChange(of: state.document) { _, document in
             if document != note.blockDocument { state.save(to: note) }
@@ -233,7 +262,14 @@ struct CanvasNoteEditorView: View {
             caretOffset: caret?.id == block.id ? caret?.offset : nil,
             caretGeneration: caretGeneration,
             focus: focus,
-            setFocused: { gained in blockFocusChanged(block.id, gained: gained) }
+            setFocused: { gained in blockFocusChanged(block.id, gained: gained) },
+            audioTime: block.audioMark.flatMap { mark in recording(mark.recordingID).map { _ in mark.time } },
+            isPlayingHere: playingBlockID == block.id,
+            onAudioTap: {
+                if let mark = block.audioMark, let recording = recording(mark.recordingID) {
+                    play(recording, from: mark.time - 1)
+                }
+            }
         )
     }
 
@@ -252,8 +288,17 @@ struct CanvasNoteEditorView: View {
 
     // MARK: Bottom bar
 
-    @ViewBuilder
     private var bottomBar: some View {
+        VStack(spacing: 0) {
+            if recorder.isRecording(into: note), let session = recorder.session {
+                NoteRecordingBanner(session: session)
+            }
+            blockBarOrPlayer
+        }
+    }
+
+    @ViewBuilder
+    private var blockBarOrPlayer: some View {
         if let id = focusedBlockID {
             HStack(spacing: 2) {
                 if !turnIntoTypes(for: id).isEmpty {
@@ -284,14 +329,65 @@ struct CanvasNoteEditorView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.bar)
-        } else if !isDrawing, let recording = note.recordings.first {
-            RecordingPlayerBar(recording: recording, startAt: jumpTime)
+        } else if !isDrawing, !recorder.isRecording(into: note), let recording = shownRecording {
+            RecordingPlayerBar(player: player, isReplaying: hasTimedInk ? $isReplaying : nil)
+                .onAppear { load(recording) }
         }
     }
 
-    private var jumpTime: TimeInterval? {
-        if case let .transcript(start) = jump { return start }
-        return nil
+    // MARK: Recording & playback
+
+    /// Oldest first, so the first is the meeting the note was made from.
+    private var recordings: [Recording] {
+        note.recordings.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private func recording(_ id: UUID) -> Recording? {
+        note.recordings.first { $0.id == id }
+    }
+
+    /// The one in the player: the last one played, or the note's first.
+    private var shownRecording: Recording? {
+        loadedRecordingID.flatMap(recording) ?? recordings.first
+    }
+
+    /// Whether any recording was made in this note, so its ink can be replayed.
+    private var hasTimedInk: Bool {
+        note.drawingData != nil && note.recordings.contains { $0.clockSpansJSON != nil }
+    }
+
+    /// New and first-edited blocks are stamped with the moment of this note's recording.
+    private func installClock() {
+        let note = note
+        state.clock = { [weak recorder] in recorder?.mark(for: note) }
+    }
+
+    private func load(_ recording: Recording) {
+        guard loadedRecordingID != recording.id else { return }
+        RecordingPlayerBar.load(recording, into: player)
+        loadedRecordingID = recording.id
+    }
+
+    private func play(_ recording: Recording, from time: TimeInterval) {
+        load(recording)
+        guard player.error == nil else { return }
+        player.seek(to: max(0, time))
+        RecordingPlayerBar.play(player)
+    }
+
+    /// Replay: plays from when the stroke under `point` was drawn.
+    private func playInk(at point: CGPoint) {
+        guard let drawing = note.drawingData.flatMap({ try? PKDrawing(data: $0) }) else { return }
+        // Topmost first: the stroke drawn last is the one on top.
+        for stroke in drawing.strokes.reversed() where stroke.renderBounds.insetBy(dx: -8, dy: -8).contains(point) {
+            let drawn = stroke.path.creationDate
+            for recording in recordings.reversed() {
+                if let time = AudioClock.fileTime(at: drawn, spans: recording.clockSpans, duration: recording.duration) {
+                    play(recording, from: time - 1)
+                    return
+                }
+            }
+        }
     }
 
     private func barButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
@@ -336,6 +432,20 @@ struct CanvasNoteEditorView: View {
                     Image(systemName: "bubble.left.and.text.bubble.right")
                 }
                 .accessibilityLabel("Ask this meeting")
+            }
+        }
+        if !recorder.isRecording(into: note) {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    player.pause()
+                    isReplaying = false
+                    recorder.start(for: note)
+                } label: {
+                    Image(systemName: "mic")
+                }
+                // One recording at a time, app-wide.
+                .disabled(recorder.session != nil)
+                .accessibilityLabel("Record")
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -594,6 +704,8 @@ extension UTType {
 final class CanvasEditorState: ObservableObject {
     @Published var document = BlockDocument() { didSet { updateListCounters() } }
     @Published private(set) var listCounters: [UUID: Int] = [:]
+    /// The moment of the recording running in this note, if one is, for stamping what's written.
+    var clock: (() -> AudioMark?)?
 
     // MARK: Persistence
 
@@ -633,7 +745,7 @@ final class CanvasEditorState: ObservableObject {
     @discardableResult
     func insertBlock(_ type: BlockType, after id: UUID?) -> CaretTarget {
         var doc = document
-        let block = Block(type: type, indent: id.flatMap { doc[$0]?.indent } ?? 0)
+        let block = Block(type: type, indent: id.flatMap { doc[$0]?.indent } ?? 0, audioMark: clock?())
         if let id, doc[id] != nil {
             doc.insert(block, after: id)
         } else {
@@ -644,8 +756,12 @@ final class CanvasEditorState: ObservableObject {
     }
 
     func updateText(_ id: UUID, _ text: String) {
-        guard document[id]?.plainText != text else { return }
-        document.update(id) { $0.runs = text.isEmpty ? [] : [.plain(text)] }
+        guard let block = document[id], block.plainText != text else { return }
+        let mark = block.audioMark ?? clock?()
+        document.update(id) {
+            $0.runs = text.isEmpty ? [] : [.plain(text)]
+            $0.audioMark = mark
+        }
     }
 
     func updateBlock(_ id: UUID, transform: (inout Block) -> Void) {
@@ -683,7 +799,7 @@ final class CanvasEditorState: ObservableObject {
         // Return at the very start pushes a blank line above and leaves you where you were,
         // so a heading or a to-do never gets downgraded by making room above it.
         if lines.count == 2, first.isEmpty, !block.plainText.isEmpty, rest[0] == block.plainText {
-            let above = Block(type: block.type.continuation, indent: block.indent)
+            let above = Block(type: block.type.continuation, indent: block.indent, audioMark: clock?())
             let index = doc.order.firstIndex(of: id) ?? 0
             doc.insert(above, after: index > 0 ? doc.order[index - 1] : nil)
             document = doc
@@ -700,7 +816,7 @@ final class CanvasEditorState: ObservableObject {
 
         var previous = id
         for line in rest {
-            let next = Block(type: newType, runs: line.isEmpty ? [] : [.plain(line)], indent: newIndent)
+            let next = Block(type: newType, runs: line.isEmpty ? [] : [.plain(line)], indent: newIndent, audioMark: clock?())
             doc.insert(next, after: previous)
             previous = next.id
         }

@@ -40,9 +40,13 @@ struct InstantNotesApp: App {
         }
     }()
 
+    /// One for the app, so a recording keeps going across notes and windows.
+    @StateObject private var noteRecorder = NoteRecorder()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environmentObject(noteRecorder)
         }
         .modelContainer(sharedModelContainer)
     }

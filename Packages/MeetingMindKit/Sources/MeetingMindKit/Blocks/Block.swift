@@ -15,6 +15,8 @@ public struct Block: Identifiable, Equatable, Sendable {
     public var isExpanded: Bool
     /// Only meaningful for `.todo`; whether the checkbox is ticked.
     public var isChecked: Bool
+    /// Where in a recording this block was written, when it was written while recording.
+    public var audioMark: AudioMark?
 
     public init(
         id: UUID = UUID(),
@@ -22,7 +24,8 @@ public struct Block: Identifiable, Equatable, Sendable {
         runs: [InlineRun] = [],
         indent: Int = 0,
         isExpanded: Bool = true,
-        isChecked: Bool = false
+        isChecked: Bool = false,
+        audioMark: AudioMark? = nil
     ) {
         self.id = id
         self.type = type
@@ -30,6 +33,7 @@ public struct Block: Identifiable, Equatable, Sendable {
         self.indent = indent
         self.isExpanded = isExpanded
         self.isChecked = isChecked
+        self.audioMark = audioMark
     }
 
     /// The block's text with all inline formatting stripped, for search and export.
