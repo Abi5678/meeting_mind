@@ -76,6 +76,21 @@ struct NoteSearchTests {
         #expect(SearchText.stem(word) == SearchText.stem(root))
     }
 
+    @Test("An -ed word meets its root", arguments: [
+        ("booked", "book"), ("planned", "plan"), ("shared", "share"), ("moved", "move"),
+        ("scheduled", "schedule"), ("called", "call"), ("agreed", "agree"), ("added", "add"),
+        ("studied", "study"), ("decided", "decide"), ("booked", "booking"),
+    ])
+    func ed(_ word: String, _ root: String) {
+        #expect(SearchText.stem(word) == SearchText.stem(root))
+    }
+
+    @Test("Words that only end like -ed are left alone")
+    func edLeftAlone() {
+        for word in ["need", "speed", "shed", "red", "bed"] { #expect(SearchText.stem(word) == word) }
+        #expect(SearchText.stem("hoped") != SearchText.stem("hopped"))
+    }
+
     @Test("Short and vowel-less -ing words are left alone, and a silent e doesn't eat a word")
     func ingLeftAlone() {
         for word in ["thing", "string", "bring", "sing"] { #expect(SearchText.stem(word) == word) }
@@ -83,11 +98,13 @@ struct NoteSearchTests {
         #expect(SearchText.stem("hoping") != SearchText.stem("hopping"))
     }
 
-    @Test("A question with -ing finds the note that says the root, even half-typed")
-    func ingSearch() {
+    @Test("A question with -ing or -ed finds the note that says the root, even half-typed")
+    func ingEdSearch() {
         #expect(Self.index.search("booking trams").first?.passage.noteID == Self.trip)
         #expect(Self.index.search("bookin").first?.passage.noteID == Self.trip)
         #expect(Self.index.search("booki").first?.passage.noteID == Self.trip)
+        #expect(Self.index.search("booked trams").first?.passage.noteID == Self.trip)
+        #expect(Self.index.search("booke").first?.passage.noteID == Self.trip)
     }
 
     @Test("The last word matches as a prefix while typing, but not once finished")
