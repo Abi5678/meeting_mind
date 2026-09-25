@@ -206,7 +206,7 @@ struct NoteListView: View {
             ContentUnavailableView(
                 "Your notebook is empty",
                 systemImage: "mic.fill",
-                description: Text("Tap the mic to capture a meeting, or + for a blank page.")
+                description: Text("Tap the mic to record, or + for a blank page.")
             )
         } else {
             List(filtered, id: \.id, selection: $selectedNoteID) { note in
@@ -323,7 +323,7 @@ struct NoteListView: View {
 
         ToolbarItem(placement: .navigationBarTrailing) {
             Menu {
-                Button("Record meeting", systemImage: "mic") { capture(.microphone) }
+                Button("Record", systemImage: "mic") { capture(.microphone) }
                     // A note is already recording; there's one microphone.
                     .disabled(recorder.session != nil)
                 Button("Import audio or video…", systemImage: "folder") { showMediaImporter = true }
@@ -337,7 +337,7 @@ struct NoteListView: View {
             }
             .menuStyle(.button)
             .buttonStyle(.borderedProminent)
-            .accessibilityLabel("Record or import a meeting")
+            .accessibilityLabel("Record or import audio")
             .fileImporter(isPresented: $showMediaImporter, allowedContentTypes: [.audio, .movie]) { result in
                 if case let .success(url) = result { capture(.file(url)) }
             }
@@ -457,7 +457,7 @@ struct EmptyDetailPlaceholder: View {
         ContentUnavailableView(
             "Open a page",
             systemImage: "book.closed",
-            description: Text("Pick a note from the list, or capture a meeting with the mic.")
+            description: Text("Pick a note from the list, or record with the mic.")
         )
     }
 }
