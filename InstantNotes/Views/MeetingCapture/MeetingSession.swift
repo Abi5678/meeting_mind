@@ -18,8 +18,6 @@ final class MeetingSession: ObservableObject {
         case recording
         /// Bringing in a file or fetching captions; the text says which.
         case preparing(String)
-        /// An import that sounds like a song; waits for the user to carry on or close.
-        case soundsLikeMusic
         case transcribing(window: Int, total: Int)
         case transcribingOnDevice(percent: Int)
         case analyzing
@@ -54,6 +52,9 @@ final class MeetingSession: ObservableObject {
     @Published private(set) var analysis: MeetingAnalysis?
     /// Set when transcription worked but the summary did not; the transcript can still be saved.
     @Published private(set) var analysisError: String?
+    /// What was recorded, which decides how it's written up. A song is known from the audio before
+    /// it's transcribed; a meeting or talk is told apart by the model; nil until then.
+    @Published private(set) var kind: RecordingKind?
     /// The finished audio. Kept through a failed transcription so it can be retried or saved.
     @Published private(set) var recording: AudioRecordingResult?
     /// Set for a YouTube video: its captions stand in for a recording.
@@ -107,10 +108,10 @@ final class MeetingSession: ObservableObject {
             }
             // Warn before the meeting, not after it. Recording still goes ahead: the audio can be saved.
             if debugTranscript == nil, !Self.onDeviceSpeechAvailable, !SpeechFileTranscriber().isAvailable {
-                speechWarning = "Speech recognition isn't available right now (offline, or this language isn't supported), so this meeting may not transcribe. You'll still be able to save the audio."
+                speechWarning = "Speech recognition isn't available right now (offline, or this language isn't supported), so this recording may not transcribe. You'll still be able to save the audio."
             }
 
-            recorderService.startRecording(name: "Meeting")
+            recorderService.startRecording(name: "Recording")
             guard recorderService.isRecording else {
                 phase = .failed(recorderService.error?.localizedDescription ?? "Recording couldn't start.")
                 return
@@ -165,11 +166,8 @@ final class MeetingSession: ObservableObject {
                     self.video = video
                     pieces = video.pieces
                     transcript = TranscriptPiece.joined(video.pieces)
-                    if MusicCheck.captionsLookLikeSong(video.pieces) {
-                        phase = .soundsLikeMusic
-                    } else {
-                        await analyze()
-                    }
+                    if MusicCheck.captionsLookLikeSong(video.pieces) { kind = .song }
+                    await analyze()
                     return
                 }
             } catch {
@@ -178,27 +176,17 @@ final class MeetingSession: ObservableObject {
                 return
             }
             guard let recording else { return }
-            phase = .preparing("Checking the audio…")
-            let url = recording.url
-            let isMusic = await Task.detached(priority: .userInitiated) { (try? MusicCheck.soundsLikeMusic(fileAt: url)) ?? false }.value
+            await checkForMusic(recording.url)
             guard !Task.isCancelled else { return }
-            if isMusic {
-                phase = .soundsLikeMusic
-            } else {
-                await transcribeImport(recording.url)
-            }
+            await transcribeImport(recording.url)
         }
     }
 
-    /// Carries on past the music warning: a YouTube video to its summary, a file to transcription.
-    func continueAfterMusicWarning() {
-        work = Task {
-            if video != nil {
-                await analyze()
-            } else if let recording {
-                await transcribeImport(recording.url)
-            }
-        }
+    /// A song is kept as its lyrics rather than summarized, so listen for music before transcribing.
+    private func checkForMusic(_ url: URL) async {
+        phase = .preparing("Checking the audio…")
+        let isMusic = await Task.detached(priority: .userInitiated) { (try? MusicCheck.soundsLikeMusic(fileAt: url)) ?? false }.value
+        kind = isMusic ? .song : nil
     }
 
     private func transcribeImport(_ url: URL) async {
@@ -242,11 +230,21 @@ final class MeetingSession: ObservableObject {
             return
         }
         recording = result
-        work = Task { await transcribe(result.url) }
+        work = Task {
+            await checkForMusic(result.url)
+            guard !Task.isCancelled else { return }
+            await transcribe(result.url)
+        }
     }
 
     func summarize() {
         work = Task { await analyze() }
+    }
+
+    /// Writes the notes again from the same transcript, as another kind of recording.
+    func summarize(as kind: RecordingKind) {
+        self.kind = kind
+        summarize()
     }
 
     /// Transcribes the same audio again, e.g. once the network is back.
@@ -269,6 +267,7 @@ final class MeetingSession: ObservableObject {
         pieces = []
         analysis = nil
         analysisError = nil
+        kind = nil
         recording = nil
     }
 
@@ -360,14 +359,25 @@ final class MeetingSession: ObservableObject {
 
     private func analyze() async {
         analysisError = nil
+        analysis = nil
+        // A summary of lyrics isn't notes anyone wants: the words are kept as they are.
+        guard kind != .song else {
+            phase = .done
+            return
+        }
         guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
             analysisError = (AppleIntelligence.unavailableReason ?? "") + " You can still save the transcript."
             phase = .done
             return
         }
         phase = .analyzing
+        let analyzer = OnDeviceMeetingAnalyzer()
+        if kind == nil { kind = await analyzer.kind(of: transcript) }
+        guard !Task.isCancelled else { return }
         do {
-            analysis = try await OnDeviceMeetingAnalyzer().analyze(transcript: transcript)
+            analysis = try await kind == .talk
+                ? analyzer.analyzeTalk(transcript: transcript)
+                : analyzer.analyze(transcript: transcript)
         } catch {
             guard !Task.isCancelled else { return }
             analysisError = error.localizedDescription
@@ -391,7 +401,13 @@ final class MeetingSession: ObservableObject {
         }
         if let analysis, let g = gist(analysis.summary) { return g }
         if let g = gist(transcript) { return g }
-        return "Meeting notes · \(startedAt.formatted(date: .abbreviated, time: .omitted))"
+        let label = switch kind {
+        case .meeting: "Meeting notes"
+        case .talk: "Talk notes"
+        case .song: "Song"
+        case nil: "Recording"
+        }
+        return "\(label) · \(startedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
     /// Saves as a new note, or, given `existing`, adds the recording to the end of that note under
@@ -400,7 +416,7 @@ final class MeetingSession: ObservableObject {
     func save(in context: ModelContext, into existing: Note? = nil) -> Note {
         isSaved = true
         let startedAt = recording?.startTime ?? .now
-        var blocks = MeetingNoteBuilder.blocks(analysis: analysis, transcript: transcript)
+        var blocks = MeetingNoteBuilder.blocks(kind: kind ?? .meeting, analysis: analysis, transcript: transcript)
         if let video {
             // The editor shows runs as plain text, so the address itself is the visible link.
             blocks.insert(Block(type: .paragraph, runs: [InlineRun(text: video.watchURL.absoluteString, linkURL: video.watchURL)]), at: 0)
