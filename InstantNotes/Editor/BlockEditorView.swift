@@ -820,11 +820,11 @@ final class CanvasEditorState: ObservableObject {
         return CaretTarget(id: block.id, offset: 0)
     }
 
-    func updateText(_ id: UUID, _ text: String) {
-        guard let block = document[id], block.plainText != text else { return }
+    func updateText(_ id: UUID, _ runs: [InlineRun]) {
+        guard let block = document[id], block.runs != runs else { return }
         let mark = block.audioMark ?? clock?()
         document.update(id) {
-            $0.runs = text.isEmpty ? [] : [.plain(text)]
+            $0.runs = runs
             $0.audioMark = mark
         }
     }
@@ -843,7 +843,7 @@ final class CanvasEditorState: ObservableObject {
     }
 
     /// Return, or a multi-line paste. Returns where focus and the caret should land.
-    func split(_ id: UUID, lines: [String], caret: Int) -> CaretTarget? {
+    func split(_ id: UUID, lines: [[InlineRun]], caret: Int) -> CaretTarget? {
         guard let block = document[id], lines.count > 1 else { return nil }
         let first = lines[0]
         let rest = Array(lines.dropFirst())
@@ -863,7 +863,7 @@ final class CanvasEditorState: ObservableObject {
 
         // Return at the very start pushes a blank line above and leaves you where you were,
         // so a heading or a to-do never gets downgraded by making room above it.
-        if lines.count == 2, first.isEmpty, !block.plainText.isEmpty, rest[0] == block.plainText {
+        if lines.count == 2, first.isEmpty, !block.plainText.isEmpty, rest[0].map(\.text).joined() == block.plainText {
             let above = Block(type: block.type.continuation, indent: block.indent, audioMark: clock?())
             let index = doc.order.firstIndex(of: id) ?? 0
             doc.insert(above, after: index > 0 ? doc.order[index - 1] : nil)
@@ -871,7 +871,7 @@ final class CanvasEditorState: ObservableObject {
             return CaretTarget(id: id, offset: 0)
         }
 
-        doc.update(id) { $0.runs = first.isEmpty ? [] : [.plain(first)] }
+        doc.update(id) { $0.runs = first }
 
         // A toggle's Return writes its first child, tucked under it.
         let isToggle = block.type == .toggle
@@ -881,7 +881,7 @@ final class CanvasEditorState: ObservableObject {
 
         var previous = id
         for line in rest {
-            let next = Block(type: newType, runs: line.isEmpty ? [] : [.plain(line)], indent: newIndent, audioMark: clock?())
+            let next = Block(type: newType, runs: line, indent: newIndent, audioMark: clock?())
             doc.insert(next, after: previous)
             previous = next.id
         }

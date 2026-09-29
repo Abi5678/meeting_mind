@@ -9,9 +9,10 @@
 
 import SwiftUI
 import UIKit
+import MeetingMindKit
 
 struct BlockTextView: UIViewRepresentable {
-    var text: String
+    var runs: [InlineRun]
     var placeholder: String
     var font: UIFont
     var textColor: UIColor
@@ -28,11 +29,11 @@ struct BlockTextView: UIViewRepresentable {
     /// and typing is never interrupted by a stale offset being re-applied.
     var caretGeneration: Int
 
-    var onTextChange: (String) -> Void
+    var onTextChange: ([InlineRun]) -> Void
     var onFocusChange: (Bool) -> Void
-    /// Return or a multi-line paste: the block's text cut at each newline, and the caret's
+    /// Return or a multi-line paste: the block's runs cut at each newline, and the caret's
     /// offset into the last piece.
-    var onSplit: ([String], Int) -> Void
+    var onSplit: ([[InlineRun]], Int) -> Void
     var onBackspaceAtStart: () -> Void
     /// Tab (true) and Shift-Tab (false) on a hardware keyboard.
     var onIndent: (Bool) -> Void
@@ -67,8 +68,8 @@ struct BlockTextView: UIViewRepresentable {
         // Otherwise the focused view owns its text: what the model hands back while someone is
         // typing is a lagging echo of keystrokes that haven't reached it yet, and writing that
         // back would drop and reorder them.
-        if view.text != text, view.markedTextRange == nil, isStructural || !isFocused {
-            view.setText(text)
+        if view.runs != InlineText.coalesced(runs), view.markedTextRange == nil, isStructural || !isFocused {
+            view.setRuns(runs)
         }
 
         view.wantsFocus = isFocused
@@ -107,7 +108,13 @@ struct BlockTextView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             (textView as? BlockUITextView)?.updatePlaceholder()
-            parent.onTextChange(textView.text)
+            // Read back from the view, which carries the formatting of the text next to the caret
+            // into whatever is typed there.
+            parent.onTextChange(InlineText.runs(in: textView.attributedText))
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            (textView as? BlockUITextView)?.carryFormatting()
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -139,17 +146,15 @@ struct BlockTextView: UIViewRepresentable {
             }
             guard text.contains(where: \.isNewline) else { return true }
 
-            let current = textView.text as NSString
-            let updated = current.replacingCharacters(in: range, with: text)
-                .replacingOccurrences(of: "\r\n", with: "\n")
-                .replacingOccurrences(of: "\r", with: "\n")
-                .replacingOccurrences(of: "\u{2028}", with: "\n")
-            let lines = updated.components(separatedBy: "\n")
-            let trailing = current.substring(from: NSMaxRange(range)) as NSString
-            let caret = max(0, (lines[lines.count - 1] as NSString).length - trailing.length)
+            let current = textView.attributedText ?? NSAttributedString()
+            let updated = NSMutableAttributedString(attributedString: current)
+            updated.replaceCharacters(in: range, with: NSAttributedString(string: text, attributes: textView.typingAttributes))
+            let lines = InlineText.lines(of: updated)
+            let trailing = current.length - NSMaxRange(range)
+            let caret = max(0, lines[lines.count - 1].length - trailing)
             (textView as? BlockUITextView)?.handedOff = true
             BlockUITextView.handoffAt = .now
-            parent.onSplit(lines, caret)
+            parent.onSplit(lines.map(InlineText.runs(in:)), caret)
             return false
         }
 
@@ -216,8 +221,9 @@ final class BlockUITextView: UITextView {
         // Restyle what's already there (a block turned into a heading, a to-do ticked off).
         if !text.isEmpty {
             let selection = selectedRange
-            attributedText = NSAttributedString(string: text, attributes: attributes)
+            attributedText = InlineText.attributedString(runs, attributes: attributes)
             selectedRange = selection
+            carryFormatting()
         }
         setNeedsLayout()
     }
@@ -234,14 +240,33 @@ final class BlockUITextView: UITextView {
         if isFirstResponder { reloadInputViews() }
     }
 
-    func setText(_ text: String) {
+    /// The text as the model holds it: formatting read back from the attributes, not the fonts,
+    /// since a heading's plain words are already set in bold.
+    var runs: [InlineRun] { InlineText.runs(in: attributedText) }
+
+    func setRuns(_ runs: [InlineRun]) {
         // Assigning attributedText drops the selection, so put it back where it was.
         let location = selectedRange.location
-        attributedText = NSAttributedString(string: text, attributes: attributes)
+        attributedText = InlineText.attributedString(runs, attributes: attributes)
         typingAttributes = attributes
         selectedRange = NSRange(location: min(location, (self.text as NSString).length), length: 0)
+        carryFormatting()
         updatePlaceholder()
         invalidateIntrinsicContentSize()
+    }
+
+    /// UIKit types in the font of the text at the caret but drops the keys that say it's bold,
+    /// italic or code, so what's typed inside a bold word would read back plain. Carry them over.
+    func carryFormatting() {
+        let text = attributedText ?? NSAttributedString()
+        guard markedTextRange == nil, text.length > 0 else { return }
+        let location = min(selectedRange.location, text.length)
+        // What replaces a selection takes its first character's look; otherwise the one before.
+        var typing = text.attributes(at: selectedRange.length > 0 ? min(location, text.length - 1) : max(location - 1, 0), effectiveRange: nil)
+        // A link only grows from inside, so a word typed straight after one isn't swept into it.
+        let next = location < text.length ? text.attribute(.link, at: location, effectiveRange: nil) as? URL : nil
+        if location == 0 || (typing[.link] as? URL) != next { typing[.link] = nil }
+        typingAttributes = typing
     }
 
     func updatePlaceholder() {
@@ -312,4 +337,94 @@ final class BlockUITextView: UITextView {
     }
 
     @objc private func outdent() { coordinator?.outdent() }
+}
+
+// MARK: - Inline formatting
+
+extension NSAttributedString.Key {
+    /// What a run means, kept apart from how it looks: a heading's font is bold already and a code
+    /// block's is monospaced already, so the font alone can't say which words were marked.
+    static let inlineBold = NSAttributedString.Key("InstantNotes.inlineBold")
+    static let inlineItalic = NSAttributedString.Key("InstantNotes.inlineItalic")
+    static let inlineCode = NSAttributedString.Key("InstantNotes.inlineCode")
+}
+
+/// Converts between a block's runs and the attributed text its view shows. The view's text is the
+/// truth while editing — UIKit carries the formatting next to the caret into what's typed — so the
+/// runs are always read back from it rather than patched by offset.
+enum InlineText {
+    static func attributedString(_ runs: [InlineRun], attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let base = attributes[.font] as? UIFont ?? .preferredFont(forTextStyle: .body)
+        let result = NSMutableAttributedString()
+        for run in runs {
+            var runAttributes = attributes
+            runAttributes[.font] = font(for: run, base: base)
+            if run.isBold { runAttributes[.inlineBold] = true }
+            if run.isItalic { runAttributes[.inlineItalic] = true }
+            if run.isCode { runAttributes[.inlineCode] = true }
+            if let url = run.linkURL { runAttributes[.link] = url }
+            result.append(NSAttributedString(string: run.text, attributes: runAttributes))
+        }
+        return result
+    }
+
+    static func runs(in text: NSAttributedString) -> [InlineRun] {
+        var runs: [InlineRun] = []
+        let string = text.string as NSString
+        text.enumerateAttributes(in: NSRange(location: 0, length: text.length)) { attributes, range, _ in
+            let link = attributes[.link] as? URL ?? (attributes[.link] as? String).flatMap(URL.init(string:))
+            runs.append(InlineRun(
+                text: string.substring(with: range),
+                isBold: attributes[.inlineBold] != nil,
+                isItalic: attributes[.inlineItalic] != nil,
+                isCode: attributes[.inlineCode] != nil,
+                linkURL: link
+            ))
+        }
+        return coalesced(runs)
+    }
+
+    /// No empty runs, and neighbours with the same formatting joined, so equal text compares equal
+    /// however it was cut up.
+    static func coalesced(_ runs: [InlineRun]) -> [InlineRun] {
+        var result: [InlineRun] = []
+        for run in runs where !run.text.isEmpty {
+            if let last = result.last, last.isBold == run.isBold, last.isItalic == run.isItalic,
+               last.isCode == run.isCode, last.linkURL == run.linkURL {
+                result[result.count - 1].text += run.text
+            } else {
+                result.append(run)
+            }
+        }
+        return result
+    }
+
+    /// The text cut at each line break, keeping each piece's formatting.
+    static func lines(of text: NSAttributedString) -> [NSAttributedString] {
+        let normalized = NSMutableAttributedString(attributedString: text)
+        for separator in ["\r\n", "\r", "\u{2028}"] {
+            normalized.mutableString.replaceOccurrences(
+                of: separator, with: "\n", options: [], range: NSRange(location: 0, length: normalized.length)
+            )
+        }
+        var location = 0
+        return normalized.string.components(separatedBy: "\n").map { line in
+            let length = (line as NSString).length
+            defer { location += length + 1 }
+            return normalized.attributedSubstring(from: NSRange(location: location, length: length))
+        }
+    }
+
+    private static func font(for run: InlineRun, base: UIFont) -> UIFont {
+        var traits = base.fontDescriptor.symbolicTraits
+        if run.isBold { traits.insert(.traitBold) }
+        if run.isItalic { traits.insert(.traitItalic) }
+        var font = base
+        if run.isCode {
+            font = .monospacedSystemFont(ofSize: base.pointSize, weight: traits.contains(.traitBold) ? .bold : .regular)
+            traits.insert(.traitMonoSpace)
+        }
+        guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits) else { return font }
+        return UIFont(descriptor: descriptor, size: base.pointSize)
+    }
 }

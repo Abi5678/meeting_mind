@@ -339,7 +339,7 @@ struct BlockRowView: View {
 
     private var text: some View {
         BlockTextView(
-            text: block.plainText,
+            runs: block.runs,
             placeholder: isFocused ? block.type.defaultPlaceholder : "",
             font: metrics.font(for: block.type),
             textColor: textColor,
