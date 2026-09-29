@@ -517,9 +517,9 @@ struct CanvasNoteEditorView: View {
                 }
                 .pickerStyle(.menu)
             } label: {
-                Image(systemName: "ellipsis.circle")
+                // A title, not just the icon, so the row isn't blank when the bar overflows into ⋯.
+                Label("More", systemImage: "ellipsis.circle")
             }
-            .accessibilityLabel("More")
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
