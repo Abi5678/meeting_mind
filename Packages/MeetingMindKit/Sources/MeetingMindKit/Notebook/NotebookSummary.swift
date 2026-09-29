@@ -53,14 +53,17 @@ public enum NotebookSummary {
         }.joined(separator: "\n\n")
     }
 
-    /// The cited source numbers that are in range and share a word with the point. The on-device
-    /// model sometimes names a source that says nothing about it.
+    /// The cited source numbers that are in range and share a word with the point, and one of its
+    /// figures if it gives any. The on-device model sometimes names a source that says nothing
+    /// about it, or credits both sources with one's price or date.
     static func supported(_ numbers: [Int], text: String, digests: [SourceDigest]) -> [Int] {
         let words = Set(SearchText.terms(text)).subtracting(SearchText.stopWords)
+        let figures = words.filter { $0.contains(where: \.isNumber) }
         return Set(numbers).filter { number in
             guard digests.indices.contains(number - 1) else { return false }
             let digest = digests[number - 1]
-            return !words.isDisjoint(with: SearchText.terms(([digest.title, digest.summary] + digest.keyPoints).joined(separator: " ")))
+            let terms = Set(SearchText.terms(([digest.title, digest.summary] + digest.keyPoints).joined(separator: " ")))
+            return !words.isDisjoint(with: terms) && (figures.isEmpty || !figures.isDisjoint(with: terms))
         }.sorted()
     }
 
@@ -75,9 +78,27 @@ public enum NotebookSummary {
     /// Whether a difference only says a source leaves something out ("Source 1 does not mention
     /// this"). The model writes these, but one source covering more isn't the sources disagreeing.
     static func isOmission(_ difference: String) -> Bool {
-        guard let pattern = try? Regex(#"\b(?:(?:does|do|did)\s+not|doesn't|don't|didn't)\s+(?:mention|discuss|cover|address|include)\b|\bno mention\b|\bnot mentioned\b"#).ignoresCase()
+        guard let pattern = try? Regex(#"\b(?:(?:does|do|did)\s+not|doesn't|don't|didn't)\s+(?:mention|discuss|cover|address|include)\b|\bno mention\b|\bnot mentioned\b|\bno specific\b|\bnot specified\b"#).ignoresCase()
         else { return false }
         return difference.contains(pattern)
+    }
+
+    /// Whether a claim gives a figure, in digits or words: the on-device model compares figures
+    /// well, but judges claims about different things, worded differently, to disagree.
+    static func hasFigure(_ text: String) -> Bool {
+        text.contains(where: \.isNumber)
+            || text.lowercased().split(whereSeparator: { !$0.isLetter }).contains { numberWords.contains(String($0)) }
+    }
+
+    private static let numberWords: Set<String> = [
+        "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "twenty",
+        "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million", "billion",
+    ]
+
+    /// "Parking: $8 a day [1]; $10 from June [2]." — one thing the sources say differently.
+    static func difference(_ subject: String, _ claims: [(says: String, sources: [Int])]) -> String {
+        let said = claims.map { citing($0.says.trimmingCharacters(in: CharacterSet(charactersIn: ". ")), $0.sources) }
+        return "\(subject.trimmingCharacters(in: CharacterSet(charactersIn: ": "))): \(said.joined(separator: "; "))."
     }
 
     /// "Costs rose [1, 3]." — the citation goes inside the sentence's full stop.
@@ -157,28 +178,62 @@ public struct OnDeviceNotebookSummarizer: Sendable {
         let session = LanguageModelSession(instructions: Self.overviewInstructions)
         let prompt = """
             These are summaries of the \(digests.count) sources in one notebook, numbered. Write an \
-            overview of them together, the key themes, and where the sources agree and where they differ.
+            overview of them together and the key themes.
 
             \(NotebookSummary.sourcesText(digests))
             """
         let result = try await session.respond(to: prompt, generating: Overview.self).content
         // The model is better at naming its sources in a field than at writing [n] inline.
-        // Agreeing or differing takes two sources; a point naming fewer is a misreading.
-        func cited(_ points: [Point], atLeast minimum: Int = 0) -> [String] {
-            points.compactMap { point in
-                let numbers = NotebookSummary.supported(point.sources, text: point.text, digests: digests)
-                guard numbers.count >= minimum else { return nil }
-                return NotebookSummary.citing(point.text, numbers)
+        let themes = result.themes.map { point in
+            NotebookSummary.citing(point.text, NotebookSummary.supported(point.sources, text: point.text, digests: digests))
+        }
+        let (agreements, differences) = digests.count > 1 ? try await compare(digests) : ([], [])
+        return NotebookOverview(overview: NotebookSummary.droppingLeadIn(result.overview), themes: themes,
+                                agreements: agreements, differences: differences)
+    }
+
+    /// Where the sources agree and differ. The model first lists the things two or more sources
+    /// speak about and what each says; then, for each thing they put differently, the figures they
+    /// give are judged on their own. Asked for agreements and differences directly, it misses a
+    /// changed price and invents disagreements between sources that cover different topics.
+    private func compare(_ digests: [SourceDigest]) async throws -> (agreements: [String], differences: [String]) {
+        let session = LanguageModelSession(instructions: Self.overviewInstructions)
+        let prompt = """
+            These are summaries of the \(digests.count) sources in one notebook, numbered. List the \
+            things that two or more of them speak about, and what each of those sources says.
+
+            \(NotebookSummary.sourcesText(digests))
+            """
+        let subjects = try await session.respond(to: prompt, generating: Overlap.self).content.subjects
+        var agreements: [String] = [], differences: [String] = []
+        for subject in subjects {
+            let found = subject.claims.filter { claim in
+                !NotebookSummary.isOmission(claim.says)
+                    && !NotebookSummary.supported([claim.source], text: claim.says, digests: digests).isEmpty
+            }
+            let claims = NotebookChat.claims(found.map { (source: $0.source, says: $0.says) }, count: digests.count)
+            // Agreeing or differing takes two sources.
+            guard Set(claims.flatMap(\.sources)).count > 1, let first = claims.first else { continue }
+            // Said in the same words: the sources agree.
+            guard claims.count > 1 else {
+                let agreeing = NotebookSummary.supported(first.sources, text: first.says, digests: digests)
+                if agreeing.count > 1 { agreements.append(NotebookSummary.citing(first.says, agreeing)) }
+                continue
+            }
+            // Said differently: only figures are compared.
+            let figures = claims.filter { NotebookSummary.hasFigure($0.says) }
+            guard Set(figures.flatMap(\.sources)).count > 1, let figure = figures.first else { continue }
+            let comparison = try await OnDeviceNotebookChat.compare(figures, question: "What do the sources say about \(subject.name)?")
+            switch comparison {
+            case .agree:
+                // The agreement is shown in the first source's words: cite only the sources that bear them out.
+                let agreeing = NotebookSummary.supported(Set(figures.flatMap(\.sources)).sorted(), text: figure.says, digests: digests)
+                if agreeing.count > 1 { agreements.append(NotebookSummary.citing(figure.says, agreeing)) }
+            case .conflict: differences.append(NotebookSummary.difference(subject.name, figures))
+            case .unrelated: break
             }
         }
-        // The model sometimes repeats a theme as an agreement, or an agreement as a difference.
-        let themes = Set(result.themes.map(\.text))
-        let agreed = Set(result.agreements.map(\.text))
-        return NotebookOverview(overview: NotebookSummary.droppingLeadIn(result.overview), themes: cited(result.themes),
-                                agreements: cited(result.agreements.filter { !themes.contains($0.text) }, atLeast: 2),
-                                differences: cited(result.differences.filter {
-                                    !agreed.contains($0.text) && !NotebookSummary.isOmission($0.text)
-                                }, atLeast: 2))
+        return (agreements, differences)
     }
 
     private static let digestInstructions = """
@@ -229,10 +284,28 @@ public struct OnDeviceNotebookSummarizer: Sendable {
         var overview: String
         @Guide(description: "The main themes across the sources, each a sentence on what they say about it", .maximumCount(5))
         var themes: [Point]
-        @Guide(description: "Facts that two or more sources both state; empty if none")
-        var agreements: [Point]
-        @Guide(description: "Where two or more sources contradict each other about the same thing; empty if none")
-        var differences: [Point]
+    }
+
+    @Generable
+    struct Overlap {
+        @Guide(description: "Each thing two or more sources speak about, such as a price, a date, a place or a rule", .maximumCount(5))
+        var subjects: [Subject]
+    }
+
+    @Generable
+    struct Subject {
+        @Guide(description: "What it is, in a few words")
+        var name: String
+        @Guide(description: "What each source says about exactly this thing, leaving out a source that says nothing about it")
+        var claims: [Claim]
+    }
+
+    @Generable
+    struct Claim {
+        @Guide(description: "The source's number")
+        var source: Int
+        @Guide(description: "What it says about this, in a few words, with any figure or date it gives")
+        var says: String
     }
 }
 #endif

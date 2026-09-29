@@ -281,6 +281,22 @@ struct NotebookSummaryTests {
         #expect(NotebookSummary.supported([3, 0], text: "The library wing", digests: Self.digests).isEmpty)
     }
 
+    @Test("A point with a figure cites only the sources that give it")
+    func supportedFigures() {
+        let costs = [
+            SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: "Budget memo", summary: "The wing costs $2 million.", keyPoints: []),
+            SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: "City plan", summary: "The wing will cost $3 million.", keyPoints: []),
+        ]
+        #expect(NotebookSummary.supported([1, 2], text: "The wing costs $3 million", digests: costs) == [2])
+        #expect(NotebookSummary.supported([1, 2], text: "The wing's cost", digests: costs) == [1, 2])
+    }
+
+    @Test("A difference names the thing, then what each source says")
+    func difference() {
+        #expect(NotebookSummary.difference("Parking fee:", [(says: "$8 a day.", sources: [1]), (says: "$10 from June", sources: [2, 3])])
+                == "Parking fee: $8 a day [1]; $10 from June [2, 3].")
+    }
+
     @Test("An overview that ends by introducing a list loses that last sentence")
     func leadIn() {
         #expect(NotebookSummary.droppingLeadIn("It covers photosynthesis. It covers the following topics: ")
@@ -295,8 +311,18 @@ struct NotebookSummaryTests {
         #expect(NotebookSummary.isOmission("Source 2 mentions the cost, while Source 1 does not mention this."))
         #expect(NotebookSummary.isOmission("Source 1 doesn't discuss permits."))
         #expect(NotebookSummary.isOmission("There is no mention of a start date in Source 2."))
+        #expect(NotebookSummary.isOmission("No specific time period"))
         #expect(!NotebookSummary.isOmission("Source 1 puts the cost at $2 million; Source 2 says $3 million."))
         #expect(!NotebookSummary.isOmission("Source 1 says the vote does not need a quorum; Source 2 says it does."))
+    }
+
+    @Test("Only claims that give a figure, in digits or words, are compared")
+    func figures() {
+        #expect(NotebookSummary.hasFigure("$10 starting June 1"))
+        #expect(NotebookSummary.hasFigure("Two million dollars from the parks budget"))
+        #expect(NotebookSummary.hasFigure("A few hundred visitors"))
+        #expect(!NotebookSummary.hasFigure("Some council members opposed the allocation"))
+        #expect(!NotebookSummary.hasFigure("Construction starts in spring, once permits are signed"))
     }
 
     @Test("Each source gets an equal share of the model's budget")
@@ -380,6 +406,36 @@ struct NotebookChatTests {
         #expect(prompt.contains("[1] City plan\nStarts in spring."))
         #expect(prompt.contains("You: In spring, after permits."))
         #expect(prompt.hasSuffix("QUESTION: Why then?"))
+    }
+
+    @Test("What the sources say is kept once, with every source that says it")
+    func claims() {
+        let claims = NotebookChat.claims([
+            (source: 1, says: "- The loop is 7.2 miles."), (source: 2, says: "the loop is 7.2 miles"),
+            (source: 1, says: "The loop is 7.2 miles"), (source: 3, says: "Invented"), (source: 2, says: " - "),
+            (source: 2, says: "Nothing."),
+        ], count: 2)
+        #expect(claims.map(\.says) == ["The loop is 7.2 miles."])
+        #expect(claims.map(\.sources) == [[1, 2]])
+    }
+
+    @Test("Where sources disagree, the answer gives what each says, cited")
+    func disagreement() {
+        let claims = [(says: "Parking costs $8", sources: [2]), (says: "The fee is $10 from June.", sources: [1])]
+        #expect(NotebookChat.answer("Parking costs $8 [2].", claims: claims, disagree: true, count: 2)
+                == "The sources differ:\n- Parking costs $8 [2].\n- The fee is $10 from June [1].")
+        #expect(NotebookChat.answer("Parking costs $8 [2].", claims: claims, disagree: false, count: 2) == "Parking costs $8 [2].")
+    }
+
+    @Test("An answer of only citations gives what the sources say; an uncited answer cites them")
+    func answerFallbacks() {
+        let claims = [(says: "The loop is 7.2 miles", sources: [1, 2]), (says: "It climbs 1,700 feet", sources: [1])]
+        #expect(NotebookChat.answer("[1], [2]", claims: claims, disagree: false, count: 2)
+                == "- The loop is 7.2 miles [1, 2].\n- It climbs 1,700 feet [1].")
+        #expect(NotebookChat.answer("[1]", claims: [claims[1]], disagree: false, count: 2) == "It climbs 1,700 feet [1].")
+        #expect(NotebookChat.answer("It's 7.2 miles.", claims: claims, disagree: false, count: 2) == "It's 7.2 miles [1, 2].")
+        #expect(NotebookChat.answer("The notebook doesn't cover it.", claims: [], disagree: true, count: 2)
+                == "The notebook doesn't cover it.")
     }
 }
 

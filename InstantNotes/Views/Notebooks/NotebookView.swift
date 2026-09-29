@@ -154,6 +154,8 @@ struct NotebookView: View {
                         Task { await summaries.summarize(notebook, in: modelContext) }
                     }
                     .buttonStyle(.borderedProminent)
+                    // In a list row the icon takes the tint, the button's own color, and disappears.
+                    .foregroundStyle(.white)
                     if summary != nil {
                         Text("Sources have changed since this summary. Updating reads only the new and changed ones.")
                             .font(.caption)

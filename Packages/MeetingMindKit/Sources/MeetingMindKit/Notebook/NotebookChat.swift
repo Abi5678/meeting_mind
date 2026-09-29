@@ -30,8 +30,10 @@ public enum NotebookChat {
         You answer questions about a notebook of the user's sources: documents, web pages, notes \
         and meeting transcripts. Use only the numbered sources given, and after each fact cite its \
         source number in brackets, like [2]. If the sources don't cover the question, say the \
-        notebook doesn't cover it; never guess or use outside knowledge. Be brief: one to four \
-        sentences. Only when listing several things, put each on its own line starting with "- ".
+        notebook doesn't cover it; never guess or use outside knowledge. Sources can disagree, as \
+        when a newer one changes what an older one says: then give what each says, with its \
+        citation. Be brief: one to four sentences. Only when listing several things, put each on \
+        its own line starting with "- ".
         """
 
     /// The passages that best match the question, then what each source is about (its digest, for
@@ -109,6 +111,40 @@ public enum NotebookChat {
             """
     }
 
+    /// What the model found in the sources, each thing said once with every source that says it,
+    /// in the order found. Findings naming a source that wasn't given, or saying it says nothing,
+    /// are dropped.
+    static func claims(_ findings: [(source: Int, says: String)], count: Int) -> [(says: String, sources: [Int])] {
+        var claims: [(key: String, says: String, sources: [Int])] = []
+        for finding in findings where (1...max(1, count)).contains(finding.source) {
+            let says = finding.says.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-•")))
+            let key = says.lowercased().filter { $0.isLetter || $0.isNumber }
+            guard !key.isEmpty, key != "nothing" else { continue }
+            if let index = claims.firstIndex(where: { $0.key == key }) {
+                if !claims[index].sources.contains(finding.source) { claims[index].sources.append(finding.source) }
+            } else {
+                claims.append((key, says, [finding.source]))
+            }
+        }
+        return claims.map { (says: $0.says, sources: $0.sources.sorted()) }
+    }
+
+    /// The model's answer, or what each source says: where they disagree, since the on-device model
+    /// notes both sides and then often answers with one, or with only the citations. An answer
+    /// citing nothing cites the sources the model noted.
+    static func answer(_ answer: String, claims: [(says: String, sources: [Int])], disagree: Bool, count: Int) -> String {
+        let listed = claims.map { NotebookSummary.citing($0.says.hasSuffix(".") ? $0.says : $0.says + ".", $0.sources) }
+        if disagree, listed.count > 1 {
+            return (["The sources differ:"] + listed.map { "- " + $0 }).joined(separator: "\n")
+        }
+        guard !listed.isEmpty else { return answer }
+        guard uncited(answer).contains(where: \.isLetter) else {
+            return listed.count == 1 ? listed[0] : listed.map { "- " + $0 }.joined(separator: "\n")
+        }
+        return NotesQuestion.cited(in: answer, count: count).isEmpty
+            ? NotebookSummary.citing(answer, Set(claims.flatMap(\.sources)).sorted()) : answer
+    }
+
     /// An earlier answer without its `[n]` markers, which pointed at that turn's sources, not these.
     static func uncited(_ text: String) -> String {
         guard let pattern = try? Regex(#"\s*\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]"#) else { return text }
@@ -129,9 +165,61 @@ public struct OnDeviceNotebookChat: Sendable {
         let session = LanguageModelSession(instructions: NotebookChat.instructions)
         let prompt = NotebookChat.prompt(question: question.trimmingCharacters(in: .whitespacesAndNewlines),
                                          sources: sources, history: history)
-        let answer = try await session.respond(to: prompt).content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reading = try await session.respond(to: prompt, generating: Reading.self).content
+        let claims = NotebookChat.claims(reading.findings.map { (source: $0.source, says: $0.says) }, count: sources.count)
+        let disagree = try await disagree(claims, question: question)
+        let answer = NotebookChat.answer(reading.answer.trimmingCharacters(in: .whitespacesAndNewlines),
+                                         claims: claims, disagree: disagree, count: sources.count)
         guard !answer.isEmpty else { throw OnDeviceAIError.emptyResponse }
         return answer
+    }
+
+    private func disagree(_ claims: [(says: String, sources: [Int])], question: String) async throws -> Bool {
+        guard claims.count > 1, Set(claims.flatMap(\.sources)).count > 1 else { return false }
+        return try await Self.compare(claims, question: question) == .conflict
+    }
+
+    /// Whether the sources' claims agree, conflict, or are about different things. Asked on its own,
+    /// of just the claims: judged in the same answer that notes them, the on-device model often
+    /// misses a conflict, or sees one between the same words.
+    static func compare(_ claims: [(says: String, sources: [Int])], question: String) async throws -> Comparison {
+        let session = LanguageModelSession()
+        let prompt = """
+            QUESTION: \(question)
+
+            \(claims.map { "Source \($0.sources.map(String.init).joined(separator: ", ")): \($0.says)" }.joined(separator: "\n"))
+            """
+        return try await session.respond(to: prompt, generating: Judgment.self).content.verdict
+    }
+
+    /// What each source says comes first, so the model reads all of them, a newer one that
+    /// disagrees included, before it answers.
+    @Generable
+    struct Reading {
+        @Guide(description: "One for each source, starting with 1 and going in order: what it says that bears on the question, even in other words, or nothing")
+        var findings: [Finding]
+        @Guide(description: "The answer in one to four sentences, with each fact's source number in brackets after it")
+        var answer: String
+    }
+
+    @Generable
+    enum Comparison {
+        case agree, conflict, unrelated
+    }
+
+    @Generable
+    struct Judgment {
+        // The model sees only the cases' names, so their meanings go here.
+        @Guide(description: "agree if the sources give the same value for the same thing; conflict if they give different values for the same thing, such as two prices for one fee; unrelated if they speak about different things")
+        var verdict: Comparison
+    }
+
+    @Generable
+    struct Finding {
+        @Guide(description: "The source's number")
+        var source: Int
+        @Guide(description: "What it says, in a sentence")
+        var says: String
     }
 }
 #endif

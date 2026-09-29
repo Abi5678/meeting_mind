@@ -201,6 +201,67 @@ struct OnDeviceModelTests {
         let cited = NotesQuestion.cited(in: answer, count: sources.count)
         #expect(cited.contains { sources[$0 - 1].noteID == plan })
     }
+
+    /// A trail guide and a newer park notice that changes its parking fee and water.
+    static let trailGuide = """
+        The Mount Tam loop is 7.2 miles long and starts at the Pantoll Ranger Station. It climbs \
+        about 1,700 feet, so plan on four hours at an easy pace. Parking at Pantoll costs $8 for the \
+        day. Pay at the machine by the ranger station. Bring at least two liters of water per \
+        person; there is no water on the trail after Pantoll. Dogs are not allowed on the Steep \
+        Ravine trail.
+        """
+    static let parkNotice = """
+        Mount Tamalpais State Park visitor notice, summer 2026. Parking: the day-use fee at Pantoll \
+        is $10 starting June 1, 2026. Trail closure: the Steep Ravine trail is closed for bridge \
+        repairs until November 15, 2026. Water: the fountain at Pantoll is working again and can be \
+        used to refill bottles.
+        """
+
+    @Test("Lists where notebook sources give different facts about the same thing")
+    @available(macOS 26, *)
+    func notebookSummaryConflicts() async throws {
+        let summarizer = OnDeviceNotebookSummarizer()
+        var digests: [SourceDigest] = []
+        for (title, text) in [("Mount Tam loop guide", Self.trailGuide), ("Park notice", Self.parkNotice)] {
+            let digest = try await summarizer.digest(title: title, text: text)
+            digests.append(SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: title,
+                                        summary: digest.summary, keyPoints: digest.keyPoints))
+        }
+        let overview = try await summarizer.overview(of: digests)
+        print("NOTEBOOK CONFLICTS:", digests.map { [$0.summary] + $0.keyPoints }, overview)
+        let differences = overview.differences.joined(separator: " ")
+        #expect(differences.contains("$8") && differences.contains("$10"))
+        #expect(!overview.agreements.contains { $0.contains("$8") || $0.contains("$10") })
+    }
+
+    @Test("Gives what each source says where two disagree")
+    @available(macOS 26, *)
+    func notebookChatConflict() async throws {
+        let guide = UUID(), notice = UUID()
+        let passages = SearchPassage.passages(noteID: guide, title: "Mount Tam loop guide", blocks: [Block(type: .paragraph, runs: [.plain(Self.trailGuide)])])
+            + SearchPassage.passages(noteID: notice, title: "Park notice", blocks: [Block(type: .paragraph, runs: [.plain(Self.parkNotice)])])
+        let question = "How much is parking at Pantoll?"
+        let sources = NotebookChat.sources(question: question, passages: passages,
+                                           titles: [guide: "Mount Tam loop guide", notice: "Park notice"])
+        let answer = try await OnDeviceNotebookChat().answer(question: question, sources: sources)
+        print("NOTEBOOK CHAT CONFLICT:", sources.map(\.text), answer)
+        #expect(answer.contains("$10"))
+    }
+
+    @Test("Doesn't call sources that agree different")
+    @available(macOS 26, *)
+    func notebookChatNoConflict() async throws {
+        let guide = UUID(), notice = UUID()
+        let passages = SearchPassage.passages(noteID: guide, title: "Mount Tam loop guide", blocks: [Block(type: .paragraph, runs: [.plain(Self.trailGuide)])])
+            + SearchPassage.passages(noteID: notice, title: "Park notice", blocks: [Block(type: .paragraph, runs: [.plain(Self.parkNotice)])])
+        let question = "How long is the Mount Tam loop?"
+        let sources = NotebookChat.sources(question: question, passages: passages,
+                                           titles: [guide: "Mount Tam loop guide", notice: "Park notice"])
+        let answer = try await OnDeviceNotebookChat().answer(question: question, sources: sources)
+        print("NOTEBOOK CHAT NO CONFLICT:", answer)
+        #expect(answer.contains("7.2"))
+        #expect(!answer.contains("differ"))
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")
