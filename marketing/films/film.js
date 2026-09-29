@@ -1286,12 +1286,52 @@
       text(ctx, c.button, W / 2, y + 81 * U, F.sans(32 * U, 600), "#fff", { align: "center" });
     }
   }
+  // Brand lockup for banners: icon, wordmark, highlighted tagline, optional sub line.
+  function posterLockup(ctx, W, H, U, l) {
+    const k = U * (l.scale || 1), s = 150 * k, x0 = W * l.x, yc = H * l.y;
+    logo(ctx, x0 + s / 2, yc, s);
+    const tx = x0 + s + 34 * k;
+    text(ctx, "Quolio", tx, yc - 4 * k, F.serif(124 * k), C.ink);
+    const tag = l.tagline || "Be in the room. We'll take the notes.";
+    ctx.font = F.hand(52 * k); const tw = ctx.measureText(tag).width;
+    ctx.fillStyle = C.yellow; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.roundRect(tx - 8 * k, yc + 22 * k, tw + 16 * k, 52 * k, 5 * k); ctx.fill(); ctx.globalAlpha = 1;
+    text(ctx, tag, tx, yc + 62 * k, F.hand(52 * k), C.ink);
+    if (l.sub) text(ctx, l.sub, tx, yc + 118 * k, F.sans(25 * k, 500), C.inkSoft);
+  }
+  // Scene seen through a torn-paper window on one side of a ruled page.
+  function posterSplit(ctx, W, H, U, spec) {
+    paperScreen(ctx, W, H, U);
+    const left = spec.split.side === "left";
+    const sx = left ? -40 : W * spec.split.at, ex = left ? W * spec.split.at : W + 40;
+    const pts = [[sx, -40], [ex, -40], [ex, H + 40], [sx, H + 40]];
+    ctx.save();
+    tornPath(ctx, pts, 1800, 7 * U, 18 * U);
+    ctx.shadowColor = "rgba(10,14,30,0.35)"; ctx.shadowBlur = 24 * U; ctx.fillStyle = C.ink; ctx.fill();
+    ctx.restore();
+    ctx.save(); tornPath(ctx, pts, 1800, 7 * U, 18 * U); ctx.clip();
+    const [cx, cy, w] = spec.cam, k = (ex - sx) / w;
+    ctx.translate((sx + ex) / 2, H * (spec.anchor ?? 0.5)); ctx.scale(k, k); ctx.translate(-cx, -cy);
+    SCENES[spec.scene](ctx, spec.lt);
+    ctx.restore();
+    tornPath(ctx, pts, 1800, 7 * U, 18 * U); ctx.lineWidth = 5 * U; ctx.strokeStyle = "rgba(255,251,242,0.9)"; ctx.stroke();
+  }
   function poster(ctx, W, H, spec) {
     const U = Math.min(W, H) / 1000;
     BOIL = spec.boil ?? 1; VERT = true; CAPS = [];
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     const fn = spec.scene && SCENES[spec.scene];
-    if (fn && spec.vertical && fn.vertical) { ctx.save(); ctx.scale(W / 1080, H / 1920); fn.vertical(ctx, spec.lt); ctx.restore(); }
+    if (spec.avatar) {
+      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#5273e4"); g.addColorStop(1, C.brandDeep);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(W / 1024, H / 1024); ctx.translate(-512, -512);
+      paper(ctx, bubblePts(170, 190, 683, 520, 160, [828, 842], [603, 710]), C.cream, 951, { rough: 5, step: 24, blur: 30, dy: 14, edgeW: 6 });
+      [[790, 352], [708, 452], [586, 552]].forEach(([x2, y], i) => {
+        circ(ctx, 272, y, 30, C.brand, 952 + i, { shadow: false, rough: 2, edge: false });
+        ctx.fillStyle = "#1c1c1e"; ctx.beginPath(); ctx.roundRect(340, y - 27, x2 - 340, 54, 27); ctx.fill();
+      });
+      ctx.restore();
+    } else if (spec.split) posterSplit(ctx, W, H, U, spec);
+    else if (fn && spec.vertical && fn.vertical) { ctx.save(); ctx.scale(W / 1080, H / 1920); fn.vertical(ctx, spec.lt); ctx.restore(); }
     else if (fn) {
       const [cx, cy, w] = spec.cam, k = W / w;
       ctx.save(); ctx.translate(W / 2, H * (spec.anchor ?? 0.5)); ctx.scale(k, k); ctx.translate(-cx, -cy); fn(ctx, spec.lt); ctx.restore();
@@ -1299,6 +1339,7 @@
     CAPS = null; VERT = false;
     if (spec.panel) posterPanel(ctx, W, H, U, spec.panel);
     if (spec.cta) posterCTA(ctx, W, H, U, spec.cta);
+    if (spec.lockup) posterLockup(ctx, W, H, U, spec.lockup);
     if (spec.logo !== false) posterLogo(ctx, W, H, U, spec.logoPos || (spec.panel?.pos === "bottom" ? "tr" : "br"));
     ctx.restore();
   }

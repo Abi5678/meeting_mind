@@ -38,4 +38,15 @@ window.QUOLIO_POSTERS = [
     panel: { pos: "bottom", kicker: "New app · coming soon", title: "Be in the room. We'll take the notes." }, logoPos: "tr" },
   { id: "ig-story-2", size: [1080, 1920], scene: "speed", lt: 6, vertical: true, logoPos: "bl",
     panel: { pos: "top", title: "Ideas don't wait for loading screens.", scale: 0.6 } },
+
+  // Banners & profile picture
+  { id: "banner-x-header", size: [1500, 500], split: { at: 0.53, side: "right" }, scene: "meeting", lt: 15.4, cam: [1000, 470, 1250], anchor: 0.56,
+    lockup: { x: 0.06, y: 0.42, scale: 1.45, sub: "Meeting notes that write themselves" }, logo: false },
+  { id: "banner-x-header-night", size: [1500, 500], split: { at: 0.53, side: "right" }, scene: "town", lt: 4.2, cam: [900, 560, 1250], anchor: 0.52,
+    lockup: { x: 0.06, y: 0.42, scale: 1.45, sub: "Coming soon to iPhone, iPad & Mac" }, logo: false },
+  { id: "banner-linkedin-profile", size: [1584, 396], split: { at: 0.45, side: "left" }, scene: "meeting", lt: 15.4, cam: [980, 470, 1350], anchor: 0.58,
+    lockup: { x: 0.5, y: 0.4, scale: 1.4, sub: "Meeting notes that write themselves · coming soon" }, logo: false },
+  { id: "banner-linkedin-page", size: [1128, 191], split: { at: 0.38, side: "left" }, scene: "notebook", lt: 10, cam: [690, 440, 720], anchor: 0.5,
+    lockup: { x: 0.43, y: 0.4, scale: 1.55 }, logo: false },
+  { id: "profile-picture", size: [1080, 1080], avatar: true, logo: false },
 ];
