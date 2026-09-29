@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Quolio films</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap">
+<style>html,body{margin:0;background:#141a33}canvas{display:block}</style>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="film.js"></script>
+<script src="posters.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  const film = q.get("film") || "hero";
+  const c = document.getElementById("c"), ctx = c.getContext("2d");
+  if (q.get("v") === "1") { c.width = 1080; c.height = 1920; }
+  window.renderFrame = (t) => QuolioFilms.render(ctx, film, t, c.width, c.height);
+  window.filmReady = QuolioFilms.ready.then(() => QuolioFilms.FILMS[film].duration);
+  if (!q.has("export")) QuolioFilms.ready.then(() => {
+    const t0 = performance.now(), d = QuolioFilms.FILMS[film].duration;
+    (function loop() { renderFrame(((performance.now() - t0) / 1000) % d); requestAnimationFrame(loop); })();
+  });
+</script>

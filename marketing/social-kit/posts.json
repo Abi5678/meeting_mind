@@ -1,0 +1,97 @@
+[
+ [
+  "X",
+  "Teaser: meeting to note",
+  [
+   "x-2-written-up"
+  ],
+  "Your meeting, already written up.\n\nHit record in Quolio and put your pencil down. When it ends you get a note with the summary, the decisions and who owns what.\n\nComing soon to iPhone, iPad & Mac \u2192 [waitlist link]"
+ ],
+ [
+  "X",
+  "Speed",
+  [
+   "x-3-two-seconds"
+  ],
+  "Ideas don't wait for loading spinners.\n\nQuolio opens in under 2 seconds and works with no signal, so the thought makes it onto the page.\n\n[waitlist link]"
+ ],
+ [
+  "X",
+  "Notebook",
+  [
+   "x-4-one-notebook"
+  ],
+  "Handwriting, audio, to-dos and tables on one page.\n\nThe nice part: tap any bit of ink and hear what was being said when you wrote it.\n\nQuolio \u00b7 coming soon \u2192 [waitlist link]"
+ ],
+ [
+  "X",
+  "Build-in-public thread",
+  [
+   "x-1-be-in-the-room"
+  ],
+  "1/ We made our launch film without a camera, a studio or After Effects. Every frame is drawn in JavaScript. \ud83e\uddf5\n\n2/ The style is torn paper. Each shape is a polygon with a jagged, hand-torn edge, a pale fibre outline and a grain texture.\n\n3/ The stop-motion wobble is a cheat: the torn edges get re-cut 6 times a second, cycling between 3 variants.\n\n4/ The whole film is one function, render(t). Headless Chrome calls it frame by frame and pipes the frames to ffmpeg. The music is synthesized in code too.\n\n5/ The app it's about is Quolio: be in the room, and it takes the notes. Waitlist \u2192 [waitlist link]"
+ ],
+ [
+  "LinkedIn",
+  "Founder post",
+  [
+   "li-1-stop-choosing"
+  ],
+  "I used to leave every meeting with two kinds of notes: the ones I wrote, and the ones I wish I had written.\n\nThe problem wasn't effort. You can't really listen and take notes at the same time, so one of them always loses.\n\nSo we're building Quolio. Put your phone on the table, hit record, and actually be in the conversation. Afterwards you get a note with:\n\u2192 a short summary\n\u2192 the decisions that were made\n\u2192 the to-dos, with owners\n\nNo bot joins your call. It just listens in the room, right from your phone.\n\nWe're opening a small beta for people who spend most of their week in meetings. If that's you, the waitlist is here: [waitlist link]\n\nWhat's the one thing you always lose from a meeting?"
+ ],
+ [
+  "LinkedIn",
+  "Document carousel (upload the PDF)",
+  [
+   "ig-carousel-1",
+   "ig-carousel-2",
+   "ig-carousel-3",
+   "ig-carousel-4",
+   "ig-carousel-5"
+  ],
+  "A five-slide story about meetings, and the one person who stopped taking notes. \ud83d\udc49 Swipe through.\n\nQuolio turns what's said into a note with decisions and owners, so you can look people in the eye instead of at your keyboard.\n\nWaitlist: [waitlist link]"
+ ],
+ [
+  "LinkedIn",
+  "Notebook",
+  [
+   "li-3-one-page"
+  ],
+  "Most of my thinking happens in three places: a sketch on paper, a checklist in one app and a table in another.\n\nQuolio puts them on one page: handwriting, text, to-dos and simple tables. You can even tap your ink to replay what was being said when you wrote it.\n\nComing soon to iPhone, iPad and Mac. [waitlist link]"
+ ],
+ [
+  "Instagram",
+  "Carousel",
+  [
+   "ig-carousel-1",
+   "ig-carousel-2",
+   "ig-carousel-3",
+   "ig-carousel-4",
+   "ig-carousel-5"
+  ],
+  "In a town that never stopped taking notes, one person tried something different. \ud83d\udcdd\u27a1\ufe0f\ud83d\udc42\n\nSwipe for Mia's story, then join the Quolio waitlist (link in bio).\n\n#productivity #meetingnotes #notetaking #iphoneapps #ipadnotes #worksmarter #startup"
+ ],
+ [
+  "Instagram",
+  "Feed post",
+  [
+   "ig-feed-notebook"
+  ],
+  "One notebook for your ink, your to-dos and your tables. \u270f\ufe0f\n\nTap your handwriting to hear what was said when you wrote it. Quolio is coming soon, and the waitlist is in our bio.\n\n#ipadnotes #digitalplanner #notetaking #studygram #productivitytips #applepencil"
+ ],
+ [
+  "Instagram",
+  "Stories",
+  [
+   "ig-story-1",
+   "ig-story-2"
+  ],
+  "Story 1: add a link sticker (\"Join the waitlist\") over the empty table area.\nStory 2: add a poll sticker: \"How long does your notes app take to open?\" with \u26a1 Instantly / \ud83d\udc22 Forever."
+ ],
+ [
+  "Instagram",
+  "Reels caption (use the 9:16 films)",
+  [],
+  "POV: you finally stopped taking notes in meetings. \ud83c\udfa7\ud83d\udcdd\n\nEvery frame of this was drawn in code, and so is the music. Quolio is coming soon; the waitlist is in our bio.\n\n#reels #productivity #meetings #animation #startuplife #notetaking"
+ ]
+]
