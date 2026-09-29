@@ -9,6 +9,7 @@ struct MeetingNoteBuilderTests {
             let kind = switch block.type {
             case .heading: "h"
             case .bulletedList: "-"
+            case .numberedList: "1."
             case .todo: "[ ]"
             default: "p"
             }
@@ -77,6 +78,26 @@ struct MeetingNoteBuilderTests {
                                        followUpEmail: .init(subject: "", body: ""))
         let blocks = MeetingNoteBuilder.blocks(kind: .talk, analysis: analysis, transcript: "hi")
         #expect(Self.layout(blocks) == ["h Summary", "p A short hello.", "h Transcript", "p hi"])
+    }
+
+    @Test("A memo becomes summary, its own sections, then transcript; steps are numbered")
+    func memoLayout() {
+        let analysis = MeetingAnalysis(
+            summary: "Banana bread.", keyDecisions: [], actionItems: [], followUpEmail: .init(subject: "", body: ""),
+            title: "Banana bread recipe",
+            sections: [.init(heading: "Ingredients", items: ["3 bananas", "1 egg"]),
+                       .init(heading: "Notes", items: []),
+                       .init(heading: "Steps", items: ["Mash the bananas", "Bake for an hour"], isSteps: true)]
+        )
+
+        let blocks = MeetingNoteBuilder.blocks(kind: .memo, analysis: analysis, transcript: "so this is my banana bread")
+
+        #expect(Self.layout(blocks) == [
+            "h Summary", "p Banana bread.",
+            "h Ingredients", "- 3 bananas", "- 1 egg",
+            "h Steps", "1. Mash the bananas", "1. Bake for an hour",
+            "h Transcript", "p so this is my banana bread",
+        ])
     }
 
     @Test("A song is kept as its lyrics, even if something summarized it")

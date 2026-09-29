@@ -2,7 +2,7 @@
 //  MeetingAnalysisView.swift
 //  Instant Notes
 //
-// Displays the meeting or talk summary as blocks using the paper design identity.
+// Displays the meeting, talk or memo summary as blocks using the paper design identity.
 
 import SwiftUI
 import MeetingMindKit
@@ -12,6 +12,13 @@ struct MeetingAnalysisView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+            // The title the note will be saved under
+            if !analysis.title.isEmpty {
+                Text(analysis.title)
+                    .font(.title2.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             // Summary section
             if !analysis.summary.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -38,6 +45,27 @@ struct MeetingAnalysisView: View {
 
                         ForEach(lines, id: \.self) { line in
                             Text("• \(line)")
+                                .font(.body)
+                                .lineSpacing(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))
+                }
+            }
+
+            // A memo's own sections, e.g. Ingredients and Steps
+            ForEach(analysis.sections.indices, id: \.self) { i in
+                let section = analysis.sections[i]
+                if !section.items.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(section.heading, systemImage: section.isSteps ? "list.number" : "list.bullet")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+
+                        ForEach(section.items.indices, id: \.self) { n in
+                            Text("\(section.isSteps ? "\(n + 1)." : "•") \(section.items[n])")
                                 .font(.body)
                                 .lineSpacing(2)
                         }

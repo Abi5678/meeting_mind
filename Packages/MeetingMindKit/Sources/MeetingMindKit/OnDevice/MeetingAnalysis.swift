@@ -1,7 +1,7 @@
 import Foundation
 
-/// The summary, decisions, action items and recap email written for one meeting, or the summary,
-/// key points and takeaways written for one talk.
+/// The summary, decisions, action items and recap email written for one meeting; the summary, key
+/// points and takeaways written for one talk; or the summary and sections written for one memo.
 public struct MeetingAnalysis: Codable, Equatable, Sendable {
     /// The owner of an action item when the transcript names nobody.
     public static let unassignedOwner = "Unassigned"
@@ -14,6 +14,10 @@ public struct MeetingAnalysis: Codable, Equatable, Sendable {
     public var keyPoints: [String]
     /// What a listener should remember or try after a talk; empty for a meeting.
     public var takeaways: [String]
+    /// A few words naming what was recorded ("Banana bread recipe"); empty if none was written.
+    public var title: String
+    /// A memo's content under headings that suit it, such as Ingredients and Steps; empty otherwise.
+    public var sections: [Section]
 
     public init(
         summary: String,
@@ -21,7 +25,9 @@ public struct MeetingAnalysis: Codable, Equatable, Sendable {
         actionItems: [ActionItem],
         followUpEmail: FollowUpEmail,
         keyPoints: [String] = [],
-        takeaways: [String] = []
+        takeaways: [String] = [],
+        title: String = "",
+        sections: [Section] = []
     ) {
         self.summary = summary
         self.keyDecisions = keyDecisions
@@ -29,6 +35,21 @@ public struct MeetingAnalysis: Codable, Equatable, Sendable {
         self.followUpEmail = followUpEmail
         self.keyPoints = keyPoints
         self.takeaways = takeaways
+        self.title = title
+        self.sections = sections
+    }
+
+    public struct Section: Codable, Equatable, Sendable {
+        public var heading: String
+        public var items: [String]
+        /// Steps to follow in order, so they are numbered.
+        public var isSteps: Bool
+
+        public init(heading: String, items: [String], isSteps: Bool = false) {
+            self.heading = heading
+            self.items = items
+            self.isSteps = isSteps
+        }
     }
 
     public struct ActionItem: Codable, Equatable, Sendable {
