@@ -919,7 +919,13 @@
     ctx.globalAlpha = a;
     text(ctx, "Quolio", 540, 890, F.serif(220), C.ink, { align: "center" });
     ctx.globalAlpha = 1;
-    const lines = (o.tagline || "Be in the room. We'll take the notes.").split(/(?<=\.)\s+/);
+    // one sentence per line, but keep short sentences together while they fit
+    const lines = [];
+    for (const sent of (o.tagline || "Be in the room. We'll take the notes.").split(/(?<=\.)\s+/)) {
+      const joined = lines.length ? lines[lines.length - 1] + " " + sent : sent;
+      ctx.font = F.hand(88);
+      if (lines.length && ctx.measureText(joined).width <= 900) lines[lines.length - 1] = joined; else lines.push(sent);
+    }
     lines.forEach((ln, i) => {
       const y = 1030 + i * 110;
       ctx.font = F.hand(88);
