@@ -977,7 +977,7 @@
     [[430, 520], [470, 512], [520, 524], [570, 510], [620, 522], [680, 512]],
     (() => { const p = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + (i / 24) * Math.PI * 2.1; p.push([905 + Math.cos(a) * 42, 488 + Math.sin(a) * 34]); } return p; })(),
   ];
-  const INK_LABELS = [["Free", 515, 368, 0.22], ["Pro · $4.99", 840, 368, 0.62], ["annual = 2 months free", 430, 495, 0.8], ["?", 905, 503, 0.97]];
+  const INK_LABELS = [["Free", 515, 368, 0.22], ["Pro · $4.99", 840, 368, 0.62], ["annual = 2 months free", 430, 495, 0.8], ["?", 905, 503, 0.86]];
   function strokeLen(st) { let L = 0; for (let i = 1; i < st.length; i++) L += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]); return L; }
   const INK_TOTAL = INK.reduce((a, st) => a + strokeLen(st), 0);
   // Draw ink up to fraction p; strokes before `tint` (fraction) are recoloured, as when audio replays.
