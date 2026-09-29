@@ -72,6 +72,14 @@ public enum NotebookSummary {
         return String(text[...end])
     }
 
+    /// Whether a difference only says a source leaves something out ("Source 1 does not mention
+    /// this"). The model writes these, but one source covering more isn't the sources disagreeing.
+    static func isOmission(_ difference: String) -> Bool {
+        guard let pattern = try? Regex(#"\b(?:(?:does|do|did)\s+not|doesn't|don't|didn't)\s+(?:mention|discuss|cover|address|include)\b|\bno mention\b|\bnot mentioned\b"#).ignoresCase()
+        else { return false }
+        return difference.contains(pattern)
+    }
+
     /// "Costs rose [1, 3]." — the citation goes inside the sentence's full stop.
     static func citing(_ text: String, _ numbers: [Int]) -> String {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -168,7 +176,9 @@ public struct OnDeviceNotebookSummarizer: Sendable {
         let agreed = Set(result.agreements.map(\.text))
         return NotebookOverview(overview: NotebookSummary.droppingLeadIn(result.overview), themes: cited(result.themes),
                                 agreements: cited(result.agreements.filter { !themes.contains($0.text) }, atLeast: 2),
-                                differences: cited(result.differences.filter { !agreed.contains($0.text) }, atLeast: 2))
+                                differences: cited(result.differences.filter {
+                                    !agreed.contains($0.text) && !NotebookSummary.isOmission($0.text)
+                                }, atLeast: 2))
     }
 
     private static let digestInstructions = """

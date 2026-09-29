@@ -290,6 +290,15 @@ struct NotebookSummaryTests {
                 == "The wing is funded. Building starts in spring.")
     }
 
+    @Test("A difference that only says one source leaves something out isn't a disagreement")
+    func omissions() {
+        #expect(NotebookSummary.isOmission("Source 2 mentions the cost, while Source 1 does not mention this."))
+        #expect(NotebookSummary.isOmission("Source 1 doesn't discuss permits."))
+        #expect(NotebookSummary.isOmission("There is no mention of a start date in Source 2."))
+        #expect(!NotebookSummary.isOmission("Source 1 puts the cost at $2 million; Source 2 says $3 million."))
+        #expect(!NotebookSummary.isOmission("Source 1 says the vote does not need a quorum; Source 2 says it does."))
+    }
+
     @Test("Each source gets an equal share of the model's budget")
     func sharedBudget() {
         let long = SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: "Long",
