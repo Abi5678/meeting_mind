@@ -262,6 +262,44 @@ struct OnDeviceModelTests {
         #expect(answer.contains("7.2"))
         #expect(!answer.contains("differ"))
     }
+
+    /// Something only the trail guide says, and something only the park notice says.
+    private static func coversBoth(_ text: String) -> Bool {
+        let fromGuide = ["7.2", "1,700", "four hours", "two liters", "$8"].contains { text.localizedCaseInsensitiveContains($0) }
+        let fromNotice = ["$10", "June", "November", "bridge", "fountain", "refill"].contains { text.localizedCaseInsensitiveContains($0) }
+        return fromGuide && fromNotice
+    }
+
+    private static let hikeMaterial = NotebookStudy.material([
+        (title: "Mount Tam loop guide", digest: nil, text: trailGuide),
+        (title: "Park notice", digest: nil, text: parkNotice),
+    ])
+
+    @Test("Writes a notebook's study guide from all its sources")
+    @available(macOS 26, *)
+    func notebookStudyGuide() async throws {
+        let guide = try await OnDeviceStudyGuideWriter().guide(title: "Mount Tam hike", material: Self.hikeMaterial)
+        print("STUDY GUIDE:", guide)
+        #expect(!guide.terms.isEmpty && !guide.questions.isEmpty)
+        let all = (guide.terms.map { "\($0.term) \($0.meaning)" } + guide.questions.map { "\($0.question) \($0.answer)" }).joined(separator: " ")
+        #expect(Self.coversBoth(all))
+    }
+
+    @Test("Quizzes on a whole notebook, not just its first source")
+    @available(macOS 26, *)
+    func notebookQuiz() async throws {
+        let quiz = try await OnDeviceQuizWriter().quiz(fromNotes: "Mount Tam hike\n\n\(Self.hikeMaterial)")
+        print("NOTEBOOK QUIZ:", quiz.questions.map { ($0.prompt, $0.options[$0.answerIndex]) })
+        #expect(Self.coversBoth(quiz.questions.map { "\($0.prompt) \($0.options[$0.answerIndex])" }.joined(separator: " ")))
+    }
+
+    @Test("Makes flashcards from a whole notebook, not just its first source")
+    @available(macOS 26, *)
+    func notebookFlashcards() async throws {
+        let deck = try await OnDeviceFlashcardWriter().deck(fromNotes: "Mount Tam hike\n\n\(Self.hikeMaterial)")
+        print("NOTEBOOK FLASHCARDS:", deck.cards.map { ($0.front, $0.back) })
+        #expect(Self.coversBoth(deck.cards.map { "\($0.front) \($0.back)" }.joined(separator: " ")))
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")

@@ -55,8 +55,11 @@ struct NotebookView: View {
     @State private var showChat = false
     /// A source cited in the chat, opened once its sheet has gone.
     @State private var citedNoteID: UUID?
+    @State private var showQuiz = false
+    @State private var showFlashcards = false
 
     private var summaries: NotebookSummaries { .shared }
+    private var studyGuides: NotebookStudyGuides { .shared }
 
     private static let documentTypes: [UTType] = [.pdf, .plainText, .rtf] + [UTType(filenameExtension: "md")].compactMap { $0 }
 
@@ -66,9 +69,16 @@ struct NotebookView: View {
         notebook.summaryNoteID.flatMap { id in allNotes.first { $0.id == id } }
     }
 
+    private var studyGuideNote: Note? {
+        notebook.studyGuideNoteID.flatMap { id in allNotes.first { $0.id == id } }
+    }
+
     var body: some View {
         List {
             Section { summaryCard }
+            if !sources.isEmpty {
+                Section("Study") { studyRows }
+            }
             Section {
                 sourceRows
             } header: {
@@ -107,6 +117,12 @@ struct NotebookView: View {
         }
         .sheet(isPresented: $showChat, onDismiss: openCitedNote) {
             NotebookChatView(notebook: notebook) { citedNoteID = $0 }
+        }
+        .fullScreenCover(isPresented: $showQuiz) {
+            QuizView(noteTitle: notebook.title, notesText: notebook.studyMaterial, backTo: "notebook")
+        }
+        .fullScreenCover(isPresented: $showFlashcards) {
+            FlashcardsView(noteTitle: notebook.title, notesText: notebook.studyMaterial, backTo: "notebook")
         }
     }
 
@@ -178,6 +194,37 @@ struct NotebookView: View {
             }
         }
         .padding(.vertical, 6)
+    }
+
+    // MARK: - Study
+
+    @ViewBuilder
+    private var studyRows: some View {
+        Button { showQuiz = true } label: { Label("Quiz me", systemImage: "brain.head.profile") }
+        Button { showFlashcards = true } label: { Label("Flashcards", systemImage: "rectangle.on.rectangle.angled") }
+        if studyGuides.writing.contains(notebook.id) {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Writing the study guide…").foregroundStyle(.secondary)
+            }
+        } else {
+            if let guide = studyGuideNote {
+                NavigationLink(value: guide.id) {
+                    Label("Study guide", systemImage: "book.pages")
+                }
+            }
+            Button {
+                Task { await studyGuides.write(notebook, in: modelContext) }
+            } label: {
+                Label(studyGuideNote == nil ? "Write a study guide" : "Write a new study guide",
+                      systemImage: studyGuideNote == nil ? "book.pages" : "arrow.clockwise")
+            }
+        }
+        if let error = studyGuides.errors[notebook.id] {
+            Label(error, systemImage: "exclamationmark.triangle")
+                .font(.callout)
+                .foregroundStyle(.red)
+        }
     }
 
     // MARK: - Sources
@@ -326,12 +373,12 @@ private struct SourceNotePicker: View {
     @State private var picked: [UUID] = []
     @State private var search = ""
 
-    /// Everything but this notebook's sources and the notebooks' own summaries.
+    /// Everything but this notebook's sources and the notebooks' own summaries and study guides.
     private var shown: [Note] {
-        let summaries = Set(notebooks.compactMap(\.summaryNoteID))
+        let written = Set(notebooks.flatMap { [$0.summaryNoteID, $0.studyGuideNoteID].compactMap { $0 } })
         let query = search.trimmingCharacters(in: .whitespaces)
         return notes.filter { note in
-            !excluded.contains(note.id) && !summaries.contains(note.id)
+            !excluded.contains(note.id) && !written.contains(note.id)
                 && (query.isEmpty || note.title.localizedCaseInsensitiveContains(query))
         }
     }

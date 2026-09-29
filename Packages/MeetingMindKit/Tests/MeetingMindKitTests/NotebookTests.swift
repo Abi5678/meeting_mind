@@ -439,6 +439,74 @@ struct NotebookChatTests {
     }
 }
 
+@Suite("Notebook study")
+struct NotebookStudyTests {
+    @Test("Each source gives its title, what the summary took from it, then its text, in an equal share")
+    func material() {
+        let digest = SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: "Old title",
+                                  summary: "The trail loops past the falls.", keyPoints: ["It is 7.2 miles."])
+        let long = Array(repeating: "word", count: 2_000).joined(separator: " ")
+        let text = NotebookStudy.material([
+            (title: "Trail guide", digest: digest, text: "Start at Pantoll."),
+            (title: "Blank", digest: nil, text: "  \n"),
+            (title: "Park notice", digest: nil, text: long),
+        ], wordBudget: 100)
+        #expect(text.hasPrefix("Trail guide\nThe trail loops past the falls.\n- It is 7.2 miles.\n\nStart at Pantoll.\n\nPark notice\nword"))
+        #expect(!text.contains("Blank"))
+        #expect(text.split(whereSeparator: \.isWhitespace).count < 70)
+        #expect(NotebookStudy.material([(title: "Blank", digest: nil, text: "")]).isEmpty)
+    }
+
+    @Test("The study guide prompt carries the sources, cut to fit the on-device model")
+    func prompt() {
+        #expect(NotebookStudy.guidePrompt(title: "Hike", material: "Trail guide\nStart at Pantoll.")
+            .hasSuffix("SOURCES:\nTrail guide\nStart at Pantoll."))
+        let long = Array(repeating: "word", count: 5_000).joined(separator: " ")
+        #expect(NotebookStudy.guidePrompt(title: "Hike", material: long).split(whereSeparator: \.isWhitespace).count < 1_300)
+    }
+
+    @Test("A study guide is trimmed; blanks and repeats are dropped")
+    func normalizes() throws {
+        let guide = StudyGuide(
+            terms: [.init(term: " Day-use fee: ", meaning: "$10 a car\n"), .init(term: "day-use fee", meaning: "Parking"),
+                    .init(term: "Loop", meaning: " ")],
+            questions: [.init(question: "How long is the loop? ", answer: "7.2 miles"), .init(question: "Where?", answer: "")],
+            discussion: [" Why did the fee change? ", "", "why did the fee change?"]
+        )
+        #expect(try NotebookStudy.normalized(guide) == StudyGuide(
+            terms: [.init(term: "Day-use fee", meaning: "$10 a car")],
+            questions: [.init(question: "How long is the loop?", answer: "7.2 miles")],
+            discussion: ["Why did the fee change?"]
+        ))
+    }
+
+    @Test("A study guide with no terms or questions is .notEnoughContent")
+    func empty() {
+        #expect(throws: OnDeviceAIError.notEnoughContent) {
+            try NotebookStudy.normalized(StudyGuide(terms: [.init(term: "", meaning: "x")], questions: [], discussion: ["Why?"]))
+        }
+    }
+
+    @Test("The note lists the terms, folds each answer under its question, and numbers the questions to think over")
+    func blocks() {
+        let blocks = NotebookStudy.blocks(StudyGuide(
+            terms: [.init(term: "Day-use fee", meaning: "$10 a car")],
+            questions: [.init(question: "How long is the loop?", answer: "7.2 miles")],
+            discussion: ["Why did the fee change?"]
+        ))
+        #expect(blocks.map(\.type) == [.heading(level: 2), .bulletedList, .heading(level: 2), .toggle, .paragraph,
+                                       .heading(level: 2), .numberedList])
+        #expect(blocks.map(\.plainText) == ["Key terms", "Day-use fee: $10 a car", "Test yourself", "How long is the loop?",
+                                            "7.2 miles", "Think it over", "Why did the fee change?"])
+        #expect(blocks[1].runs.first == InlineRun(text: "Day-use fee", isBold: true))
+        #expect(!blocks[3].isExpanded)
+        #expect(blocks[4].indent == 1)
+
+        let questionsOnly = NotebookStudy.blocks(StudyGuide(terms: [], questions: [.init(question: "Q?", answer: "A")], discussion: []))
+        #expect(questionsOnly.map(\.plainText) == ["Test yourself", "Q?", "A"])
+    }
+}
+
 #if canImport(AppKit) && canImport(PDFKit)
 import AppKit
 import CoreText

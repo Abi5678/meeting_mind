@@ -2,8 +2,8 @@
 //  QuizView.swift
 //  Instant Notes
 //
-// "Quiz me": Apple's on-device model turns the open note into a multiple-choice quiz, played one
-// card at a time.
+// "Quiz me": Apple's on-device model turns the open note or notebook into a multiple-choice quiz,
+// played one card at a time.
 
 import SwiftUI
 import MeetingMindKit
@@ -11,6 +11,8 @@ import MeetingMindKit
 struct QuizView: View {
     let noteTitle: String
     let notesText: String
+    /// Where the quiz was opened from, in words: "note" or "notebook".
+    var backTo = "note"
 
     @Environment(\.dismiss) private var dismiss
     @State private var phase: Phase = .loading
@@ -39,7 +41,7 @@ struct QuizView: View {
             case .loading: LoadingCard()
             case let .failed(message, fix): failure(message, fix: fix)
             case let .playing(quiz): playing(quiz)
-            case let .finished(quiz): ResultsCard(quiz: quiz, results: results, onRetry: { Task { await load() } }, onDone: { dismiss() })
+            case let .finished(quiz): ResultsCard(quiz: quiz, results: results, backTo: backTo, onRetry: { Task { await load() } }, onDone: { dismiss() })
             }
         }
         .overlay(alignment: .topLeading) {
@@ -78,7 +80,10 @@ struct QuizView: View {
             case OnDeviceAIError.emptyNotes, OnDeviceAIError.notEnoughContent: .backToNote
             default: .retry
             }
-            phase = .failed(message: error.localizedDescription, fix: fix)
+            let message = error as? OnDeviceAIError == .notEnoughContent
+                ? "There isn't enough in this \(backTo) to quiz you on yet. Add a few more lines."
+                : error.localizedDescription
+            phase = .failed(message: message, fix: fix)
         }
     }
 
@@ -198,9 +203,9 @@ struct QuizView: View {
 
     private func failure(_ message: String, fix: Fix) -> some View {
         let (emoji, title, label) = switch fix {
-        case .unavailable: ("✨", "Needs Apple Intelligence", "Back to note")
+        case .unavailable: ("✨", "Needs Apple Intelligence", "Back to \(backTo)")
         case .retry: ("😵‍💫", "That didn't work", "Try again")
-        case .backToNote: ("📝", "Nothing to quiz yet", "Back to note")
+        case .backToNote: ("📝", "Nothing to quiz yet", "Back to \(backTo)")
         }
 
         let card = VStack(spacing: 16) {
@@ -367,6 +372,7 @@ private struct Shake: GeometryEffect {
 private struct ResultsCard: View {
     let quiz: Quiz
     let results: [Bool]
+    let backTo: String
     let onRetry: () -> Void
     let onDone: () -> Void
 
@@ -429,7 +435,7 @@ private struct ResultsCard: View {
                         .background(Color.pink, in: Capsule())
                         .foregroundStyle(.white)
                 }
-                Button("Back to note", action: onDone)
+                Button("Back to \(backTo)", action: onDone)
                     .font(.system(.headline, design: .rounded))
                     .padding(.vertical, 8)
             }

@@ -19,6 +19,8 @@ final class Notebook {
     /// The note holding the combined summary; nil until the notebook is first summarized. An id
     /// rather than a relationship, so deleting either leaves the other alone.
     var summaryNoteID: UUID? = nil
+    /// The note holding the study guide; nil until one is written. An id, like `summaryNoteID`.
+    var studyGuideNoteID: UUID? = nil
     /// JSON-encoded [SourceDigest]: what was read from each source, so only new and changed
     /// sources are read again.
     var digestsJSON: String = "[]"
@@ -52,6 +54,12 @@ final class Notebook {
     var summaryIsStale: Bool {
         let sources = sources ?? []
         return summaryNoteID == nil || digests.count != sources.count || currentDigests.count != sources.count
+    }
+
+    /// What a quiz, flashcards or study guide reads: every source, with what the summary took from it.
+    var studyMaterial: String {
+        let digests = currentDigests
+        return NotebookStudy.material(orderedSources.map { (title: $0.title, digest: digests[$0.id], text: $0.sourceText) })
     }
 }
 
