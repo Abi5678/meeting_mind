@@ -33,6 +33,8 @@ final class Note {
     /// Photos shown by the note's image blocks; optional so existing stores migrate lightweight.
     @Relationship(deleteRule: .cascade, inverse: \NoteImage.note) var images: [NoteImage]? = []
     @Relationship(inverse: \MeetingArtifact.note) var meetingArtifact: MeetingArtifact?
+    /// The notebooks this note is a source in; the inverse is declared on `Notebook.sources`.
+    var notebooks: [Notebook]? = []
 
     init(
         id: UUID = UUID(),

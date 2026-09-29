@@ -157,6 +157,50 @@ struct OnDeviceModelTests {
         #expect(first.localizedCaseInsensitiveContains("priya"))
         #expect(followUp.localizedCaseInsensitiveContains("friday"))
     }
+
+    static let libraryMemo = """
+        The council voted to fund a new library wing with two million dollars. The money comes from \
+        the parks budget, which some members opposed. A final vote on the design is set for March.
+        """
+    static let libraryPlan = """
+        The city planning office expects construction of the library wing to start in spring, once \
+        permits are signed. The office estimates the cost at three million dollars, more than the \
+        council has set aside.
+        """
+
+    @Test("Summarizes each notebook source, then all of them together with citations")
+    @available(macOS 26, *)
+    func notebookSummary() async throws {
+        let summarizer = OnDeviceNotebookSummarizer()
+        var digests: [SourceDigest] = []
+        for (title, text) in [("Council memo", Self.libraryMemo), ("Planning office note", Self.libraryPlan)] {
+            let digest = try await summarizer.digest(title: title, text: text)
+            digests.append(SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: title,
+                                        summary: digest.summary, keyPoints: digest.keyPoints))
+        }
+        let overview = try await summarizer.overview(of: digests)
+        print("NOTEBOOK:", digests.map(\.summary), overview)
+        #expect(digests.allSatisfy { !$0.summary.isEmpty })
+        #expect(!overview.overview.isEmpty)
+        #expect(Set(overview.agreements).isDisjoint(with: overview.differences))
+        let all = ([overview.overview] + overview.themes + overview.agreements + overview.differences).joined(separator: " ")
+        #expect(!NotesQuestion.cited(in: all, count: 2).isEmpty)
+    }
+
+    @Test("Answers from a notebook's sources and cites the right one")
+    @available(macOS 26, *)
+    func notebookChat() async throws {
+        let memo = UUID(), plan = UUID()
+        let passages = SearchPassage.passages(noteID: memo, title: "Council memo", blocks: [Block(type: .paragraph, runs: [.plain(Self.libraryMemo)])])
+            + SearchPassage.passages(noteID: plan, title: "Planning office note", blocks: [Block(type: .paragraph, runs: [.plain(Self.libraryPlan)])])
+        let sources = NotebookChat.sources(question: "When does construction start?", passages: passages,
+                                           titles: [memo: "Council memo", plan: "Planning office note"])
+        let answer = try await OnDeviceNotebookChat().answer(question: "When does construction start?", sources: sources)
+        print("NOTEBOOK CHAT:", answer)
+        #expect(answer.localizedCaseInsensitiveContains("spring"))
+        let cited = NotesQuestion.cited(in: answer, count: sources.count)
+        #expect(cited.contains { sources[$0 - 1].noteID == plan })
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")
