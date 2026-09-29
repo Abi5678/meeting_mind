@@ -962,6 +962,214 @@
   sceneNote.vcam = camPath([[0, 900, 540, 1000], [1.2, 1340, 520, 800], [8, 1340, 520, 800]]);
   sceneTrain.vcam = camPath([[0, 500, 620, 760], [3.2, 620, 620, 760], [4.0, 1420, 540, 760], [7, 1460, 540, 760]]);
 
+  // ================= NOTEBOOK AD =================
+  // Hand-drawn ink: strokes are point lists, revealed by total path length.
+  function wobbleRect(x, y, w, h, seed) {
+    const r = rng(seed), pts = [], j = () => (r() - 0.5) * 5;
+    const edge = (ax, ay, bx, by) => { for (let i = 0; i <= 6; i++) pts.push([lerp(ax, bx, i / 6) + j(), lerp(ay, by, i / 6) + j()]); };
+    edge(x, y, x + w, y); edge(x + w, y, x + w, y + h); edge(x + w, y + h, x, y + h); edge(x, y + h, x + 4, y - 3);
+    return pts;
+  }
+  const INK = [
+    wobbleRect(420, 300, 190, 110, 1),
+    [[622, 355], [660, 352], [700, 356], [728, 355]], [[708, 338], [730, 355], [706, 372]],
+    wobbleRect(740, 300, 200, 110, 2),
+    [[430, 520], [470, 512], [520, 524], [570, 510], [620, 522], [680, 512]],
+    (() => { const p = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + (i / 24) * Math.PI * 2.1; p.push([905 + Math.cos(a) * 42, 488 + Math.sin(a) * 34]); } return p; })(),
+  ];
+  const INK_LABELS = [["Free", 515, 368, 0.22], ["Pro · $4.99", 840, 368, 0.62], ["annual = 2 months free", 430, 495, 0.8], ["?", 905, 503, 0.97]];
+  function strokeLen(st) { let L = 0; for (let i = 1; i < st.length; i++) L += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]); return L; }
+  const INK_TOTAL = INK.reduce((a, st) => a + strokeLen(st), 0);
+  // Draw ink up to fraction p; strokes before `tint` (fraction) are recoloured, as when audio replays.
+  function drawInk(ctx, p, tint) {
+    let budget = p * INK_TOTAL, tip = null, done = 0;
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 4.5;
+    for (const st of INK) {
+      if (budget <= 0) break;
+      const L = strokeLen(st);
+      ctx.strokeStyle = (done + L / 2) / INK_TOTAL < tint ? C.brand : C.ink;
+      ctx.beginPath(); ctx.moveTo(st[0][0], st[0][1]);
+      let left = budget;
+      for (let i = 1; i < st.length && left > 0; i++) {
+        const a = st[i - 1], b = st[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const f = Math.min(1, left / d);
+        tip = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+        ctx.lineTo(tip[0], tip[1]); left -= d;
+      }
+      ctx.stroke(); budget -= L; done += L;
+    }
+    INK_LABELS.forEach(([str, x, y, at]) => {
+      const r = seg(p, at, at + 0.14);
+      if (r > 0) text(ctx, str, x, y, F.hand(40), tint > at + 0.1 ? C.brand : C.ink, { align: str.length < 12 ? "center" : "left", reveal: r });
+    });
+    return p < 1 ? tip : null;
+  }
+
+  function tablet(ctx, x, y, w, h, seed, screen) {
+    rrect(ctx, x, y, w, h, 46, C.ink, seed, { rough: 2, blur: 26, dy: 12 });
+    ctx.save();
+    const m = 26, sx = x + m, sy = y + m, sw = w - 2 * m, sh = h - 2 * m;
+    ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, 24); ctx.clip();
+    ctx.fillStyle = C.cream; ctx.fillRect(sx, sy, sw, sh);
+    ctx.fillStyle = grainPattern(ctx); ctx.fillRect(sx, sy, sw, sh);
+    if (screen) screen(ctx, sx, sy, sw, sh);
+    ctx.restore();
+  }
+
+  // Loose scraps: the "before" of the notebook ad.
+  const SCRAPS = [
+    { x: 330, y: 250, w: 260, h: 220, c: C.yellow, rot: -8, kind: "note", s: "call Sam re: beta" },
+    { x: 700, y: 170, w: 340, h: 250, c: C.cream, rot: 5, kind: "sketch" },
+    { x: 1150, y: 230, w: 330, h: 240, c: "#e9ecf3", rot: -4, kind: "table" },
+    { x: 1500, y: 470, w: 280, h: 230, c: C.cream, rot: 7, kind: "todo" },
+    { x: 180, y: 560, w: 280, h: 170, c: C.pink, rot: 6, kind: "note", s: "idea: annual plan?" },
+  ];
+  function scrap(ctx, S, i) {
+    rect(ctx, 0, 0, S.w, S.h, S.c, 1200 + i, { rough: 3, blur: 12 });
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.lineCap = "round";
+    if (S.kind === "note") text(ctx, S.s, 22, S.h / 2 + 12, F.hand(40), C.ink);
+    if (S.kind === "sketch") {
+      ctx.strokeRect(34, 60, 100, 70); ctx.strokeRect(200, 60, 100, 70);
+      ctx.beginPath(); ctx.moveTo(140, 95); ctx.lineTo(192, 95); ctx.moveTo(180, 84); ctx.lineTo(194, 95); ctx.lineTo(180, 106); ctx.stroke();
+      text(ctx, "pricing??", 40, 200, F.hand(40), C.inkSoft);
+    }
+    if (S.kind === "table") {
+      ctx.strokeStyle = C.inkSoft; ctx.lineWidth = 2;
+      for (let r = 0; r <= 4; r++) { ctx.beginPath(); ctx.moveTo(24, 40 + r * 42); ctx.lineTo(S.w - 24, 40 + r * 42); ctx.stroke(); }
+      for (let c = 0; c <= 3; c++) { ctx.beginPath(); ctx.moveTo(24 + c * ((S.w - 48) / 3), 40); ctx.lineTo(24 + c * ((S.w - 48) / 3), 208); ctx.stroke(); }
+      text(ctx, "Plans.xlsx", 24, 28, F.sans(18, 600), C.inkSoft);
+    }
+    if (S.kind === "todo") {
+      ["draft page", "ask Priya", "share"].forEach((t, k) => { ctx.strokeRect(26, 44 + k * 56, 24, 24); text(ctx, t, 66, 66 + k * 56, F.hand(38), C.ink); });
+    }
+  }
+  function sceneScraps(ctx, lt) {
+    fullBg(ctx, "#e7d7b6");
+    SCRAPS.forEach((S, i) => {
+      const inP = easeOut(seg(lt, 0.1 + i * 0.18, 0.9 + i * 0.18));
+      const fx = S.x + Math.sin(lt * 1.3 + i) * 10, fy = S.y + Math.cos(lt * 1.1 + i * 2) * 8 - (1 - inP) * 900;
+      ctx.save(); ctx.translate(fx, fy); ctx.rotate((S.rot + Math.sin(lt * 1.7 + i) * 2) * Math.PI / 180);
+      scrap(ctx, S, i); ctx.restore();
+    });
+    const look = Math.sin(lt * 2.4) * 16;
+    person(ctx, {
+      x: 960, y: 1150, s: 1.35, seed: 560, skin: SKIN[0], shirt: C.mustard, hair: "#6b3a22", hairStyle: "bun", scarf: C.red,
+      look: [look, -6], mouth: "frown", blink: lt % 2.7 < 0.12, sweat: lt > 2,
+      arms: [{ sh: [60, -140], hand: [120, -250] }, { sh: [-60, -140], hand: [-120, -250] }],
+    });
+    caption(ctx, "Sketches here. Lists there. Tables… somewhere.", lt, 0.9, 3.8, { vy: 1500 });
+  }
+
+  const NB = { x: 340, y: 110, w: 1240, h: 820 };
+  function notebookScreen(ctx, x, y, w, h, lt) {
+    const on = (a) => seg(lt, a, a + 0.5);
+    // sidebar strip
+    ctx.fillStyle = "rgba(30,36,51,0.05)"; ctx.fillRect(x, y, 26, h);
+    text(ctx, "Pricing workshop", 400, 196, F.serif(46), C.ink, { reveal: on(0.3) });
+    text(ctx, "Thu · 38 min · handwriting + audio", 402, 232, F.sans(17, 500), C.inkSoft, { alpha: on(0.6) });
+    const inkP = easeInOut(seg(lt, 0.8, 4.0));
+    const tint = seg(lt, 4.7, 7.0);
+    const tip = drawInk(ctx, inkP, tint);
+    if (tip) pencil(ctx, tip[0] + 18, tip[1] - 30, 0.5, 0.9);
+    // audio chip that replays the ink
+    const chipA = on(3.8);
+    if (chipA > 0) {
+      ctx.globalAlpha = chipA;
+      const pressed = lt > 4.4 && lt < 4.6;
+      rrect(ctx, 420, 560, 250, 58, 29, pressed ? C.brandDeep : C.brand, 1300, { rough: 1.5, blur: 8 });
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(446, 574); ctx.lineTo(466, 589); ctx.lineTo(446, 604); ctx.fill();
+      for (let k = 0; k < 14; k++) {
+        const hh = 6 + 18 * Math.abs(Math.sin(k * 1.7 + (tint > 0 && tint < 1 ? lt * 8 : 0)));
+        ctx.fillStyle = k / 14 < tint ? "#fff" : "rgba(255,255,255,0.5)"; ctx.fillRect(484 + k * 9, 589 - hh / 2, 5, hh);
+      }
+      text(ctx, "0:42", 650, 597, F.sans(18, 600), "#fff", { align: "right" });
+      ctx.globalAlpha = 1;
+    }
+    if (lt > 4.35 && lt < 4.9) {
+      const q = seg(lt, 4.35, 4.9);
+      ctx.strokeStyle = C.brand; ctx.globalAlpha = 1 - q; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(456, 589, 20 + q * 50, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    // divider
+    ctx.strokeStyle = "rgba(30,36,51,0.12)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(985, 260); ctx.lineTo(985, 860); ctx.stroke();
+    // to-dos
+    text(ctx, "TO-DO", 1015, 280, F.sans(15, 600), C.red, { spacing: 2, alpha: on(1.4) });
+    [["Draft pricing page", 1.6, 8.2], ["Ask Priya about annual", 1.9, 8.6], ["Share with the team", 2.2, 9.0]].forEach(([t, a, done], k) => {
+      const yy = 322 + k * 46, al = on(a);
+      ctx.globalAlpha = al; ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(1015, yy - 21, 24, 24, 5); ctx.stroke();
+      const cp = seg(lt, done, done + 0.3);
+      if (cp > 0) { ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(1019, yy - 9); ctx.lineTo(1025, yy - 2); if (cp > 0.4) ctx.lineTo(1025 + 14 * (cp - 0.4) / 0.6, yy - 2 - 22 * (cp - 0.4) / 0.6); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      text(ctx, t, 1055, yy, F.sans(21, 500), C.ink, { reveal: al });
+    });
+    // table
+    text(ctx, "PLANS", 1015, 500, F.sans(15, 600), C.red, { spacing: 2, alpha: on(2.5) });
+    const cols = [1015, 1175, 1305, 1440], rows = [["Plan", "Price", "Users"], ["Free", "$0", "1,200"], ["Pro", "$4.99", "180"], ["Annual", "$39.99", "—"]];
+    rows.forEach((row, r) => {
+      const al = r === 0 ? on(2.6) : on(7.4 + r * 0.35);
+      const yy = 520 + r * 52;
+      if (r === 0) { ctx.globalAlpha = al; ctx.fillStyle = C.paper2; ctx.fillRect(1015, yy, 460, 52); ctx.globalAlpha = 1; }
+      ctx.strokeStyle = "rgba(30,36,51,0.18)"; ctx.lineWidth = 1.5; ctx.globalAlpha = Math.max(on(2.6), 0);
+      ctx.strokeRect(1015, yy, 460, 52); ctx.globalAlpha = 1;
+      row.forEach((cell, c) => text(ctx, cell, cols[c] + 14, yy + 34, F.sans(20, r === 0 ? 600 : 400), r === 0 ? C.inkSoft : C.ink, { alpha: al }));
+    });
+  }
+  function sceneNotebook(ctx, lt) {
+    ruledPaperBg(ctx);
+    // scraps arrive and become blocks
+    SCRAPS.forEach((S, i) => {
+      const q = seg(lt, i * 0.08, 0.7 + i * 0.08); if (q >= 1) return;
+      const e = easeInOut(q);
+      ctx.save(); ctx.translate(lerp(S.x, 960, e), lerp(S.y, 520, e)); ctx.scale(1 - e * 0.85, 1 - e * 0.85); ctx.rotate(S.rot * Math.PI / 180);
+      scrap(ctx, S, i); ctx.restore();
+    });
+    const rise = easeOut(seg(lt, 0, 0.7));
+    ctx.save(); ctx.translate(0, (1 - rise) * 600);
+    tablet(ctx, NB.x, NB.y, NB.w, NB.h, 1400, (c, x, y, w, h) => notebookScreen(c, x, y, w, h, lt));
+    ctx.restore();
+    mascot(ctx, NB.x + NB.w + 10, NB.y + NB.h - 110, 0.9, { rot: 10, bigSmile: true, wink: lt > 9 && lt < 9.6, wave: lt * 6 });
+    caption(ctx, "Handwriting, text, to-dos and tables — one page.", lt, 0.5, 3.8, { y: 1010 });
+    caption(ctx, "Tap your ink to hear what was said.", lt, 4.4, 3.0, { y: 1010 });
+    caption(ctx, "Your plans sit right beside your thinking.", lt, 7.6, 2.8, { y: 1010 });
+  }
+
+  // Notion export → pages in Quolio.
+  function sceneImport(ctx, lt) {
+    ruledPaperBg(ctx);
+    const fp = easeOut(seg(lt, 0, 0.8));
+    ctx.save(); ctx.translate(lerp(-500, 520, fp), 560); ctx.rotate(-0.06 + seg(lt, 0.9, 1.3) * -0.12);
+    paper(ctx, [[-230, -170], [-80, -170], [-50, -200], [230, -200], [230, 170], [-230, 170]], C.manila, 1500, { rough: 3, blur: 16 });
+    text(ctx, "Notion export.zip", 0, 30, F.hand(52), C.ink, { align: "center" });
+    ctx.restore();
+    const titles = ["Roadmap", "Meeting notes", "Reading list", "Hiring plan", "Launch checklist"];
+    titles.forEach((t, i) => {
+      const q = easeInOut(seg(lt, 1.1 + i * 0.22, 1.9 + i * 0.22)); if (q <= 0) return;
+      const [x, y] = bez([540, 480], [900, 150 + i * 30], [1260, 250 + i * 118], q);
+      ctx.save(); ctx.translate(x, y); ctx.rotate((1 - q) * (i % 2 ? 0.3 : -0.3));
+      rect(ctx, -260, -46, 520, 92, C.cream, 1510 + i, { rough: 2.5, blur: 8 });
+      ctx.fillStyle = C.brand; ctx.fillRect(-236, -10, 20, 20);
+      text(ctx, t, -200, 12, F.sans(28, 500), C.ink);
+      text(ctx, "imported", 236, 10, F.sans(18, 500), C.inkSoft, { align: "right" });
+      ctx.restore();
+    });
+    const b = backOut(seg(lt, 2.9, 3.4));
+    if (b > 0) {
+      ctx.save(); ctx.translate(1260, 870); ctx.scale(b, b); ctx.rotate(-0.04);
+      rrect(ctx, -200, -44, 400, 88, 20, C.yellow, 1520, { rough: 2 });
+      text(ctx, "214 pages · offline", 0, 14, F.hand(46), C.ink, { align: "center" });
+      ctx.restore();
+    }
+    caption(ctx, "Coming from Notion? Bring every page with you.", lt, 0.4, 3.6, { y: 1010, x: 700 });
+  }
+  const NB_END = { tagline: "Ink, blocks and tables. One notebook.", sub: "Handwriting, audio, to-dos & tables  ·  iPhone, iPad & Mac  ·  coming soon" };
+  function notebookEnd(ctx, lt) { sceneEnd(ctx, lt, NB_END); }
+  notebookEnd.vertical = (ctx, lt) => sceneEndV(ctx, lt, NB_END);
+  sceneScraps.vcam = camPath([[0, 960, 520, 980], [4.5, 960, 540, 980]]);
+  sceneNotebook.vcam = camPath([[0, 960, 520, 1300], [1.0, 690, 440, 700], [7.2, 690, 440, 700], [7.9, 1250, 540, 700], [10.5, 1250, 540, 700]]);
+  sceneImport.vcam = camPath([[0, 620, 560, 820], [1.2, 900, 520, 1000], [4, 1200, 560, 900]]);
+
   // ================= FILMS =================
   const FILMS = {
     hero: {
@@ -974,6 +1182,10 @@
     listen: {
       title: "Pencil down", duration: 22,
       segs: [[sceneMeeting, 0, 9.5, 6.5], [sceneNote, 9.5, 17], [sceneEnd, 17, 22]],
+    },
+    notebook: {
+      title: "One notebook", duration: 24,
+      segs: [[sceneScraps, 0, 4.5], [sceneNotebook, 4.5, 15], [sceneImport, 15, 19], [notebookEnd, 19, 24]],
     },
     speed: {
       title: "Two seconds", duration: 15,
@@ -1023,9 +1235,77 @@
     if (edge < 1) { ctx.save(); ctx.globalAlpha = 1 - edge; ctx.fillStyle = C.navyDeep; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   }
 
+  // ================= POSTERS =================
+  // Stills for social: a scene frame framed by a camera, with a headline card and logo tag.
+  const SCENES = { town: sceneTown, scribblers: sceneScribblers, meeting: sceneMeeting, note: sceneNote, train: sceneTrain,
+    speed: sceneSpeed, scraps: sceneScraps, notebook: sceneNotebook, import: sceneImport, end: sceneEnd };
+  function paperScreen(ctx, W, H, U) {
+    ctx.fillStyle = C.cream; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = grainPattern(ctx); ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "rgba(150,185,220,0.45)"; ctx.lineWidth = 2 * U;
+    for (let y = 60 * U; y < H; y += 54 * U) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    ctx.strokeStyle = "rgba(221,90,68,0.55)"; ctx.beginPath(); ctx.moveTo(90 * U, 0); ctx.lineTo(90 * U, H); ctx.stroke();
+  }
+  function posterPanel(ctx, W, H, U, p) {
+    const left = p.pos === "left";
+    const pw = left ? W * 0.42 : W * 0.88, pad = 44 * U;
+    const ts = (left ? 66 : 78) * U * (p.scale || 1), ks = 40 * U, ss = 27 * U;
+    const tl = wrap(ctx, p.title, F.serif(ts), pw - 2 * pad);
+    const sl = p.sub ? wrap(ctx, p.sub, F.sans(ss, 500), pw - 2 * pad) : [];
+    const h = pad * 2 + (p.kicker ? ks * 1.3 : 0) + tl.length * ts * 1.04 + (sl.length ? 16 * U + sl.length * ss * 1.45 : 0);
+    const x = left ? W * 0.05 : (W - pw) / 2;
+    const y = left ? (H - h) / 2 : p.pos === "bottom" ? H - h - H * 0.045 : H * 0.045;
+    ctx.save(); ctx.translate(x + pw / 2, y + h / 2); ctx.rotate((p.rot ?? -0.6) * Math.PI / 180); ctx.translate(-pw / 2, -h / 2);
+    rect(ctx, 0, 0, pw, h, C.cream, 1700 + Math.round(ts), { rough: 4 * U, step: 14 * U, blur: 18 * U, dy: 6 * U });
+    let yy = pad;
+    if (p.kicker) { text(ctx, p.kicker, pad, yy + ks * 0.85, F.hand(ks), C.brand); yy += ks * 1.3; }
+    tl.forEach((ln) => { yy += ts * 1.04; text(ctx, ln, pad, yy - ts * 0.2, F.serif(ts), C.ink); });
+    if (sl.length) { yy += 16 * U; sl.forEach((ln) => { yy += ss * 1.45; text(ctx, ln, pad, yy - ss * 0.35, F.sans(ss, 500), C.inkSoft); }); }
+    ctx.restore();
+  }
+  function posterLogo(ctx, W, H, U, pos) {
+    const s = 58 * U, tw = 190 * U, th = s + 30 * U;
+    const x = pos.includes("l") ? W * 0.04 : W - W * 0.04 - tw, y = pos.includes("t") ? H * 0.04 : H - H * 0.04 - th;
+    rrect(ctx, x, y, tw, th, 14 * U, C.cream, 1790, { rough: 2 * U, blur: 12 * U, dy: 4 * U });
+    logo(ctx, x + 15 * U + s / 2, y + th / 2, s);
+    text(ctx, "Quolio", x + 30 * U + s, y + th / 2 + 14 * U, F.serif(42 * U), C.ink);
+  }
+  function posterCTA(ctx, W, H, U, c) {
+    logo(ctx, W / 2, H * 0.29, Math.min(W, H) * 0.3);
+    text(ctx, "Quolio", W / 2, H * 0.29 + Math.min(W, H) * 0.15 + 150 * U, F.serif(150 * U), C.ink, { align: "center" });
+    const lines = wrap(ctx, c.tagline, F.hand(62 * U), W * 0.8);
+    let y = H * 0.29 + Math.min(W, H) * 0.15 + 250 * U;
+    lines.forEach((ln) => {
+      ctx.font = F.hand(62 * U); const lw = ctx.measureText(ln).width;
+      ctx.fillStyle = C.yellow; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.roundRect(W / 2 - lw / 2 - 12 * U, y - 50 * U, lw + 24 * U, 64 * U, 6 * U); ctx.fill(); ctx.globalAlpha = 1;
+      text(ctx, ln, W / 2, y, F.hand(62 * U), C.ink, { align: "center" }); y += 80 * U;
+    });
+    if (c.button) {
+      ctx.font = F.sans(32 * U, 600); const bw = ctx.measureText(c.button).width + 80 * U;
+      rrect(ctx, W / 2 - bw / 2, y + 30 * U, bw, 80 * U, 40 * U, C.brand, 1795, { rough: 1.5 * U, blur: 14 * U });
+      text(ctx, c.button, W / 2, y + 81 * U, F.sans(32 * U, 600), "#fff", { align: "center" });
+    }
+  }
+  function poster(ctx, W, H, spec) {
+    const U = Math.min(W, H) / 1000;
+    BOIL = spec.boil ?? 1; VERT = true; CAPS = [];
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const fn = spec.scene && SCENES[spec.scene];
+    if (fn && spec.vertical && fn.vertical) { ctx.save(); ctx.scale(W / 1080, H / 1920); fn.vertical(ctx, spec.lt); ctx.restore(); }
+    else if (fn) {
+      const [cx, cy, w] = spec.cam, k = W / w;
+      ctx.save(); ctx.translate(W / 2, H * (spec.anchor ?? 0.5)); ctx.scale(k, k); ctx.translate(-cx, -cy); fn(ctx, spec.lt); ctx.restore();
+    } else paperScreen(ctx, W, H, U);
+    CAPS = null; VERT = false;
+    if (spec.panel) posterPanel(ctx, W, H, U, spec.panel);
+    if (spec.cta) posterCTA(ctx, W, H, U, spec.cta);
+    if (spec.logo !== false) posterLogo(ctx, W, H, U, spec.logoPos || (spec.panel?.pos === "bottom" ? "tr" : "br"));
+    ctx.restore();
+  }
+
   const ready = Promise.all([
     "600 40px Caveat", "700 40px Caveat", "400 40px 'Instrument Serif'", "500 20px Inter", "600 20px Inter", "400 20px Inter",
   ].map((f) => document.fonts.load(f))).then(() => document.fonts.ready);
 
-  window.QuolioFilms = { FILMS, render, ready, VW, VH };
+  window.QuolioFilms = { FILMS, render, poster, ready, VW, VH };
 })();

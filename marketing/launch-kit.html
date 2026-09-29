@@ -92,6 +92,17 @@
   .flag { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; }
   .flag li { margin-bottom: 6px; }
   .kpi { font-variant-numeric: tabular-nums; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .tabs button { font: 500 14px var(--sans); border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .posts { display: grid; gap: 22px; }
+  .post { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: start; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .post .copy { position: relative; }
+  .thumbs { display: flex; gap: 8px; overflow-x: auto; }
+  .thumbs img { height: 220px; width: auto; border-radius: 6px; border: 1px solid var(--line); flex: none; background: var(--paper); }
+  .thumbs.many img { height: 170px; }
+  .thumbs:empty::before { content: "Use the 9:16 film MP4s"; font: 600 22px var(--hand); color: var(--ink-soft); }
+  @media (max-width: 720px) { .post { grid-template-columns: 1fr; } .thumbs img { height: 160px; } }
   footer { margin-top: 64px; color: var(--ink-soft); font-size: 14px; }
   code { font-size: .9em; background: var(--paper-2); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
@@ -99,7 +110,7 @@
 
 <div class="wrap">
   <header>
-    <span class="eyebrow">Launch kit · marketing strategy &amp; films</span>
+    <span class="eyebrow">Launch kit · strategy, films &amp; social</span>
     <div class="brandrow"><svg class="icon" viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5273e4"/><stop offset="1" stop-color="#2f45a8"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#ig)"/><path d="M330 190h363a160 160 0 0 1 160 160v200a160 160 0 0 1-91 144c2 60 25 110 66 148-90-26-170-72-225-132H330a160 160 0 0 1-160-160V350a160 160 0 0 1 160-160z" fill="#fcf6e9"/><g fill="#4a64dc"><circle cx="272" cy="352" r="30"/><circle cx="272" cy="452" r="30"/><circle cx="272" cy="552" r="30"/></g><g fill="#1c1c1e"><rect x="340" y="325" width="450" height="54" rx="27"/><rect x="340" y="425" width="368" height="54" rx="27"/><rect x="340" y="525" width="246" height="54" rx="27"/></g></svg><h1>Quolio</h1></div>
     <p class="tag">Be in the room. <mark>We'll take the notes.</mark></p>
     <p class="lede">An iPhone, iPad and Mac notebook that turns the meeting you just sat through into a note with a summary, decisions and to-dos. It opens instantly and works without a signal. This kit holds the launch plan and three films, drawn frame by frame in code in a torn-paper storybook style.</p>
@@ -113,6 +124,7 @@
         <button type="button" data-film="hero" aria-pressed="true">What Mia heard · 50s</button>
         <button type="button" data-film="listen" aria-pressed="false">Pencil down · 22s</button>
         <button type="button" data-film="speed" aria-pressed="false">Two seconds · 15s</button>
+        <button type="button" data-film="notebook" aria-pressed="false">One notebook · 24s</button>
       </div>
       <div class="scrub">
         <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Scrub film">
@@ -223,6 +235,114 @@ Keywords: quolio,meeting notes,transcribe,offline notes,notebook,minutes,to-do,s
     </div>
   </section>
 
+
+  <section id="social">
+    <h2>Social kit</h2>
+    <p class="sub">Sized for each platform: X at 1600×900, LinkedIn at 1200×1200 plus a PDF carousel, Instagram at 1080×1350 plus 1080×1920 stories. Full-size files are in <code>marketing/out/social/</code>, and all the copy is in <code>social-kit/posts.md</code>. Replace <code>[waitlist link]</code> before posting.</p>
+    <div class="tabs" role="group" aria-label="Filter by platform">
+      <button type="button" data-filter="all" aria-pressed="true">All</button><button type="button" data-filter="X" aria-pressed="false">X</button><button type="button" data-filter="LinkedIn" aria-pressed="false">LinkedIn</button><button type="button" data-filter="Instagram" aria-pressed="false">Instagram</button>
+    </div>
+    <div class="posts">
+      <article class="post" data-platform="X">
+        <div class="thumbs"><img src="social/x-2-written-up.jpg" alt="x-2-written-up" loading="lazy"></div>
+        <div class="copy"><span class="label">X · Teaser: meeting to note</span><button class="copybtn" type="button">Copy</button><pre>Your meeting, already written up.
+
+Hit record in Quolio and put your pencil down. When it ends you get a note with the summary, the decisions and who owns what.
+
+Coming soon to iPhone, iPad &amp; Mac → [waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="X">
+        <div class="thumbs"><img src="social/x-3-two-seconds.jpg" alt="x-3-two-seconds" loading="lazy"></div>
+        <div class="copy"><span class="label">X · Speed</span><button class="copybtn" type="button">Copy</button><pre>Ideas don&#x27;t wait for loading spinners.
+
+Quolio opens in under 2 seconds and works with no signal, so the thought makes it onto the page.
+
+[waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="X">
+        <div class="thumbs"><img src="social/x-4-one-notebook.jpg" alt="x-4-one-notebook" loading="lazy"></div>
+        <div class="copy"><span class="label">X · Notebook</span><button class="copybtn" type="button">Copy</button><pre>Handwriting, audio, to-dos and tables on one page.
+
+The nice part: tap any bit of ink and hear what was being said when you wrote it.
+
+Quolio · coming soon → [waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="X">
+        <div class="thumbs"><img src="social/x-1-be-in-the-room.jpg" alt="x-1-be-in-the-room" loading="lazy"></div>
+        <div class="copy"><span class="label">X · Build-in-public thread</span><button class="copybtn" type="button">Copy</button><pre>1/ We made our launch film without a camera, a studio or After Effects. Every frame is drawn in JavaScript. 🧵
+
+2/ The style is torn paper. Each shape is a polygon with a jagged, hand-torn edge, a pale fibre outline and a grain texture.
+
+3/ The stop-motion wobble is a cheat: the torn edges get re-cut 6 times a second, cycling between 3 variants.
+
+4/ The whole film is one function, render(t). Headless Chrome calls it frame by frame and pipes the frames to ffmpeg. The music is synthesized in code too.
+
+5/ The app it&#x27;s about is Quolio: be in the room, and it takes the notes. Waitlist → [waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="LinkedIn">
+        <div class="thumbs"><img src="social/li-1-stop-choosing.jpg" alt="li-1-stop-choosing" loading="lazy"></div>
+        <div class="copy"><span class="label">LinkedIn · Founder post</span><button class="copybtn" type="button">Copy</button><pre>I used to leave every meeting with two kinds of notes: the ones I wrote, and the ones I wish I had written.
+
+The problem wasn&#x27;t effort. You can&#x27;t really listen and take notes at the same time, so one of them always loses.
+
+So we&#x27;re building Quolio. Put your phone on the table, hit record, and actually be in the conversation. Afterwards you get a note with:
+→ a short summary
+→ the decisions that were made
+→ the to-dos, with owners
+
+No bot joins your call. It just listens in the room, right from your phone.
+
+We&#x27;re opening a small beta for people who spend most of their week in meetings. If that&#x27;s you, the waitlist is here: [waitlist link]
+
+What&#x27;s the one thing you always lose from a meeting?</pre></div>
+      </article>
+      <article class="post" data-platform="LinkedIn">
+        <div class="thumbs many"><img src="social/ig-carousel-1.jpg" alt="ig-carousel-1" loading="lazy"><img src="social/ig-carousel-2.jpg" alt="ig-carousel-2" loading="lazy"><img src="social/ig-carousel-3.jpg" alt="ig-carousel-3" loading="lazy"><img src="social/ig-carousel-4.jpg" alt="ig-carousel-4" loading="lazy"><img src="social/ig-carousel-5.jpg" alt="ig-carousel-5" loading="lazy"></div>
+        <div class="copy"><span class="label">LinkedIn · Document carousel (upload the PDF)</span><button class="copybtn" type="button">Copy</button><pre>A five-slide story about meetings, and the one person who stopped taking notes. 👉 Swipe through.
+
+Quolio turns what&#x27;s said into a note with decisions and owners, so you can look people in the eye instead of at your keyboard.
+
+Waitlist: [waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="LinkedIn">
+        <div class="thumbs"><img src="social/li-3-one-page.jpg" alt="li-3-one-page" loading="lazy"></div>
+        <div class="copy"><span class="label">LinkedIn · Notebook</span><button class="copybtn" type="button">Copy</button><pre>Most of my thinking happens in three places: a sketch on paper, a checklist in one app and a table in another.
+
+Quolio puts them on one page: handwriting, text, to-dos and simple tables. You can even tap your ink to replay what was being said when you wrote it.
+
+Coming soon to iPhone, iPad and Mac. [waitlist link]</pre></div>
+      </article>
+      <article class="post" data-platform="Instagram">
+        <div class="thumbs many"><img src="social/ig-carousel-1.jpg" alt="ig-carousel-1" loading="lazy"><img src="social/ig-carousel-2.jpg" alt="ig-carousel-2" loading="lazy"><img src="social/ig-carousel-3.jpg" alt="ig-carousel-3" loading="lazy"><img src="social/ig-carousel-4.jpg" alt="ig-carousel-4" loading="lazy"><img src="social/ig-carousel-5.jpg" alt="ig-carousel-5" loading="lazy"></div>
+        <div class="copy"><span class="label">Instagram · Carousel</span><button class="copybtn" type="button">Copy</button><pre>In a town that never stopped taking notes, one person tried something different. 📝➡️👂
+
+Swipe for Mia&#x27;s story, then join the Quolio waitlist (link in bio).
+
+#productivity #meetingnotes #notetaking #iphoneapps #ipadnotes #worksmarter #startup</pre></div>
+      </article>
+      <article class="post" data-platform="Instagram">
+        <div class="thumbs"><img src="social/ig-feed-notebook.jpg" alt="ig-feed-notebook" loading="lazy"></div>
+        <div class="copy"><span class="label">Instagram · Feed post</span><button class="copybtn" type="button">Copy</button><pre>One notebook for your ink, your to-dos and your tables. ✏️
+
+Tap your handwriting to hear what was said when you wrote it. Quolio is coming soon, and the waitlist is in our bio.
+
+#ipadnotes #digitalplanner #notetaking #studygram #productivitytips #applepencil</pre></div>
+      </article>
+      <article class="post" data-platform="Instagram">
+        <div class="thumbs"><img src="social/ig-story-1.jpg" alt="ig-story-1" loading="lazy"><img src="social/ig-story-2.jpg" alt="ig-story-2" loading="lazy"></div>
+        <div class="copy"><span class="label">Instagram · Stories</span><button class="copybtn" type="button">Copy</button><pre>Story 1: add a link sticker (&quot;Join the waitlist&quot;) over the empty table area.
+Story 2: add a poll sticker: &quot;How long does your notes app take to open?&quot; with ⚡ Instantly / 🐢 Forever.</pre></div>
+      </article>
+      <article class="post" data-platform="Instagram">
+        <div class="thumbs"></div>
+        <div class="copy"><span class="label">Instagram · Reels caption (use the 9:16 films)</span><button class="copybtn" type="button">Copy</button><pre>POV: you finally stopped taking notes in meetings. 🎧📝
+
+Every frame of this was drawn in code, and so is the music. Quolio is coming soon; the waitlist is in our bio.
+
+#reels #productivity #meetings #animation #startuplife #notetaking</pre></div>
+      </article>
+    </div>
+  </section>
   <section>
     <h2>What we measure</h2>
     <p class="sub">One number per stage. If a stage misses its target, fix that stage before spending on the next one.</p>
@@ -284,6 +404,10 @@ Keywords: quolio,meeting notes,transcribe,offline notes,notebook,minutes,to-do,s
     film = b.dataset.film; t = 0.8; last = null;
     document.querySelectorAll("[data-film]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     draw();
+  }));
+  document.querySelectorAll("[data-filter]").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("[data-filter]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    document.querySelectorAll(".post").forEach((p) => { p.hidden = b.dataset.filter !== "all" && p.dataset.platform !== b.dataset.filter; });
   }));
   document.querySelectorAll(".copybtn").forEach((btn) => btn.addEventListener("click", () => {
     const pre = btn.parentElement.querySelector("pre");

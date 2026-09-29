@@ -1,9 +1,10 @@
 // Export a film to MP4: node render.mjs <film> [fps] [--vertical] [--stills=t1,t2,...]
+// Social stills:        node render.mjs --posters
 // Drives the canvas frame by frame in headless Chrome, pipes PNGs into ffmpeg.
 import puppeteer from "puppeteer-core";
 import ffmpegPath from "ffmpeg-static";
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -25,6 +26,23 @@ await page.setViewport({ width: VW, height: VH });
 await page.goto("file://" + path.join(here, "films/player.html") + `?film=${film}&export=1${vertical ? "&v=1" : ""}`, { waitUntil: "networkidle0" });
 const duration = await page.evaluate(() => window.filmReady);
 const canvas = await page.$("canvas");
+
+if (process.argv.includes("--posters")) {
+  const dir = path.join(out, "social"); mkdirSync(dir, { recursive: true });
+  const ids = await page.evaluate(() => QUOLIO_POSTERS.map((p) => p.id));
+  for (const id of ids) {
+    const data = await page.evaluate((id) => {
+      const p = QUOLIO_POSTERS.find((x) => x.id === id), c = document.createElement("canvas");
+      [c.width, c.height] = p.size;
+      QuolioFilms.poster(c.getContext("2d"), c.width, c.height, p);
+      return c.toDataURL("image/png");
+    }, id);
+    writeFileSync(path.join(dir, id + ".png"), Buffer.from(data.split(",")[1], "base64"));
+    console.log("poster", id);
+  }
+  await browser.close();
+  process.exit(0);
+}
 
 if (stillsArg) {
   for (const t of stillsArg.split("=")[1].split(",").map(Number)) {

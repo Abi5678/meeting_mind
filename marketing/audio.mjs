@@ -17,6 +17,7 @@ const SR = 44100;
 const FILMS = {
   hero: { duration: 50, segs: [["town", 0, 7], ["scribblers", 7, 14], ["meeting", 14, 30], ["note", 30, 38], ["train", 38, 45], ["end", 45, 50]] },
   listen: { duration: 22, segs: [["meeting", 0, 9.5, 6.5], ["note", 9.5, 17], ["end", 17, 22]] },
+  notebook: { duration: 24, segs: [["scraps", 0, 4.5], ["notebook", 4.5, 15], ["import", 15, 19], ["end", 19, 24]] },
   speed: { duration: 15, segs: [["speed", 0, 10], ["end", 10, 15]] },
 };
 
@@ -159,6 +160,22 @@ const CUES = {
     chime(sfx, 0.25, 0.1, 0);
     whoosh(sfx, 1.6, 0.6, 0.04, 0.2, 2500, 5000);
   },
+  scraps(sfx) {
+    for (let i = 0; i < 5; i++) whoosh(sfx, 0.1 + i * 0.18, 0.9, 0.06, -0.6 + i * 0.3, 700, 2200);
+  },
+  notebook(sfx) {
+    for (let i = 0; i < 5; i++) whoosh(sfx, i * 0.08, 0.7, 0.04, 0, 1500, 600);
+    scribble(sfx, 0.8, 3.2, 0.08, -0.25, 21);                       // pencil drawing the diagram
+    click(sfx, 4.4, 0.2, -0.3, 900, 0.2);                           // tap the audio chip
+    musicBox(sfx, 4.5, mtof(84), 0.1, -0.3, 0.6); musicBox(sfx, 4.62, mtof(88), 0.1, -0.3, 0.8);
+    [7.75, 8.1, 8.45].forEach((t) => whoosh(sfx, t, 0.3, 0.03, 0.4, 2000, 4000)); // table rows
+    [8.2, 8.6, 9.0].forEach((t, i) => { tick(sfx, t, 0.08, 0.4); musicBox(sfx, t + 0.05, mtof(88 + i * 3), 0.08, 0.4, 0.7); });
+  },
+  import(sfx) {
+    whoosh(sfx, 0.0, 0.8, 0.07, -0.5, 400, 1600);
+    for (let i = 0; i < 5; i++) whoosh(sfx, 1.1 + i * 0.22, 0.8, 0.05, -0.2 + i * 0.15, 900, 3000);
+    chime(sfx, 2.95, 0.08, 0.4);
+  },
   speed(sfx) {
     for (let s = 1; s <= 9; s++) tick(sfx, s, 0.09, -0.6);
     click(sfx, 1.15, 0.2, 0.55, 900, 0.2);
@@ -168,7 +185,7 @@ const CUES = {
 
 // Music intensity per scene (0 sparse · 1 arpeggio · 2 full), in local seconds.
 const LEVELS = {
-  town: [[0, 0]], scribblers: [[0, 1]], meeting: [[0, 1], [8.8, 2]], note: [[0, 2]], train: [[0, 1]], speed: [[0, 1]], end: [[0, 3]],
+  town: [[0, 0]], scraps: [[0, 1]], notebook: [[0, 1], [4.4, 2]], import: [[0, 2]], scribblers: [[0, 1]], meeting: [[0, 1], [8.8, 2]], note: [[0, 2]], train: [[0, 1]], speed: [[0, 1]], end: [[0, 3]],
 };
 
 // ---------- compose ----------
