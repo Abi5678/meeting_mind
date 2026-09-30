@@ -52,6 +52,39 @@ struct MeetingNoteBuilderTests {
         #expect(Self.layout(blocks) == ["h Transcript", "p hello there"])
     }
 
+    @Test("A talk becomes summary, key points, takeaways, then transcript, with no email")
+    func talkLayout() {
+        let analysis = MeetingAnalysis(
+            summary: "How plants make sugar.",
+            keyDecisions: [], actionItems: [], followUpEmail: .init(subject: "", body: ""),
+            keyPoints: ["Light is captured by chlorophyll.", "Sugar is built from carbon dioxide."],
+            takeaways: ["Leaves are green because they reflect green light."]
+        )
+
+        let blocks = MeetingNoteBuilder.blocks(kind: .talk, analysis: analysis, transcript: "today we look at leaves")
+
+        #expect(Self.layout(blocks) == [
+            "h Summary", "p How plants make sugar.",
+            "h Key points", "- Light is captured by chlorophyll.", "- Sugar is built from carbon dioxide.",
+            "h Takeaways", "- Leaves are green because they reflect green light.",
+            "h Transcript", "p today we look at leaves",
+        ])
+    }
+
+    @Test("A talk with no key points or takeaways leaves out their headings")
+    func talkEmptySectionsOmitted() {
+        let analysis = MeetingAnalysis(summary: "A short hello.", keyDecisions: [], actionItems: [],
+                                       followUpEmail: .init(subject: "", body: ""))
+        let blocks = MeetingNoteBuilder.blocks(kind: .talk, analysis: analysis, transcript: "hi")
+        #expect(Self.layout(blocks) == ["h Summary", "p A short hello.", "h Transcript", "p hi"])
+    }
+
+    @Test("A song is kept as its lyrics, even if something summarized it")
+    func songLayout() {
+        let blocks = MeetingNoteBuilder.blocks(kind: .song, analysis: Fixture.analysis, transcript: "never gonna give you up")
+        #expect(Self.layout(blocks) == ["h Lyrics", "p never gonna give you up"])
+    }
+
     @Test("Action item details include only what was stated")
     func actionItemText() {
         #expect(MeetingNoteBuilder.actionItemText(.init(task: "Book room")) == "Book room")

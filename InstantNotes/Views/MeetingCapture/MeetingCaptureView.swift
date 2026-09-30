@@ -2,9 +2,9 @@
 //  MeetingCaptureView.swift
 //  Instant Notes
 //
-// Records a meeting, transcribes it with Apple Speech, summarizes it on the device with Apple
-// Intelligence, and saves it as a note. An audio or video file, or a YouTube video's captions,
-// go through the same steps in place of the microphone.
+// Records a meeting or a talk, transcribes it with Apple Speech, summarizes it on the device with
+// Apple Intelligence, and saves it as a note; a song is kept as its lyrics. An audio or video
+// file, or a YouTube video's captions, go through the same steps in place of the microphone.
 
 import SwiftUI
 import SwiftData
@@ -12,7 +12,7 @@ import PhotosUI
 import CoreTransferable
 import MeetingMindKit
 
-/// Where the meeting comes from.
+/// Where the recording comes from.
 enum CaptureSource: Equatable {
     case microphone
     /// An audio or video file picked in Files (or Finder on the Mac).
@@ -38,7 +38,6 @@ struct MeetingCaptureView: View {
             switch viewModel.phase {
             case .idle, .recording: recorder
             case .preparing, .transcribing, .transcribingOnDevice, .analyzing: working
-            case .soundsLikeMusic: musicWarning
             case .done: results
             case let .failed(message): failure(message)
             }
@@ -50,7 +49,7 @@ struct MeetingCaptureView: View {
                 Button("Cancel") {
                     if viewModel.hasCapture { confirmingDiscard = true } else { dismiss() }
                 }
-                .confirmationDialog("Discard this meeting?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                .confirmationDialog("Discard this recording?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
                     Button("Discard", role: .destructive) { dismiss() }
                     if !viewModel.transcript.isEmpty {
                         Button("Save as note") { saveAndDismiss() }
@@ -68,7 +67,7 @@ struct MeetingCaptureView: View {
 
     private var title: String {
         switch source {
-        case .microphone: "Meeting"
+        case .microphone: "Record"
         case .file, .video: "Import"
         case .youTube: "YouTube"
         }
@@ -149,6 +148,8 @@ struct MeetingCaptureView: View {
     private var results: some View {
         ScrollView {
             VStack(spacing: 20) {
+                kindLine
+
                 if let analysis = viewModel.analysis {
                     MeetingAnalysisView(analysis: analysis)
                 } else if let error = viewModel.analysisError {
@@ -167,7 +168,7 @@ struct MeetingCaptureView: View {
                     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                 }
 
-                DisclosureGroup("Transcript") {
+                DisclosureGroup(viewModel.kind == .song ? "Lyrics" : "Transcript") {
                     Text(viewModel.transcript)
                         .font(.body)
                         .textSelection(.enabled)
@@ -191,20 +192,39 @@ struct MeetingCaptureView: View {
         }
     }
 
-    /// An imported song would come out as a meeting summary of its lyrics, so ask first.
-    private var musicWarning: some View {
-        let isYouTube = if case .youTube = source { true } else { false }
-        return ContentUnavailableView {
-            Label("This sounds like music", systemImage: "music.note")
-        } description: {
-            Text(isYouTube
-                 ? "Its captions read like song lyrics. Quolio summarizes people talking, so the notes may not be useful."
-                 : "Quolio summarizes people talking, and this sounds more like a song, so the notes may not be useful.")
-        } actions: {
-            Button(isYouTube ? "Summarize anyway" : "Transcribe anyway") { viewModel.continueAfterMusicWarning() }
-                .buttonStyle(.borderedProminent)
-            Button("Close") { dismiss() }
-                .buttonStyle(.bordered)
+    /// What the notes were written as, with a way to write them as something else before saving.
+    @ViewBuilder
+    private var kindLine: some View {
+        if let kind = viewModel.kind {
+            HStack(spacing: 6) {
+                Text(kind == .song ? "Kept as lyrics, no summary" : "Written as \(Self.name(of: kind).lowercased())")
+                    .foregroundStyle(.secondary)
+                Menu("Change") {
+                    ForEach(RecordingKind.allCases, id: \.self) { other in
+                        Button(Self.name(of: other), systemImage: Self.icon(of: other)) { viewModel.summarize(as: other) }
+                            .disabled(other == kind)
+                    }
+                }
+                .fixedSize()
+            }
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static func name(of kind: RecordingKind) -> String {
+        switch kind {
+        case .meeting: "Meeting notes"
+        case .talk: "Talk notes"
+        case .song: "Lyrics"
+        }
+    }
+
+    private static func icon(of kind: RecordingKind) -> String {
+        switch kind {
+        case .meeting: "person.2"
+        case .talk: "person.wave.2"
+        case .song: "music.note"
         }
     }
 

@@ -46,6 +46,17 @@ struct OnDeviceModelTests {
         Priya will write the press release by Friday. Sam will update the pricing page.
         """
 
+    /// One speaker teaching, as recorded from the back of a lecture hall.
+    static let lecture = """
+        Good afternoon everyone. Today I want to walk you through photosynthesis, the way plants \
+        turn light into food. It happens in the chloroplasts, and the green pigment chlorophyll is \
+        what captures the light. That energy splits water, which is where the oxygen we breathe \
+        comes from. Then, in the Calvin cycle, the plant uses that energy to build sugar out of \
+        carbon dioxide from the air. So if you remember one thing from today, remember that the \
+        mass of a tree comes mostly from the air, not the soil. Next week we will look at how \
+        plants respire at night. Please read chapter six before then.
+        """
+
     #if canImport(FoundationModels)
     @Test("Summarizes a meeting without the network")
     @available(macOS 26, *)
@@ -55,6 +66,25 @@ struct OnDeviceModelTests {
         #expect(!analysis.summary.isEmpty)
         #expect(analysis.actionItems.contains { $0.task.localizedCaseInsensitiveContains("press release") })
         #expect(analysis.actionItems.contains { $0.task.localizedCaseInsensitiveContains("pricing") && $0.due == nil })
+    }
+
+    @Test("Tells a meeting from a talk")
+    @available(macOS 26, *)
+    func kind() async throws {
+        let analyzer = OnDeviceMeetingAnalyzer()
+        #expect(await analyzer.kind(of: Self.script) == .meeting)
+        #expect(await analyzer.kind(of: Self.lecture) == .talk)
+    }
+
+    @Test("Writes talk notes: key points and takeaways, no email or action items")
+    @available(macOS 26, *)
+    func talkSummary() async throws {
+        let analysis = try await OnDeviceMeetingAnalyzer().analyzeTalk(transcript: Self.lecture)
+        print("TALK:", analysis.summary, analysis.keyPoints, analysis.takeaways)
+        #expect(!analysis.summary.isEmpty)
+        #expect(!analysis.keyPoints.isEmpty)
+        #expect(analysis.actionItems.isEmpty && analysis.keyDecisions.isEmpty)
+        #expect(analysis.followUpEmail.subject.isEmpty && analysis.followUpEmail.body.isEmpty)
     }
 
     @Test("A long transcript is condensed in parts first")

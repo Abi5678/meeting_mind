@@ -2,7 +2,7 @@
 //  MeetingAnalysisView.swift
 //  Instant Notes
 //
-// Displays the meeting summary as blocks using the paper design identity.
+// Displays the meeting or talk summary as blocks using the paper design identity.
 
 import SwiftUI
 import MeetingMindKit
@@ -25,6 +25,27 @@ struct MeetingAnalysisView: View {
                 }
                 .padding(16)
                 .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))
+            }
+
+            // A talk's key points and takeaways
+            ForEach([("Key Points", "list.bullet", analysis.keyPoints),
+                     ("Takeaways", "lightbulb", analysis.takeaways)], id: \.0) { title, icon, lines in
+                if !lines.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(title, systemImage: icon)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+
+                        ForEach(lines, id: \.self) { line in
+                            Text("• \(line)")
+                                .font(.body)
+                                .lineSpacing(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))
+                }
             }
 
             // Key decisions
