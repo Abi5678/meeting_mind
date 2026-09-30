@@ -18,7 +18,7 @@ struct NoteStorageTests {
 
     init() throws {
         let schema = Schema([Note.self, Recording.self, MeetingArtifact.self, TranscriptSegment.self,
-                             MeetingChatMessage.self, NoteImage.self, Tag.self,
+                             MeetingChatMessage.self, NoteImage.self, Notebook.self, NotebookChatMessage.self, Tag.self,
                              TableEntity.self, ColumnEntity.self, RowEntity.self])
         container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
     }
@@ -94,5 +94,60 @@ struct NoteStorageTests {
         let index = try #require(AudioClock.source(at: 62, starts: recordings.map(\.transcriptOffset)))
         #expect(recordings[index] === second)
         #expect(62 - recordings[index].transcriptOffset == 2)
+    }
+
+    @Test("A notebook's summary goes stale when a source is added, changed or removed")
+    func notebookStaleness() throws {
+        let context = container.mainContext
+        let notebook = Notebook(title: "Research")
+        let paper = Note(title: "Paper")
+        let article = Note(title: "Article")
+        context.insert(notebook)
+        context.insert(paper)
+        context.insert(article)
+        notebook.sources = [paper, article]
+        try context.save()
+        #expect(notebook.summaryIsStale)
+
+        func digest(_ note: Note) -> SourceDigest {
+            SourceDigest(noteID: note.id, sourceModifiedAt: note.modifiedAt, title: note.title, summary: "About it.", keyPoints: [])
+        }
+        notebook.digests = [digest(paper), digest(article)]
+        notebook.summaryNoteID = UUID()
+        #expect(!notebook.summaryIsStale)
+        #expect(notebook.orderedSources.map(\.title) == ["Article", "Paper"])
+
+        // Editing a source means reading it again, and only it.
+        paper.modifiedAt = paper.modifiedAt.addingTimeInterval(60)
+        #expect(notebook.summaryIsStale)
+        #expect(Set(notebook.currentDigests.keys) == [article.id])
+
+        // A removed source leaves its digest behind until the next summary.
+        notebook.digests = [digest(paper), digest(article)]
+        notebook.sources?.removeAll { $0.id == article.id }
+        #expect(notebook.summaryIsStale)
+        #expect(Set(notebook.currentDigests.keys) == [paper.id])
+        #expect(article.notebooks?.isEmpty ?? true)
+    }
+
+    @Test("A notebook reads a note's text, ink and photo words, and deleting it keeps its sources")
+    func notebookSourcesAndDelete() throws {
+        let context = container.mainContext
+        let note = Note(title: "Whiteboard")
+        note.blockDocument = BlockDocument(blocks: [Block(type: .paragraph, runs: [.plain("Plan the launch.")])])
+        note.inkText = "  ship Friday "
+        let notebook = Notebook(title: "Launch")
+        context.insert(note)
+        context.insert(notebook)
+        notebook.sources = [note]
+        notebook.chatMessages = [NotebookChatMessage(role: "user", content: "When do we ship?")]
+        try context.save()
+        #expect(note.sourceText == "Plan the launch.\n\nship Friday")
+        #expect(note.notebooks?.map(\.title) == ["Launch"])
+
+        context.delete(notebook)
+        try context.save()
+        #expect(try context.fetch(FetchDescriptor<Note>()).map(\.title) == ["Whiteboard"])
+        #expect(try context.fetch(FetchDescriptor<NotebookChatMessage>()).isEmpty)
     }
 }

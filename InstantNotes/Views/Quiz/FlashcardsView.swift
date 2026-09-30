@@ -2,8 +2,8 @@
 //  FlashcardsView.swift
 //  Instant Notes
 //
-// Flashcards: Apple's on-device model turns the open note into question-and-answer cards. Tap to
-// flip; "Again" sends a card to the back of the pile, "Got it" puts it away.
+// Flashcards: Apple's on-device model turns the open note or notebook into question-and-answer
+// cards. Tap to flip; "Again" sends a card to the back of the pile, "Got it" puts it away.
 
 import SwiftUI
 import MeetingMindKit
@@ -11,6 +11,8 @@ import MeetingMindKit
 struct FlashcardsView: View {
     let noteTitle: String
     let notesText: String
+    /// Where the cards were opened from, in words: "note" or "notebook".
+    var backTo = "note"
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -69,7 +71,7 @@ struct FlashcardsView: View {
             let deck = try await OnDeviceFlashcardWriter().deck(fromNotes: blank ? "" : "\(noteTitle)\n\n\(notesText)")
             start(deck)
         } catch OnDeviceAIError.notEnoughContent {
-            phase = .failed(message: "There isn't enough in this note to make flashcards yet. Add a few more lines.", fix: .backToNote)
+            phase = .failed(message: "There isn't enough in this \(backTo) to make flashcards yet. Add a few more lines.", fix: .backToNote)
         } catch {
             phase = .failed(message: error.localizedDescription, fix: error as? OnDeviceAIError == .emptyNotes ? .backToNote : .retry)
         }
@@ -189,7 +191,7 @@ struct FlashcardsView: View {
         .safeAreaInset(edge: .bottom, spacing: 24) {
             VStack(spacing: 10) {
                 pileButton("Study again", systemImage: "arrow.clockwise", tint: .indigo) { start(deck) }
-                Button("Back to note") { dismiss() }
+                Button("Back to \(backTo)") { dismiss() }
                     .font(.system(.headline, design: .rounded))
                     .padding(.vertical, 8)
             }
@@ -202,9 +204,9 @@ struct FlashcardsView: View {
 
     private func failure(_ message: String, fix: QuizView.Fix) -> some View {
         let (emoji, title, label) = switch fix {
-        case .unavailable: ("✨", "Needs Apple Intelligence", "Back to note")
+        case .unavailable: ("✨", "Needs Apple Intelligence", "Back to \(backTo)")
         case .retry: ("😵‍💫", "That didn't work", "Try again")
-        case .backToNote: ("📝", "Nothing to study yet", "Back to note")
+        case .backToNote: ("📝", "Nothing to study yet", "Back to \(backTo)")
         }
 
         let card = VStack(spacing: 16) {

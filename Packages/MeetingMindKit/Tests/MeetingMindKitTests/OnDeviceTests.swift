@@ -157,6 +157,149 @@ struct OnDeviceModelTests {
         #expect(first.localizedCaseInsensitiveContains("priya"))
         #expect(followUp.localizedCaseInsensitiveContains("friday"))
     }
+
+    static let libraryMemo = """
+        The council voted to fund a new library wing with two million dollars. The money comes from \
+        the parks budget, which some members opposed. A final vote on the design is set for March.
+        """
+    static let libraryPlan = """
+        The city planning office expects construction of the library wing to start in spring, once \
+        permits are signed. The office estimates the cost at three million dollars, more than the \
+        council has set aside.
+        """
+
+    @Test("Summarizes each notebook source, then all of them together with citations")
+    @available(macOS 26, *)
+    func notebookSummary() async throws {
+        let summarizer = OnDeviceNotebookSummarizer()
+        var digests: [SourceDigest] = []
+        for (title, text) in [("Council memo", Self.libraryMemo), ("Planning office note", Self.libraryPlan)] {
+            let digest = try await summarizer.digest(title: title, text: text)
+            digests.append(SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: title,
+                                        summary: digest.summary, keyPoints: digest.keyPoints))
+        }
+        let overview = try await summarizer.overview(of: digests)
+        print("NOTEBOOK:", digests.map(\.summary), overview)
+        #expect(digests.allSatisfy { !$0.summary.isEmpty })
+        #expect(!overview.overview.isEmpty)
+        #expect(Set(overview.agreements).isDisjoint(with: overview.differences))
+        let all = ([overview.overview] + overview.themes + overview.agreements + overview.differences).joined(separator: " ")
+        #expect(!NotesQuestion.cited(in: all, count: 2).isEmpty)
+    }
+
+    @Test("Answers from a notebook's sources and cites the right one")
+    @available(macOS 26, *)
+    func notebookChat() async throws {
+        let memo = UUID(), plan = UUID()
+        let passages = SearchPassage.passages(noteID: memo, title: "Council memo", blocks: [Block(type: .paragraph, runs: [.plain(Self.libraryMemo)])])
+            + SearchPassage.passages(noteID: plan, title: "Planning office note", blocks: [Block(type: .paragraph, runs: [.plain(Self.libraryPlan)])])
+        let sources = NotebookChat.sources(question: "When does construction start?", passages: passages,
+                                           titles: [memo: "Council memo", plan: "Planning office note"])
+        let answer = try await OnDeviceNotebookChat().answer(question: "When does construction start?", sources: sources)
+        print("NOTEBOOK CHAT:", answer)
+        #expect(answer.localizedCaseInsensitiveContains("spring"))
+        let cited = NotesQuestion.cited(in: answer, count: sources.count)
+        #expect(cited.contains { sources[$0 - 1].noteID == plan })
+    }
+
+    /// A trail guide and a newer park notice that changes its parking fee and water.
+    static let trailGuide = """
+        The Mount Tam loop is 7.2 miles long and starts at the Pantoll Ranger Station. It climbs \
+        about 1,700 feet, so plan on four hours at an easy pace. Parking at Pantoll costs $8 for the \
+        day. Pay at the machine by the ranger station. Bring at least two liters of water per \
+        person; there is no water on the trail after Pantoll. Dogs are not allowed on the Steep \
+        Ravine trail.
+        """
+    static let parkNotice = """
+        Mount Tamalpais State Park visitor notice, summer 2026. Parking: the day-use fee at Pantoll \
+        is $10 starting June 1, 2026. Trail closure: the Steep Ravine trail is closed for bridge \
+        repairs until November 15, 2026. Water: the fountain at Pantoll is working again and can be \
+        used to refill bottles.
+        """
+
+    @Test("Lists where notebook sources give different facts about the same thing")
+    @available(macOS 26, *)
+    func notebookSummaryConflicts() async throws {
+        let summarizer = OnDeviceNotebookSummarizer()
+        var digests: [SourceDigest] = []
+        for (title, text) in [("Mount Tam loop guide", Self.trailGuide), ("Park notice", Self.parkNotice)] {
+            let digest = try await summarizer.digest(title: title, text: text)
+            digests.append(SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: title,
+                                        summary: digest.summary, keyPoints: digest.keyPoints))
+        }
+        let overview = try await summarizer.overview(of: digests)
+        print("NOTEBOOK CONFLICTS:", digests.map { [$0.summary] + $0.keyPoints }, overview)
+        let differences = overview.differences.joined(separator: " ")
+        #expect(differences.contains("$8") && differences.contains("$10"))
+        #expect(!overview.agreements.contains { $0.contains("$8") || $0.contains("$10") })
+    }
+
+    @Test("Gives what each source says where two disagree")
+    @available(macOS 26, *)
+    func notebookChatConflict() async throws {
+        let guide = UUID(), notice = UUID()
+        let passages = SearchPassage.passages(noteID: guide, title: "Mount Tam loop guide", blocks: [Block(type: .paragraph, runs: [.plain(Self.trailGuide)])])
+            + SearchPassage.passages(noteID: notice, title: "Park notice", blocks: [Block(type: .paragraph, runs: [.plain(Self.parkNotice)])])
+        let question = "How much is parking at Pantoll?"
+        let sources = NotebookChat.sources(question: question, passages: passages,
+                                           titles: [guide: "Mount Tam loop guide", notice: "Park notice"])
+        let answer = try await OnDeviceNotebookChat().answer(question: question, sources: sources)
+        print("NOTEBOOK CHAT CONFLICT:", sources.map(\.text), answer)
+        #expect(answer.contains("$10"))
+    }
+
+    @Test("Doesn't call sources that agree different")
+    @available(macOS 26, *)
+    func notebookChatNoConflict() async throws {
+        let guide = UUID(), notice = UUID()
+        let passages = SearchPassage.passages(noteID: guide, title: "Mount Tam loop guide", blocks: [Block(type: .paragraph, runs: [.plain(Self.trailGuide)])])
+            + SearchPassage.passages(noteID: notice, title: "Park notice", blocks: [Block(type: .paragraph, runs: [.plain(Self.parkNotice)])])
+        let question = "How long is the Mount Tam loop?"
+        let sources = NotebookChat.sources(question: question, passages: passages,
+                                           titles: [guide: "Mount Tam loop guide", notice: "Park notice"])
+        let answer = try await OnDeviceNotebookChat().answer(question: question, sources: sources)
+        print("NOTEBOOK CHAT NO CONFLICT:", answer)
+        #expect(answer.contains("7.2"))
+        #expect(!answer.contains("differ"))
+    }
+
+    /// Something only the trail guide says, and something only the park notice says.
+    private static func coversBoth(_ text: String) -> Bool {
+        let fromGuide = ["7.2", "1,700", "four hours", "two liters", "$8"].contains { text.localizedCaseInsensitiveContains($0) }
+        let fromNotice = ["$10", "June", "November", "bridge", "fountain", "refill"].contains { text.localizedCaseInsensitiveContains($0) }
+        return fromGuide && fromNotice
+    }
+
+    private static let hikeMaterial = NotebookStudy.material([
+        (title: "Mount Tam loop guide", digest: nil, text: trailGuide),
+        (title: "Park notice", digest: nil, text: parkNotice),
+    ])
+
+    @Test("Writes a notebook's study guide from all its sources")
+    @available(macOS 26, *)
+    func notebookStudyGuide() async throws {
+        let guide = try await OnDeviceStudyGuideWriter().guide(title: "Mount Tam hike", material: Self.hikeMaterial)
+        print("STUDY GUIDE:", guide)
+        #expect(!guide.terms.isEmpty && !guide.questions.isEmpty)
+        let all = (guide.terms.map { "\($0.term) \($0.meaning)" } + guide.questions.map { "\($0.question) \($0.answer)" }).joined(separator: " ")
+        #expect(Self.coversBoth(all))
+    }
+
+    @Test("Quizzes on a whole notebook, not just its first source")
+    @available(macOS 26, *)
+    func notebookQuiz() async throws {
+        let quiz = try await OnDeviceQuizWriter().quiz(fromNotes: "Mount Tam hike\n\n\(Self.hikeMaterial)")
+        print("NOTEBOOK QUIZ:", quiz.questions.map { ($0.prompt, $0.options[$0.answerIndex]) })
+        #expect(Self.coversBoth(quiz.questions.map { "\($0.prompt) \($0.options[$0.answerIndex])" }.joined(separator: " ")))
+    }
+
+    @Test("Makes flashcards from a whole notebook, not just its first source")
+    @available(macOS 26, *)
+    func notebookFlashcards() async throws {
+        let deck = try await OnDeviceFlashcardWriter().deck(fromNotes: "Mount Tam hike\n\n\(Self.hikeMaterial)")
+        print("NOTEBOOK FLASHCARDS:", deck.cards.map { ($0.front, $0.back) })
+        #expect(Self.coversBoth(deck.cards.map { "\($0.front) \($0.back)" }.joined(separator: " ")))
+    }
     #endif
 
     @Test("Transcribes a recording with timed phrases")

@@ -36,6 +36,8 @@ public enum OnDeviceAIError: Error, Equatable, Sendable {
     case emptyMeeting
     /// The model answered with nothing.
     case emptyResponse
+    /// The notebook has no sources to answer from.
+    case emptyNotebook
 }
 
 extension OnDeviceAIError: LocalizedError {
@@ -45,6 +47,7 @@ extension OnDeviceAIError: LocalizedError {
         case .notEnoughContent: "There isn't enough in this note to quiz you on yet. Add a few more lines."
         case .emptyMeeting: "This meeting has no transcript or notes to answer from yet."
         case .emptyResponse: "Apple Intelligence didn't come back with an answer. Try asking another way."
+        case .emptyNotebook: "Add a source to this notebook first."
         }
     }
 }
