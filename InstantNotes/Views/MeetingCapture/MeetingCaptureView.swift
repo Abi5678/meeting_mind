@@ -198,8 +198,8 @@ struct MeetingCaptureView: View {
             Label("This sounds like music", systemImage: "music.note")
         } description: {
             Text(isYouTube
-                 ? "Its captions read like song lyrics. Recapped summarizes people talking, so the notes may not be useful."
-                 : "Recapped summarizes people talking, and this sounds more like a song, so the notes may not be useful.")
+                 ? "Its captions read like song lyrics. Quolio summarizes people talking, so the notes may not be useful."
+                 : "Quolio summarizes people talking, and this sounds more like a song, so the notes may not be useful.")
         } actions: {
             Button(isYouTube ? "Summarize anyway" : "Transcribe anyway") { viewModel.continueAfterMusicWarning() }
                 .buttonStyle(.borderedProminent)

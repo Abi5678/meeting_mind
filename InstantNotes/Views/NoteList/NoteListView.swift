@@ -47,7 +47,7 @@ struct NoteListView: View {
                 searchField
                 noteList
             }
-            .navigationTitle("Recapped")
+            .navigationTitle("Quolio")
             .toolbar { toolbarContent }
             // Not on the toolbar button: importing re-renders the list, which would reset the sheet mid-import.
             .sheet(isPresented: $showImport) { ImportView() }
@@ -355,7 +355,7 @@ struct NoteListView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Transcribe") { capture(.youTube(youTubeLink)) }
             } message: {
-                Text("Paste a link to a video with captions. Recapped summarizes the captions; no video is downloaded.")
+                Text("Paste a link to a video with captions. Quolio summarizes the captions; no video is downloaded.")
             }
             .sheet(isPresented: $showMeetingCapture, onDismiss: openCreatedNote) {
                 NavigationStack {
