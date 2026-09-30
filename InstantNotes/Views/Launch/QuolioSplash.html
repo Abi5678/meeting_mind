@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F6F3EC">
+<title>Quolio — Opening animation</title>
+<style>
+:root{color-scheme:light;--quolio-background:#F6F3EC}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{background:var(--quolio-background);font:14px system-ui,sans-serif;color:#3C3835}
+main{width:100%;height:100%;display:grid;place-items:center}
+canvas{display:block;width:100%;height:100%;max-width:1100px;max-height:1100px;object-fit:contain}
+button{position:fixed;right:24px;bottom:24px;padding:10px 17px;border:1px solid #cfc8ba;border-radius:100px;background:#faf8f3;color:#575045;font:inherit;cursor:pointer}
+button:hover{background:#eee9de}button:focus-visible{outline:3px solid #86BBE0;outline-offset:4px}
+[hidden]{display:none!important}.render button{display:none!important}
+</style>
+</head>
+<body>
+<main aria-label="Quolio opening animation"><canvas id="quolio-canvas" role="img" aria-label="An open notebook turns its pages, closes with a wink and a happy smile, and reveals the Quolio logo."></canvas></main>
+<button id="replay" type="button" hidden>Replay</button>
+<script id="quolio-assets" type="application/json">{"base":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 500 500\" width=\"1000\" height=\"1000\"><defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs><!-- 1. Top Yellow Sticky Tabs -->\n    <rect x=\"205\" y=\"68\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#E8CD68\" />\n    <rect x=\"228\" y=\"72\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#F4E08B\" />\n\n    <!-- 2. Right Side Color Tabs -->\n    <!-- Peach tab -->\n    <rect x=\"365\" y=\"145\" width=\"25\" height=\"24\" rx=\"4\" fill=\"#F0B58D\" />\n    <!-- Sage green tab -->\n    <rect x=\"365\" y=\"185\" width=\"28\" height=\"24\" rx=\"4\" fill=\"#A8CBA0\" />\n    <!-- Soft periwinkle/blue tab -->\n    <rect x=\"365\" y=\"225\" width=\"26\" height=\"24\" rx=\"4\" fill=\"#8EA8D8\" />\n\n    <!-- 3. Kraft Paper Back Cover (Cardboard backing) -->\n    <rect x=\"180\" y=\"90\" width=\"195\" height=\"240\" rx=\"26\" fill=\"#BFA78A\" filter=\"url(#softShadow)\" />\n\n    <\/svg>","rings":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 500 500\" width=\"1000\" height=\"1000\"><defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs><!-- 7. Spiral Binding Loops (Dark grey wire coils) -->\n    <!-- Loop 1 -->\n    <path d=\"M 174 125 C 160 125, 160 143, 174 143 C 196 143, 204 135, 204 135\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"135\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 2 -->\n    <path d=\"M 174 157 C 160 157, 160 175, 174 175 C 196 175, 204 167, 204 167\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"167\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 3 -->\n    <path d=\"M 174 189 C 160 189, 160 207, 174 207 C 196 207, 204 199, 204 199\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"199\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 4 -->\n    <path d=\"M 174 221 C 160 221, 160 239, 174 239 C 196 239, 204 231, 204 231\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"231\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 5 -->\n    <path d=\"M 174 253 C 160 253, 160 271, 174 271 C 196 271, 204 263, 204 263\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"263\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 6 -->\n    <path d=\"M 174 285 C 160 285, 160 303, 174 303 C 196 303, 204 295, 204 295\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"295\" r=\"3.5\" fill=\"#C2BEB8\" />\n<\/svg>","cover":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"180 90 195 240\" width=\"780\" height=\"960\"><defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs><!-- 3. Kraft Paper Back Cover (Cardboard backing) -->\n    <rect x=\"180\" y=\"90\" width=\"195\" height=\"240\" rx=\"26\" fill=\"#BFA78A\" />\n\n    <!-- 4. Main White Notebook Page Body -->\n    <rect x=\"186\" y=\"98\" width=\"180\" height=\"225\" rx=\"20\" fill=\"#F9F8F3\" />\n\n    <!-- 5. Blue Ribbon Bookmark (Folded over the top right) -->\n    <path d=\"M 326 98 \n             L 326 158 \n             L 343 146 \n             L 360 158 \n             L 360 98 \n             Z\" \n          fill=\"#86BBE0\" />\n\n    <!-- 6. Kawaii Face Features -->\n    <!-- Left Eye (circle) -->\n    <circle cx=\"260\" cy=\"205\" r=\"9\" fill=\"#2E2B2A\" />\n\n    <!-- Right Eye (angled wink) -->\n    <path d=\"M 336 195 L 320 204 L 336 208\"\n          fill=\"none\"\n          stroke=\"#2E2B2A\"\n          stroke-width=\"4.5\"\n          stroke-linecap=\"round\"\n          stroke-linejoin=\"round\" />\n\n    <!-- Left Blush Cheek -->\n    <ellipse cx=\"248\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Right Blush Cheek -->\n    <ellipse cx=\"346\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Happy open smile -->\n    <path d=\"M 281 218 Q 296 220 311 218\n             C 313 218 313 221 312 224\n             C 310 233 304 239 296 239\n             C 288 239 282 233 280 224\n             C 279 221 279 218 281 218 Z\"\n          fill=\"#2E2B2A\" />\n    <!-- Soft pink tongue inside the smile -->\n    <path d=\"M 286 232 Q 296 226 306 232\n             Q 302 237 296 237 Q 290 237 286 232 Z\"\n          fill=\"#D99493\" />\n\n    <\/svg>","notebook":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 500 500\" width=\"1000\" height=\"1000\"><defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs><g transform=\"translate(-26.5 -8)\">    <!-- 1. Top Yellow Sticky Tabs -->\n    <rect x=\"205\" y=\"68\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#E8CD68\" />\n    <rect x=\"228\" y=\"72\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#F4E08B\" />\n\n    <!-- 2. Right Side Color Tabs -->\n    <!-- Peach tab -->\n    <rect x=\"365\" y=\"145\" width=\"25\" height=\"24\" rx=\"4\" fill=\"#F0B58D\" />\n    <!-- Sage green tab -->\n    <rect x=\"365\" y=\"185\" width=\"28\" height=\"24\" rx=\"4\" fill=\"#A8CBA0\" />\n    <!-- Soft periwinkle/blue tab -->\n    <rect x=\"365\" y=\"225\" width=\"26\" height=\"24\" rx=\"4\" fill=\"#8EA8D8\" />\n\n    <!-- 3. Kraft Paper Back Cover (Cardboard backing) -->\n    <rect x=\"180\" y=\"90\" width=\"195\" height=\"240\" rx=\"26\" fill=\"#BFA78A\" filter=\"url(#softShadow)\" />\n\n    <!-- 4. Main White Notebook Page Body -->\n    <rect x=\"186\" y=\"98\" width=\"180\" height=\"225\" rx=\"20\" fill=\"#F9F8F3\" filter=\"url(#pageShadow)\" />\n\n    <!-- 5. Blue Ribbon Bookmark (Folded over the top right) -->\n    <path d=\"M 326 98 \n             L 326 158 \n             L 343 146 \n             L 360 158 \n             L 360 98 \n             Z\" \n          fill=\"#86BBE0\" />\n\n    <!-- 6. Kawaii Face Features -->\n    <!-- Left Eye (circle) -->\n    <circle cx=\"260\" cy=\"205\" r=\"9\" fill=\"#2E2B2A\" />\n\n    <!-- Right Eye (angled wink) -->\n    <path d=\"M 336 195 L 320 204 L 336 208\"\n          fill=\"none\"\n          stroke=\"#2E2B2A\"\n          stroke-width=\"4.5\"\n          stroke-linecap=\"round\"\n          stroke-linejoin=\"round\" />\n\n    <!-- Left Blush Cheek -->\n    <ellipse cx=\"248\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Right Blush Cheek -->\n    <ellipse cx=\"346\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Happy open smile -->\n    <path d=\"M 281 218 Q 296 220 311 218\n             C 313 218 313 221 312 224\n             C 310 233 304 239 296 239\n             C 288 239 282 233 280 224\n             C 279 221 279 218 281 218 Z\"\n          fill=\"#2E2B2A\" />\n    <!-- Soft pink tongue inside the smile -->\n    <path d=\"M 286 232 Q 296 226 306 232\n             Q 302 237 296 237 Q 290 237 286 232 Z\"\n          fill=\"#D99493\" />\n\n    <!-- 7. Spiral Binding Loops (Dark grey wire coils) -->\n    <!-- Loop 1 -->\n    <path d=\"M 174 125 C 160 125, 160 143, 174 143 C 196 143, 204 135, 204 135\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"135\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 2 -->\n    <path d=\"M 174 157 C 160 157, 160 175, 174 175 C 196 175, 204 167, 204 167\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"167\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 3 -->\n    <path d=\"M 174 189 C 160 189, 160 207, 174 207 C 196 207, 204 199, 204 199\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"199\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 4 -->\n    <path d=\"M 174 221 C 160 221, 160 239, 174 239 C 196 239, 204 231, 204 231\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"231\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 5 -->\n    <path d=\"M 174 253 C 160 253, 160 271, 174 271 C 196 271, 204 263, 204 263\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"263\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 6 -->\n    <path d=\"M 174 285 C 160 285, 160 303, 174 303 C 196 303, 204 295, 204 295\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"295\" r=\"3.5\" fill=\"#C2BEB8\" />\n<\/g><\/svg>","wordmark":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 500 500\" width=\"1000\" height=\"1000\"><defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs><g transform=\"translate(56.625 317.3) scale(0.65)\"><g fill=\"#3C3835\">\n    <!-- Capital 'Q' -->\n    <path d=\"M 125,58 \n             C 90,58 64,84 64,119 \n             C 64,154 90,180 125,180 \n             C 137,180 148,177 158,170 \n             L 168,183 \n             C 170,185 174,186 177,184 \n             C 180,181 180,177 178,174 \n             L 169,161 \n             C 180,150 186,135 186,119 \n             C 186,84 160,58 125,58 Z \n             M 125,70 \n             C 152,70 174,92 174,119 \n             C 174,133 169,146 160,155 \n             L 149,141 \n             C 147,138 143,138 140,140 \n             C 137,143 137,147 139,150 \n             L 151,164 \n             C 143,167 134,168 125,168 \n             C 98,168 76,146 76,119 \n             C 76,92 98,70 125,70 Z\" />\n\n    <!-- Lowercase 'u' (Clean spurless geometry) -->\n    <path d=\"M 205,94 \n             C 205,90.5 208,88 211,88 \n             C 214,88 217,90.5 217,94 \n             L 217,140 \n             C 217,156 228,168 244,168 \n             C 260,168 271,156 271,140 \n             L 271,94 \n             C 271,90.5 274,88 277,88 \n             C 280,88 283,90.5 283,94 \n             L 283,140 \n             C 283,162 267,180 244,180 \n             C 221,180 205,162 205,140 \n             Z\" />\n\n    <!-- Lowercase 'o' (first) -->\n    <path d=\"M 328,88 \n             C 303,88 285,107 285,134 \n             C 285,161 303,180 328,180 \n             C 353,180 371,161 371,134 \n             C 371,107 353,88 328,88 Z \n             M 328,99 \n             C 347,99 359,114 359,134 \n             C 359,154 347,169 328,169 \n             C 309,169 297,154 297,134 \n             C 297,114 309,99 328,99 Z\" />\n\n    <!-- Lowercase 'l' -->\n    <rect x=\"388\" y=\"58\" width=\"11\" height=\"120\" rx=\"5.5\" />\n\n    <!-- Lowercase 'i' -->\n    <circle cx=\"423\" cy=\"65\" r=\"6\" />\n    <rect x=\"417.5\" y=\"88\" width=\"11\" height=\"90\" rx=\"5.5\" />\n\n    <!-- Lowercase 'o' (second) -->\n    <path d=\"M 488,88 \n             C 463,88 445,107 445,134 \n             C 445,161 463,180 488,180 \n             C 513,180 531,161 531,134 \n             C 531,107 513,88 488,88 Z \n             M 488,99 \n             C 507,99 519,114 519,134 \n             C 519,154 507,169 488,169 \n             C 469,169 457,154 457,134 \n             C 457,114 469,99 488,99 Z\" />\n  <\/g><\/g>\n<\/svg>","logo":"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"2000\" height=\"2000\" viewBox=\"0 0 500 500\" role=\"img\" aria-labelledby=\"title desc\">\n<title id=\"title\">Quolio notebook logo<\/title>\n<desc id=\"desc\">Notebook artwork and outlined Quolio wordmark combined from the supplied Gemini SVG files, on a transparent background.<\/desc>\n<defs>\n    <!-- Soft paper drop shadow -->\n    <filter id=\"softShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"3\" dy=\"6\" stdDeviation=\"6\" flood-color=\"#3c2f2f\" flood-opacity=\"0.12\" />\n    <\/filter>\n    <filter id=\"pageShadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\n      <feDropShadow dx=\"1\" dy=\"3\" stdDeviation=\"3\" flood-color=\"#3c2f2f\" flood-opacity=\"0.08\" />\n    <\/filter>\n  <\/defs>\n<g transform=\"translate(-36.5 -8)\"><g transform=\"translate(10, 0)\">\n    <!-- 1. Top Yellow Sticky Tabs -->\n    <rect x=\"205\" y=\"68\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#E8CD68\" />\n    <rect x=\"228\" y=\"72\" width=\"22\" height=\"35\" rx=\"3\" fill=\"#F4E08B\" />\n\n    <!-- 2. Right Side Color Tabs -->\n    <!-- Peach tab -->\n    <rect x=\"365\" y=\"145\" width=\"25\" height=\"24\" rx=\"4\" fill=\"#F0B58D\" />\n    <!-- Sage green tab -->\n    <rect x=\"365\" y=\"185\" width=\"28\" height=\"24\" rx=\"4\" fill=\"#A8CBA0\" />\n    <!-- Soft periwinkle/blue tab -->\n    <rect x=\"365\" y=\"225\" width=\"26\" height=\"24\" rx=\"4\" fill=\"#8EA8D8\" />\n\n    <!-- 3. Kraft Paper Back Cover (Cardboard backing) -->\n    <rect x=\"180\" y=\"90\" width=\"195\" height=\"240\" rx=\"26\" fill=\"#BFA78A\" filter=\"url(#softShadow)\" />\n\n    <!-- 4. Main White Notebook Page Body -->\n    <rect x=\"186\" y=\"98\" width=\"180\" height=\"225\" rx=\"20\" fill=\"#F9F8F3\" filter=\"url(#pageShadow)\" />\n\n    <!-- 5. Blue Ribbon Bookmark (Folded over the top right) -->\n    <path d=\"M 326 98 \n             L 326 158 \n             L 343 146 \n             L 360 158 \n             L 360 98 \n             Z\" \n          fill=\"#86BBE0\" />\n\n    <!-- 6. Kawaii Face Features -->\n    <!-- Left Eye (circle) -->\n    <circle cx=\"260\" cy=\"205\" r=\"9\" fill=\"#2E2B2A\" />\n\n    <!-- Right Eye (angled wink) -->\n    <path d=\"M 336 195 L 320 204 L 336 208\"\n          fill=\"none\"\n          stroke=\"#2E2B2A\"\n          stroke-width=\"4.5\"\n          stroke-linecap=\"round\"\n          stroke-linejoin=\"round\" />\n\n    <!-- Left Blush Cheek -->\n    <ellipse cx=\"248\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Right Blush Cheek -->\n    <ellipse cx=\"346\" cy=\"222\" rx=\"11\" ry=\"7.5\" fill=\"#F5B8B5\" />\n\n    <!-- Happy open smile -->\n    <path d=\"M 281 218 Q 296 220 311 218\n             C 313 218 313 221 312 224\n             C 310 233 304 239 296 239\n             C 288 239 282 233 280 224\n             C 279 221 279 218 281 218 Z\"\n          fill=\"#2E2B2A\" />\n    <!-- Soft pink tongue inside the smile -->\n    <path d=\"M 286 232 Q 296 226 306 232\n             Q 302 237 296 237 Q 290 237 286 232 Z\"\n          fill=\"#D99493\" />\n\n    <!-- 7. Spiral Binding Loops (Dark grey wire coils) -->\n    <!-- Loop 1 -->\n    <path d=\"M 174 125 C 160 125, 160 143, 174 143 C 196 143, 204 135, 204 135\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"135\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 2 -->\n    <path d=\"M 174 157 C 160 157, 160 175, 174 175 C 196 175, 204 167, 204 167\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"167\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 3 -->\n    <path d=\"M 174 189 C 160 189, 160 207, 174 207 C 196 207, 204 199, 204 199\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"199\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 4 -->\n    <path d=\"M 174 221 C 160 221, 160 239, 174 239 C 196 239, 204 231, 204 231\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"231\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 5 -->\n    <path d=\"M 174 253 C 160 253, 160 271, 174 271 C 196 271, 204 263, 204 263\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"263\" r=\"3.5\" fill=\"#C2BEB8\" />\n\n    <!-- Loop 6 -->\n    <path d=\"M 174 285 C 160 285, 160 303, 174 303 C 196 303, 204 295, 204 295\" \n          fill=\"none\" stroke=\"#484443\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />\n    <circle cx=\"198\" cy=\"295\" r=\"3.5\" fill=\"#C2BEB8\" />\n  <\/g><\/g>\n<g transform=\"translate(56.625 317.3) scale(0.65)\"><g fill=\"#3C3835\">\n    <!-- Capital 'Q' -->\n    <path d=\"M 125,58 \n             C 90,58 64,84 64,119 \n             C 64,154 90,180 125,180 \n             C 137,180 148,177 158,170 \n             L 168,183 \n             C 170,185 174,186 177,184 \n             C 180,181 180,177 178,174 \n             L 169,161 \n             C 180,150 186,135 186,119 \n             C 186,84 160,58 125,58 Z \n             M 125,70 \n             C 152,70 174,92 174,119 \n             C 174,133 169,146 160,155 \n             L 149,141 \n             C 147,138 143,138 140,140 \n             C 137,143 137,147 139,150 \n             L 151,164 \n             C 143,167 134,168 125,168 \n             C 98,168 76,146 76,119 \n             C 76,92 98,70 125,70 Z\" />\n\n    <!-- Lowercase 'u' (Clean spurless geometry) -->\n    <path d=\"M 205,94 \n             C 205,90.5 208,88 211,88 \n             C 214,88 217,90.5 217,94 \n             L 217,140 \n             C 217,156 228,168 244,168 \n             C 260,168 271,156 271,140 \n             L 271,94 \n             C 271,90.5 274,88 277,88 \n             C 280,88 283,90.5 283,94 \n             L 283,140 \n             C 283,162 267,180 244,180 \n             C 221,180 205,162 205,140 \n             Z\" />\n\n    <!-- Lowercase 'o' (first) -->\n    <path d=\"M 328,88 \n             C 303,88 285,107 285,134 \n             C 285,161 303,180 328,180 \n             C 353,180 371,161 371,134 \n             C 371,107 353,88 328,88 Z \n             M 328,99 \n             C 347,99 359,114 359,134 \n             C 359,154 347,169 328,169 \n             C 309,169 297,154 297,134 \n             C 297,114 309,99 328,99 Z\" />\n\n    <!-- Lowercase 'l' -->\n    <rect x=\"388\" y=\"58\" width=\"11\" height=\"120\" rx=\"5.5\" />\n\n    <!-- Lowercase 'i' -->\n    <circle cx=\"423\" cy=\"65\" r=\"6\" />\n    <rect x=\"417.5\" y=\"88\" width=\"11\" height=\"90\" rx=\"5.5\" />\n\n    <!-- Lowercase 'o' (second) -->\n    <path d=\"M 488,88 \n             C 463,88 445,107 445,134 \n             C 445,161 463,180 488,180 \n             C 513,180 531,161 531,134 \n             C 531,107 513,88 488,88 Z \n             M 488,99 \n             C 507,99 519,114 519,134 \n             C 519,154 507,169 488,169 \n             C 469,169 457,154 457,134 \n             C 457,114 469,99 488,99 Z\" />\n  <\/g><\/g>\n<\/svg>\n"}</script>
+<script>/* Quolio splash. All artwork is embedded; there are no network dependencies. */
+(() => {
+  'use strict';
+  const DURATION = 5.8;
+  const COLORS = { paper: '#F9F8F3', kraft: '#BFA78A', ink: '#3C3835' };
+  const assets = JSON.parse(document.getElementById('quolio-assets').textContent);
+  const canvas = document.getElementById('quolio-canvas');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const replay = document.getElementById('replay');
+  const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n));
+  const smooth = n => { n = clamp(n); return n * n * (3 - 2 * n); };
+  const ease = n => { n = clamp(n); return n < .5 ? 4*n*n*n : 1-Math.pow(-2*n+2,3)/2; };
+  const mix = (a,b,n) => a+(b-a)*n;
+  const image = async svg => {
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    await img.decode();
+    return img;
+  };
+  const rounded = (x,y,w,h,r,fill,stroke) => {
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,r);
+    if (fill) { ctx.fillStyle=fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=.8; ctx.stroke(); }
+  };
+  function makePaper(back = false, variant = 0) {
+    const c=document.createElement('canvas'); c.width=720; c.height=900;
+    const g=c.getContext('2d'); g.scale(4,4);
+    g.fillStyle=back?'#F1EEE6':COLORS.paper;
+    g.beginPath();g.roundRect(0,0,180,225,18);g.fill();
+    const gradient=g.createLinearGradient(0,0,180,0);
+    gradient.addColorStop(0,'rgba(126,111,87,.12)');
+    gradient.addColorStop(.13,'rgba(255,255,255,0)');
+    gradient.addColorStop(1,'rgba(126,111,87,.025)');
+    g.fillStyle=gradient;g.fill();
+    g.lineWidth=.75;g.strokeStyle='#DED9CC';g.lineCap='round';
+    for(let y=62;y<200;y+=23){g.beginPath();g.moveTo(28,y);g.lineTo(156,y);g.stroke();}
+    g.fillStyle=['#E8CD6870','#A8CBA055','#86BBE04D'][variant%3];
+    g.beginPath();g.roundRect(29,39,51+variant*8,6,3);g.fill();
+    return c;
+  }
+  function makeInsideCover() {
+    const c=document.createElement('canvas'); c.width=780;c.height=960;
+    const g=c.getContext('2d');g.scale(4,4);
+    g.fillStyle=COLORS.kraft;g.beginPath();g.roundRect(0,0,195,240,26);g.fill();
+    g.fillStyle='#EEE9DD';g.beginPath();g.roundRect(7,8,180,225,20);g.fill();
+    return c;
+  }
+  // Project a paper plane around the spiral binding. A light curl lifts the outer edge.
+  function projected(x,y,w,h,angle,originX,originY,curl=0) {
+    const bulge=Math.sin(x/w*Math.PI)*curl;
+    const z=-Math.sin(angle)*x+bulge;
+    const perspective=800/(800-z);
+    return { x:originX+Math.cos(angle)*x*perspective,
+      y:originY+h/2+(y-h/2)*perspective };
+  }
+  function sheet(img,w,h,angle,ox,oy,curl=0) {
+    if(Math.abs(Math.cos(angle))<.005)return;
+    // Vertical texture strips follow the perspective surface without mesh seams.
+    if(Math.abs(Math.sin(angle))<.00001){
+      ctx.save();ctx.translate(ox,oy);ctx.scale(Math.cos(angle)<0?-1:1,1);
+      ctx.drawImage(img,0,0,w,h);ctx.restore();return;
+    }
+    const strips=512;
+    for(let i=0;i<strips;i++){
+      const x0=i*w/strips,x1=(i+1)*w/strips,xm=(x0+x1)/2;
+      const a=projected(x0,0,w,h,angle,ox,oy,curl);
+      const b=projected(x1,0,w,h,angle,ox,oy,curl);
+      const top=projected(xm,0,w,h,angle,ox,oy,curl);
+      const bottom=projected(xm,h,w,h,angle,ox,oy,curl);
+      const left=Math.min(a.x,b.x),width=Math.abs(b.x-a.x);
+      ctx.drawImage(img,i*img.width/strips,0,img.width/strips,img.height,
+        left-.12,top.y,width+.24,bottom.y-top.y);
+    }
+  }
+  const paper=[makePaper(false,0),makePaper(false,1),makePaper(false,2)];
+  const reverse=makePaper(true,0),inside=makeInsideCover();
+  let images,raf=0,start=0,playing=false,lastTime=0;
+  function draw(t) {
+    t=clamp(t,0,DURATION);lastTime=t;
+    const W=canvas.width,H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+    const size=Math.min(W,H),scale=size/500;
+    ctx.save();ctx.translate((W-size)/2,(H-size)/2);ctx.scale(scale,scale);
+    const appear=smooth(t/.5);
+    ctx.globalAlpha=appear;
+    const closing=ease((t-3.08)/.88);
+    const travel=ease((t-3.05)/1.03);
+    const spine=mix(248,153.5,travel),top=mix(110,82,travel);
+    const rise=14*(1-appear);
+    const bounce=t>3.96&&t<4.56?Math.sin((t-3.96)/.6*Math.PI)*Math.exp(-(t-3.96)*6)*.027:0;
+    ctx.translate(250,250+rise);ctx.scale(1+bounce,1+bounce);ctx.translate(-250,-250);
+    if(t>=3.96){
+      ctx.drawImage(images.notebook,0,0,500,500);
+    }else{
+      ctx.save();ctx.translate(spine-180,top-90);ctx.drawImage(images.base,0,0,500,500);ctx.restore();
+      // Open inside cover, with the binding between the left and right page stacks.
+      if(closing===0)sheet(inside,195,240,-Math.PI,spine,top);
+      for(let n=3;n>=0;n--){
+        rounded(spine+6+n*.6,top+8+n*1.2,180,225,20,'#EAE5D9');
+      }
+      ctx.drawImage(paper[2],spine+6,top+8,180,225);
+      ctx.save();ctx.globalAlpha*=1-smooth(closing*2.1);
+      for(let n=3;n>=0;n--)rounded(spine-178-n*.6,top+8+n*1.2,180,225,20,'#EAE5D9');
+      ctx.drawImage(paper[0],spine-178,top+8,180,225);ctx.restore();
+      const turns=[];
+      for(let i=0;i<5;i++){
+        const p=clamp((t-(.43+i*.44))/.72);
+        if(p>0&&p<1)turns.push({p,i,angle:-Math.PI*ease(p)});
+      }
+      turns.sort((a,b)=>Math.sin(-a.angle)-Math.sin(-b.angle));
+      for(const turn of turns){
+        const {p,i,angle}=turn;
+        const shade=Math.sin(p*Math.PI)*.12;
+        ctx.save();ctx.beginPath();ctx.roundRect(spine+6,top+8,180,225,20);ctx.clip();
+        const shadow=ctx.createLinearGradient(spine+6,0,spine+140,0);
+        shadow.addColorStop(0,`rgba(76,61,38,${shade})`);shadow.addColorStop(1,'rgba(76,61,38,0)');
+        ctx.fillStyle=shadow;ctx.fillRect(spine+6,top+8,180,225);ctx.restore();
+        sheet(Math.cos(angle)>0?paper[i%3]:reverse,180,225,angle,spine+6,top+8,Math.sin(p*Math.PI)*17);
+      }
+      if(closing>0){
+        const angle=-Math.PI*(1-closing);
+        // The inside pages travel with the cover until its decorated front faces us.
+        sheet(Math.cos(angle)<0?inside:images.cover,195,240,angle,spine,top);
+      }
+      ctx.save();ctx.translate(spine-180,top-90);ctx.drawImage(images.rings,0,0,500,500);ctx.restore();
+    }
+    ctx.globalAlpha=appear*smooth((t-4.02)/.62);
+    ctx.save();ctx.translate(0,10*(1-smooth((t-4.02)/.62)));
+    ctx.drawImage(images.wordmark,0,0,500,500);ctx.restore();ctx.restore();
+    canvas.dataset.time=t.toFixed(3);
+  }
+  function stop(){cancelAnimationFrame(raf);playing=false;}
+  function play(){
+    stop();replay.hidden=true;playing=true;start=performance.now();
+    const tick=now=>{
+      const t=(now-start)/1000;draw(t);
+      if(t<DURATION)raf=requestAnimationFrame(tick);
+      else {playing=false;replay.hidden=false;window.dispatchEvent(new CustomEvent('quolio:complete'));}
+    };raf=requestAnimationFrame(tick);
+  }
+  function resize(){
+    const bounds=canvas.getBoundingClientRect();
+    const dpr=Math.min(devicePixelRatio||1,2);
+    canvas.width=Math.max(1,Math.round(bounds.width*dpr));
+    canvas.height=Math.max(1,Math.round(bounds.height*dpr));
+    if(images)draw(playing?(performance.now()-start)/1000:lastTime);
+  }
+  window.quolio={duration:DURATION,seek(t){stop();draw(t);},play,resize};
+  window.quolio.ready=Promise.all(Object.entries(assets).map(async([k,svg])=>[k,await image(svg)])).then(entries=>{
+    images=Object.fromEntries(entries);resize();
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(new URLSearchParams(location.search).has('render')){draw(0);}
+    else if(reduced){draw(DURATION);replay.hidden=false;window.dispatchEvent(new CustomEvent('quolio:complete'));}
+    else play();
+    replay.addEventListener('click',play);
+    new ResizeObserver(resize).observe(canvas);
+    return true;
+  });
+})();
+</script>
+</body></html>

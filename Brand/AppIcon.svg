@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#F3E9DA"/>
+<g transform="translate(532 496) scale(2.9) translate(-260 -191)">
+<defs>
+    <!-- Soft paper drop shadow -->
+    <filter id="softShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="3" dy="6" stdDeviation="6" flood-color="#3c2f2f" flood-opacity="0.12" />
+    </filter>
+    <filter id="pageShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="1" dy="3" stdDeviation="3" flood-color="#3c2f2f" flood-opacity="0.08" />
+    </filter>
+  </defs>
+<g transform="translate(-36.5 -8)"><g transform="translate(10, 0)">
+    <!-- 1. Top Yellow Sticky Tabs -->
+    <rect x="205" y="68" width="22" height="35" rx="3" fill="#E8CD68" />
+    <rect x="228" y="72" width="22" height="35" rx="3" fill="#F4E08B" />
+
+    <!-- 2. Right Side Color Tabs -->
+    <!-- Peach tab -->
+    <rect x="365" y="145" width="25" height="24" rx="4" fill="#F0B58D" />
+    <!-- Sage green tab -->
+    <rect x="365" y="185" width="28" height="24" rx="4" fill="#A8CBA0" />
+    <!-- Soft periwinkle/blue tab -->
+    <rect x="365" y="225" width="26" height="24" rx="4" fill="#8EA8D8" />
+
+    <!-- 3. Kraft Paper Back Cover (Cardboard backing) -->
+    <rect x="180" y="90" width="195" height="240" rx="26" fill="#BFA78A" filter="url(#softShadow)" />
+
+    <!-- 4. Main White Notebook Page Body -->
+    <rect x="186" y="98" width="180" height="225" rx="20" fill="#F9F8F3" filter="url(#pageShadow)" />
+
+    <!-- 5. Blue Ribbon Bookmark (Folded over the top right) -->
+    <path d="M 326 98 
+             L 326 158 
+             L 343 146 
+             L 360 158 
+             L 360 98 
+             Z" 
+          fill="#86BBE0" />
+
+    <!-- 6. Kawaii Face Features -->
+    <!-- Left Eye (circle) -->
+    <circle cx="260" cy="205" r="9" fill="#2E2B2A" />
+
+    <!-- Right Eye (angled wink) -->
+    <path d="M 336 195 L 320 204 L 336 208"
+          fill="none"
+          stroke="#2E2B2A"
+          stroke-width="4.5"
+          stroke-linecap="round"
+          stroke-linejoin="round" />
+
+    <!-- Left Blush Cheek -->
+    <ellipse cx="248" cy="222" rx="11" ry="7.5" fill="#F5B8B5" />
+
+    <!-- Right Blush Cheek -->
+    <ellipse cx="346" cy="222" rx="11" ry="7.5" fill="#F5B8B5" />
+
+    <!-- Happy open smile -->
+    <path d="M 281 218 Q 296 220 311 218
+             C 313 218 313 221 312 224
+             C 310 233 304 239 296 239
+             C 288 239 282 233 280 224
+             C 279 221 279 218 281 218 Z"
+          fill="#2E2B2A" />
+    <!-- Soft pink tongue inside the smile -->
+    <path d="M 286 232 Q 296 226 306 232
+             Q 302 237 296 237 Q 290 237 286 232 Z"
+          fill="#D99493" />
+
+    <!-- 7. Spiral Binding Loops (Dark grey wire coils) -->
+    <!-- Loop 1 -->
+    <path d="M 174 125 C 160 125, 160 143, 174 143 C 196 143, 204 135, 204 135" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="135" r="3.5" fill="#C2BEB8" />
+
+    <!-- Loop 2 -->
+    <path d="M 174 157 C 160 157, 160 175, 174 175 C 196 175, 204 167, 204 167" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="167" r="3.5" fill="#C2BEB8" />
+
+    <!-- Loop 3 -->
+    <path d="M 174 189 C 160 189, 160 207, 174 207 C 196 207, 204 199, 204 199" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="199" r="3.5" fill="#C2BEB8" />
+
+    <!-- Loop 4 -->
+    <path d="M 174 221 C 160 221, 160 239, 174 239 C 196 239, 204 231, 204 231" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="231" r="3.5" fill="#C2BEB8" />
+
+    <!-- Loop 5 -->
+    <path d="M 174 253 C 160 253, 160 271, 174 271 C 196 271, 204 263, 204 263" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="263" r="3.5" fill="#C2BEB8" />
+
+    <!-- Loop 6 -->
+    <path d="M 174 285 C 160 285, 160 303, 174 303 C 196 303, 204 295, 204 295" 
+          fill="none" stroke="#484443" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="198" cy="295" r="3.5" fill="#C2BEB8" />
+  </g></g>
+</g></svg>
