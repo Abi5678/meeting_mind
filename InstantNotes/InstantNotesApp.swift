@@ -20,6 +20,8 @@ struct InstantNotesApp: App {
             TranscriptSegment.self,
             MeetingChatMessage.self,
             NoteImage.self,
+            Notebook.self,
+            NotebookChatMessage.self,
 
             // Tagging and organization
             Tag.self,

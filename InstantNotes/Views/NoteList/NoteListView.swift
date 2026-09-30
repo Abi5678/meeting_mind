@@ -43,15 +43,39 @@ struct NoteListView: View {
     /// Shown again when ⌥⌘F searches with the sidebar hidden.
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
     @FocusState private var searchFocused: Bool
+    @State private var sidebarMode = SidebarMode.notes
+    @Query private var notebooks: [Notebook]
+    @State private var selectedNotebookID: UUID?
+    @State private var showNewNotebook = false
+    @State private var newNotebookTitle = ""
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
-                searchField
-                noteList
+                Picker("Show", selection: $sidebarMode) {
+                    Text("Notes").tag(SidebarMode.notes)
+                    Text("Notebooks").tag(SidebarMode.notebooks)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                if sidebarMode == .notes {
+                    searchField
+                    noteList
+                } else {
+                    NotebookListView(selection: $selectedNotebookID)
+                        .padding(.top, 8)
+                }
             }
             .navigationTitle("Quolio")
             .toolbar { toolbarContent }
+            .alert("New notebook", isPresented: $showNewNotebook) {
+                TextField("Title", text: $newNotebookTitle)
+                Button("Cancel", role: .cancel) {}
+                Button("Create") { createNotebook() }
+            } message: {
+                Text("Gather PDFs, web pages and notes on one topic.")
+            }
             // Not on the toolbar button: importing re-renders the list, which would reset the sheet mid-import.
             .sheet(isPresented: $showImport) { ImportView() }
             .alert("Rename note", isPresented: $showRename, presenting: renamingNote) { note in
@@ -66,7 +90,18 @@ struct NoteListView: View {
                 await InkTextRecognition.recognizePending(in: modelContext)
             }
         } detail: {
-            if let note = allNotes.first(where: { $0.id == openNoteID }) {
+            if sidebarMode == .notebooks {
+                if let notebook = notebooks.first(where: { $0.id == selectedNotebookID }) {
+                    NotebookScreen(notebook: notebook)
+                        .id(notebook.id)
+                } else {
+                    ContentUnavailableView(
+                        "Open a notebook",
+                        systemImage: "books.vertical",
+                        description: Text("Pick a notebook from the list, or tap + to start one.")
+                    )
+                }
+            } else if let note = allNotes.first(where: { $0.id == openNoteID }) {
                 // Keyed by the selection, so a second hit in the same note jumps again.
                 CanvasNoteEditorView(note: .constant(note), jump: selectedResult?.hit.passage.source)
                     .id(selectedNoteID)
@@ -316,7 +351,7 @@ struct NoteListView: View {
                 } label: {
                     Label("Import from Notion", systemImage: "square.and.arrow.down")
                 }
-                if selectedNoteID != nil {
+                if sidebarMode == .notes, selectedNoteID != nil {
                     Divider()
                     Button(role: .destructive) {
                         if let note = allNotes.first(where: { $0.id == openNoteID }) {
@@ -333,10 +368,17 @@ struct NoteListView: View {
         }
 
         ToolbarItem(placement: .navigationBarTrailing) {
-            Button { showNewNoteSheet = true } label: {
+            Button {
+                if sidebarMode == .notebooks {
+                    newNotebookTitle = ""
+                    showNewNotebook = true
+                } else {
+                    showNewNoteSheet = true
+                }
+            } label: {
                 Image(systemName: "plus")
             }
-            .accessibilityLabel("New note")
+            .accessibilityLabel(sidebarMode == .notebooks ? "New notebook" : "New note")
             .sheet(isPresented: $showNewNoteSheet, onDismiss: openCreatedNote) {
                 TemplateGalleryView { createdNoteID = $0.id }
             }
@@ -395,6 +437,17 @@ struct NoteListView: View {
         guard let id = createdNoteID else { return }
         createdNoteID = nil
         selectedNoteID = id
+    }
+
+    private func createNotebook() {
+        let title = newNotebookTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let notebook = Notebook(title: title.isEmpty ? "Untitled notebook" : title)
+        modelContext.insert(notebook)
+        selectedNotebookID = notebook.id
+    }
+
+    enum SidebarMode {
+        case notes, notebooks
     }
 
     enum SortOption: String, CaseIterable {

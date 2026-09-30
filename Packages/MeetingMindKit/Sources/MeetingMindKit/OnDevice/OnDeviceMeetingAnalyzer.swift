@@ -107,7 +107,7 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
 
     /// Condenses part by part until everything fits in one request. Returns what to summarize, and
     /// whether that is notes on the parts rather than the transcript itself.
-    private func condensed<Notes: PartNoting>(
+    func condensed<Notes: PartNoting>(
         _ transcript: String, instructions: String, as _: Notes.Type,
         ask: (_ index: Int, _ count: Int, _ isNotes: Bool) -> String
     ) async throws -> (text: String, isNotes: Bool) {
@@ -117,15 +117,32 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
         while chunks.count > 1 {
             var notes: [String] = []
             for (index, chunk) in chunks.enumerated() {
-                let session = LanguageModelSession(instructions: instructions)
-                let prompt = ask(index, chunks.count, isNotes) + "\n\n" + chunk
-                notes.append(try await session.respond(to: prompt, generating: Notes.self).content.text)
+                notes.append(try await Self.notes(on: chunk, asking: ask(index, chunks.count, isNotes),
+                                                  instructions: instructions, as: Notes.self))
             }
             text = notes.joined(separator: "\n\n")
             isNotes = true
             chunks = TranscriptChunker.chunks(text, maxWords: Self.wordsPerChunk)
         }
         return (text, isNotes)
+    }
+
+    /// One part's notes. A part too dense for the model's context, as a page of formulas or markup
+    /// can be, is noted in two halves instead.
+    private static func notes<Notes: PartNoting>(
+        on part: String, asking prompt: String, instructions: String, as _: Notes.Type
+    ) async throws -> String {
+        do {
+            let session = LanguageModelSession(instructions: instructions)
+            return try await session.respond(to: prompt + "\n\n" + part, generating: Notes.self).content.text
+        } catch let error as LanguageModelSession.GenerationError {
+            guard case .exceededContextWindowSize = error, part.count >= 200 else { throw error }
+            let middle = part.index(part.startIndex, offsetBy: part.count / 2)
+            let cut = part[middle...].firstIndex(where: \.isWhitespace) ?? middle
+            let first = try await notes(on: String(part[..<cut]), asking: prompt, instructions: instructions, as: Notes.self)
+            let second = try await notes(on: String(part[cut...]), asking: prompt, instructions: instructions, as: Notes.self)
+            return first + "\n\n" + second
+        }
     }
 
     private static let instructions = """
