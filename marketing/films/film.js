@@ -302,59 +302,64 @@
     ctx.strokeStyle = C.red; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(x + 30, y - 4, 14, -1.3, 1.3); ctx.stroke();
   }
 
-  // Speech-bubble outline with the Quolio tail sweeping down-right.
-  function bubblePts(x, y, w, h, r, tip, back) {
-    const pts = [];
-    const arc = (cx, cy, a0, a1, n = 6) => { for (let i = 0; i <= n; i++) { const a = a0 + (i / n) * (a1 - a0); pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } };
-    arc(x + w - r, y + r, -Math.PI / 2, 0);
-    arc(x + w - r, y + h - r, 0, Math.PI * 0.36, 3);
-    pts.push(tip, back);
-    arc(x + r, y + h - r, Math.PI / 2, Math.PI);
-    arc(x + r, y + r, Math.PI, Math.PI * 1.5);
-    return pts;
-  }
+  // Brand art (notebook mascot, app icon, wordmark) comes from brand-art.js, decoded once in `ready`.
+  const ART = {};
+  const artReady = Promise.all(Object.entries(window.QUOLIO_ART).map(async ([k, svg]) => {
+    const img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); await img.decode(); ART[k] = img;
+  }));
 
-  // The Quolio mascot: the app icon's cream speech bubble, with a face.
+  // The Quolio mascot: the notebook, with a face drawn on so it can blink, sleep and wave.
+  // Face coordinates are the logo SVG's, in the notebook image's own space.
+  const MOUTH = new Path2D("M 281 218 Q 296 220 311 218 C 313 218 313 221 312 224 C 310 233 304 239 296 239 C 288 239 282 233 280 224 C 279 221 279 218 281 218 Z");
+  const TONGUE = new Path2D("M 286 232 Q 296 226 306 232 Q 302 237 296 237 Q 290 237 286 232 Z");
   function mascot(ctx, x, y, s, o = {}) {
     ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate((o.rot || 0) * Math.PI / 180);
-    ctx.strokeStyle = C.ink; ctx.lineCap = "round";
+    ctx.strokeStyle = "#2E2B2A"; ctx.lineCap = "round";
     if (o.wave != null) {
       ctx.lineWidth = 7;
       const a = -0.6 + Math.sin(o.wave) * 0.45;
-      ctx.beginPath(); ctx.moveTo(70, -10); ctx.lineTo(98 + Math.cos(a) * 10, -46 + Math.sin(a) * 18); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-70, 0); ctx.lineTo(-96, 24); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(58, -10); ctx.lineTo(88 + Math.cos(a) * 10, -46 + Math.sin(a) * 18); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-48, 20); ctx.lineTo(-74, 40); ctx.stroke();
     }
-    paper(ctx, bubblePts(-78, -62, 156, 114, 44, [64, 84], [14, 52]), C.cream, 501, { rough: 2, step: 10 });
-    ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(74,100,220,0.85)"; ctx.stroke();
-    ctx.fillStyle = C.ink; ctx.strokeStyle = C.ink; ctx.lineWidth = 4.5;
-    const ey = -12;
+    const K = 0.55;
+    ctx.translate(0, -6); ctx.scale(K, K); ctx.translate(-255, -195);
+    ctx.drawImage(ART.notebook, 125, 50, 260, 290);
+    ctx.fillStyle = "#2E2B2A"; ctx.lineWidth = 4.5; ctx.lineJoin = "round";
+    ctx.translate(-26.5, -8); // the logo's own offset
+    const ey = 205;
     if (o.sleep) {
-      ctx.beginPath(); ctx.arc(-22, ey, 8, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
-      ctx.beginPath(); ctx.arc(22, ey, 8, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+      ctx.lineWidth = 4; 
+      ctx.beginPath(); ctx.arc(260, ey - 2, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(328, ey - 2, 9, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
     } else {
-      if (o.blink) { ctx.beginPath(); ctx.moveTo(-30, ey); ctx.lineTo(-14, ey); ctx.stroke(); }
-      else { ctx.beginPath(); ctx.ellipse(-22, ey, 6.5, 8, 0, 0, Math.PI * 2); ctx.fill(); }
-      if (o.wink || o.blink) { ctx.beginPath(); ctx.arc(22, ey + 4, 8, 1.1 * Math.PI, 1.9 * Math.PI); ctx.stroke(); }
-      else { ctx.beginPath(); ctx.ellipse(22, ey, 6.5, 8, 0, 0, Math.PI * 2); ctx.fill(); }
+      if (o.blink) { ctx.beginPath(); ctx.moveTo(251, ey); ctx.lineTo(269, ey); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.arc(260, ey, 9, 0, Math.PI * 2); ctx.fill(); }
+      if (o.wink || o.blink || o.wink == null) {
+        ctx.beginPath(); ctx.moveTo(336, 195); ctx.lineTo(320, 204); ctx.lineTo(336, 208); ctx.stroke();
+      } else { ctx.beginPath(); ctx.arc(328, ey, 9, 0, Math.PI * 2); ctx.fill(); }
     }
-    ctx.fillStyle = "rgba(74,100,220,0.35)";
-    ctx.beginPath(); ctx.ellipse(-40, 8, 10, 6, 0, 0, Math.PI * 2); ctx.ellipse(40, 8, 10, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 8, o.bigSmile ? 14 : 10, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    ctx.fillStyle = "#F5B8B5";
+    ctx.beginPath(); ctx.ellipse(248, 222, 11, 7.5, 0, 0, Math.PI * 2); ctx.ellipse(346, 222, 11, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+    if (o.sleep) { ctx.beginPath(); ctx.arc(296, 222, 9, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
+    else { ctx.fillStyle = "#2E2B2A"; ctx.fill(MOUTH); ctx.fillStyle = "#D99493"; ctx.fill(TONGUE); }
     ctx.restore();
   }
 
-  // The Quolio app icon, cut from paper.
+  // The Quolio app icon: the notebook on its cream tile, cut to the app-icon corner radius.
   function logo(ctx, cx, cy, S) {
-    ctx.save(); ctx.translate(cx - S / 2, cy - S / 2); ctx.scale(S / 1024, S / 1024);
-    const g = ctx.createLinearGradient(0, 0, 0, 1024);
-    g.addColorStop(0, "#5273e4"); g.addColorStop(1, C.brandDeep);
-    paper(ctx, roundRectPts(0, 0, 1024, 1024, 230), g, 950, { rough: 5, step: 28, blur: 40, dy: 18, edgeW: 7 });
-    paper(ctx, bubblePts(170, 190, 683, 520, 160, [828, 842], [603, 710]), C.cream, 951, { rough: 5, step: 24, blur: 30, dy: 14, edgeW: 6 });
-    [[790, 352], [708, 452], [586, 552]].forEach(([x2, y], i) => {
-      circ(ctx, 272, y, 30, C.brand, 952 + i, { shadow: false, rough: 2, edge: false });
-      ctx.fillStyle = "#1c1c1e"; ctx.beginPath(); ctx.roundRect(340, y - 27, x2 - 340, 54, 27); ctx.fill();
-    });
+    ctx.save(); ctx.translate(cx - S / 2, cy - S / 2);
+    ctx.shadowColor = "rgba(40,30,20,0.28)"; ctx.shadowBlur = S * 0.07; ctx.shadowOffsetY = S * 0.03;
+    ctx.beginPath(); ctx.roundRect(0, 0, S, S, S * 0.225); ctx.fillStyle = "#F3E9DA"; ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.clip(); ctx.drawImage(ART.icon, 0, 0, S, S);
     ctx.restore();
+  }
+
+  // The Quolio wordmark, h tall; (x, yMid) is its left/center/right edge and vertical middle.
+  function wordmark(ctx, x, yMid, h, o = {}) {
+    const w = h * 308 / 87, img = o.light ? ART.wordmarkLight : ART.wordmarkInk;
+    const left = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
+    ctx.drawImage(img, left, yMid - h / 2, w, h);
   }
 
   // Phone frame; draws `screen(ctx, x, y, w, h)` clipped inside the display.
@@ -828,7 +833,7 @@
     logo(ctx, VW / 2, 250 - (1 - a) * 60, 230 * (0.85 + 0.15 * backOut(seg(lt, 0.1, 0.8))));
     mascot(ctx, VW / 2 + 520, 420, 1.1, { wave: lt * 6, bigSmile: true, blink: lt % 2.6 < 0.12, rot: 6 });
     ctx.globalAlpha = a;
-    text(ctx, "Quolio", VW / 2, 570, F.serif(170), C.ink, { align: "center" });
+    wordmark(ctx, VW / 2, 525, 150, { align: "center" });
     ctx.globalAlpha = 1;
     const line = o.tagline || "Be in the room. We'll take the notes.";
     ctx.font = F.hand(70);
@@ -917,7 +922,7 @@
     logo(ctx, 540, 480 - (1 - a) * 60, 300 * (0.85 + 0.15 * backOut(seg(lt, 0.1, 0.8))));
     mascot(ctx, 860, 1520, 1.2, { wave: lt * 6, bigSmile: true, blink: lt % 2.6 < 0.12, rot: 6 });
     ctx.globalAlpha = a;
-    text(ctx, "Quolio", 540, 890, F.serif(220), C.ink, { align: "center" });
+    wordmark(ctx, 540, 850, 190, { align: "center" });
     ctx.globalAlpha = 1;
     // one sentence per line, but keep short sentences together while they fit
     const lines = [];
@@ -1264,15 +1269,15 @@
     ctx.restore();
   }
   function posterLogo(ctx, W, H, U, pos) {
-    const s = 58 * U, tw = 190 * U, th = s + 30 * U;
+    const s = 58 * U, tw = 205 * U, th = s + 30 * U;
     const x = pos.includes("l") ? W * 0.04 : W - W * 0.04 - tw, y = pos.includes("t") ? H * 0.04 : H - H * 0.04 - th;
     rrect(ctx, x, y, tw, th, 14 * U, C.cream, 1790, { rough: 2 * U, blur: 12 * U, dy: 4 * U });
     logo(ctx, x + 15 * U + s / 2, y + th / 2, s);
-    text(ctx, "Quolio", x + 30 * U + s, y + th / 2 + 14 * U, F.serif(42 * U), C.ink);
+    wordmark(ctx, x + 30 * U + s, y + th / 2, 30 * U);
   }
   function posterCTA(ctx, W, H, U, c) {
     logo(ctx, W / 2, H * 0.29, Math.min(W, H) * 0.3);
-    text(ctx, "Quolio", W / 2, H * 0.29 + Math.min(W, H) * 0.15 + 150 * U, F.serif(150 * U), C.ink, { align: "center" });
+    wordmark(ctx, W / 2, H * 0.29 + Math.min(W, H) * 0.15 + 100 * U, 140 * U, { align: "center" });
     const lines = wrap(ctx, c.tagline, F.hand(62 * U), W * 0.8);
     let y = H * 0.29 + Math.min(W, H) * 0.15 + 250 * U;
     lines.forEach((ln) => {
@@ -1291,7 +1296,7 @@
     const k = U * (l.scale || 1), s = 150 * k, x0 = W * l.x, yc = H * l.y;
     logo(ctx, x0 + s / 2, yc, s);
     const tx = x0 + s + 34 * k;
-    text(ctx, "Quolio", tx, yc - 4 * k, F.serif(124 * k), C.ink);
+    wordmark(ctx, tx, yc - 40 * k, 100 * k);
     const tag = l.tagline || "Be in the room. We'll take the notes.";
     ctx.font = F.hand(52 * k); const tw = ctx.measureText(tag).width;
     ctx.fillStyle = C.yellow; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.roundRect(tx - 8 * k, yc + 22 * k, tw + 16 * k, 52 * k, 5 * k); ctx.fill(); ctx.globalAlpha = 1;
@@ -1321,15 +1326,7 @@
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     const fn = spec.scene && SCENES[spec.scene];
     if (spec.avatar) {
-      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#5273e4"); g.addColorStop(1, C.brandDeep);
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(W / 1024, H / 1024); ctx.translate(-512, -512);
-      paper(ctx, bubblePts(170, 190, 683, 520, 160, [828, 842], [603, 710]), C.cream, 951, { rough: 5, step: 24, blur: 30, dy: 14, edgeW: 6 });
-      [[790, 352], [708, 452], [586, 552]].forEach(([x2, y], i) => {
-        circ(ctx, 272, y, 30, C.brand, 952 + i, { shadow: false, rough: 2, edge: false });
-        ctx.fillStyle = "#1c1c1e"; ctx.beginPath(); ctx.roundRect(340, y - 27, x2 - 340, 54, 27); ctx.fill();
-      });
-      ctx.restore();
+      ctx.drawImage(ART.icon, 0, 0, W, H);
     } else if (spec.split) posterSplit(ctx, W, H, U, spec);
     else if (fn && spec.vertical && fn.vertical) { ctx.save(); ctx.scale(W / 1080, H / 1920); fn.vertical(ctx, spec.lt); ctx.restore(); }
     else if (fn) {
@@ -1346,7 +1343,7 @@
 
   const ready = Promise.all([
     "600 40px Caveat", "700 40px Caveat", "400 40px 'Instrument Serif'", "500 20px Inter", "600 20px Inter", "400 20px Inter",
-  ].map((f) => document.fonts.load(f))).then(() => document.fonts.ready);
+  ].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => artReady);
 
   window.QuolioFilms = { FILMS, render, poster, ready, VW, VH };
 })();
