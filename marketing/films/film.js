@@ -357,7 +357,7 @@
 
   // The Quolio wordmark, h tall; (x, yMid) is its left/center/right edge and vertical middle.
   function wordmark(ctx, x, yMid, h, o = {}) {
-    const w = h * 308 / 87, img = o.light ? ART.wordmarkLight : ART.wordmarkInk;
+    const w = h * 312 / 88.1, img = o.light ? ART.wordmarkLight : ART.wordmarkInk;
     const left = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
     ctx.drawImage(img, left, yMid - h / 2, w, h);
   }
@@ -1175,6 +1175,159 @@
   sceneNotebook.vcam = camPath([[0, 960, 520, 1300], [1.0, 690, 440, 700], [7.2, 690, 440, 700], [7.9, 1250, 540, 700], [10.5, 1250, 540, 700]]);
   sceneImport.vcam = camPath([[0, 620, 560, 820], [1.2, 900, 520, 1000], [4, 1200, 560, 900]]);
 
+  // ---- "Ask my notebook": sources pile up, one question, an answer that cites them. ----
+  function srcCard(ctx, kind, i) {
+    const w = 400, h = 310;
+    if (kind === "pdf") {
+      paper(ctx, [[-w / 2, -h / 2], [w / 2 - 60, -h / 2], [w / 2, -h / 2 + 60], [w / 2, h / 2], [-w / 2, h / 2]], C.manila, 1600 + i, { rough: 3, blur: 14 });
+      ctx.fillStyle = C.red; ctx.beginPath(); ctx.roundRect(-w / 2 + 26, -h / 2 + 30, 92, 44, 8); ctx.fill();
+      text(ctx, "PDF", -w / 2 + 72, -h / 2 + 62, F.sans(28, 700), "#fff", { align: "center" });
+      text(ctx, "Mars mission brief", -w / 2 + 26, -h / 2 + 130, F.hand(50), C.ink);
+      ctx.fillStyle = "rgba(30,36,51,0.28)";
+      [0, 1, 2, 3].forEach((k) => ctx.fillRect(-w / 2 + 26, -h / 2 + 168 + k * 24, k === 3 ? 170 : 340, 8));
+      text(ctx, "12 pages", w / 2 - 26, h / 2 - 18, F.sans(20, 500), C.inkSoft, { align: "right" });
+    } else if (kind === "web") {
+      rect(ctx, -w / 2, -h / 2, w, h, C.cream, 1600 + i, { rough: 3, blur: 14 });
+      ctx.fillStyle = C.paper2; ctx.fillRect(-w / 2 + 14, -h / 2 + 14, w - 28, 50);
+      [C.red, C.yellow, C.mint].forEach((c, k) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(-w / 2 + 38 + k * 24, -h / 2 + 39, 8, 0, 7); ctx.fill(); });
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(-w / 2 + 120, -h / 2 + 26, w - 160, 26, 13); ctx.fill();
+      text(ctx, "example.com/mars-crew", -w / 2 + 136, -h / 2 + 46, F.sans(18, 500), C.inkSoft);
+      text(ctx, "Meet the crew", -w / 2 + 28, -h / 2 + 128, F.serif(46), C.ink);
+      ctx.fillStyle = C.brand; ctx.fillRect(-w / 2 + 28, -h / 2 + 150, 60, 5);
+      ctx.fillStyle = "rgba(30,36,51,0.28)";
+      [0, 1, 2].forEach((k) => ctx.fillRect(-w / 2 + 28, -h / 2 + 180 + k * 24, k === 2 ? 150 : 340, 8));
+    } else {
+      rect(ctx, -w / 2, -h / 2, w, h, C.yellow, 1600 + i, { rough: 3, blur: 14 });
+      ctx.fillStyle = C.brand; ctx.beginPath(); ctx.arc(-w / 2 + 70, -h / 2 + 80, 40, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-w / 2 + 58, -h / 2 + 60); ctx.lineTo(-w / 2 + 88, -h / 2 + 80); ctx.lineTo(-w / 2 + 58, -h / 2 + 100); ctx.fill();
+      ctx.fillStyle = C.ink;
+      for (let k = 0; k < 16; k++) { const hh = 10 + 46 * Math.abs(Math.sin(k * 1.9 + 1)); ctx.fillRect(-w / 2 + 140 + k * 15, -h / 2 + 80 - hh / 2, 8, hh); }
+      text(ctx, "Voice memo", -w / 2 + 26, -h / 2 + 190, F.hand(54), C.ink);
+      text(ctx, "Thursday · 2:14", -w / 2 + 26, -h / 2 + 232, F.sans(22, 500), C.inkSoft);
+    }
+  }
+  const ASK_KINDS = ["pdf", "web", "memo"];
+  const ASK_H = [[560, 430, -6], [960, 520, 4], [1360, 420, -3]];
+  const ASK_V = [[420, 380, -5], [660, 760, 4], [430, 1140, -3]];
+  function drawSources(ctx, lt, pos, o) {
+    ASK_KINDS.forEach((k, i) => {
+      const s = 0.3 + i * 0.45, q = easeInOut(seg(lt, s, s + 0.9)); if (q <= 0) return;
+      const [x, y, r] = pos[i];
+      const [bx, by] = bez([x + (i - 1) * 500, -380], [x, y - 700], [x, y], q);
+      const drop = backOut(seg(lt, s + 0.85, s + 1.15));
+      ctx.save(); ctx.translate(bx, by + Math.sin(lt * 1.4 + i) * 5); ctx.rotate((r + (1 - q) * 14 * (i % 2 ? 1 : -1)) * Math.PI / 180);
+      ctx.scale(o.k * (0.97 + 0.03 * drop), o.k * (0.97 + 0.03 * drop));
+      srcCard(ctx, k, i); ctx.restore();
+    });
+    const b = backOut(seg(lt, 2.9, 3.4));
+    if (b > 0) {
+      ctx.save(); ctx.translate(o.badge[0], o.badge[1]); ctx.scale(b, b); ctx.rotate(-0.04);
+      rrect(ctx, -190, -44, 380, 88, 20, C.brand, 1620, { rough: 2 });
+      text(ctx, "3 sources · one notebook", 0, 14, F.hand(46), "#fff", { align: "center" });
+      ctx.restore();
+    }
+  }
+  function sceneSources(ctx, lt) {
+    fullBg(ctx, "#e7d7b6");
+    drawSources(ctx, lt, ASK_H, { k: 1.15, badge: [960, 800] });
+    mascot(ctx, 1700, 830, 1, { wave: lt * 6, bigSmile: lt > 3, blink: lt % 2.6 < 0.12, rot: 8 });
+    caption(ctx, "A PDF. A web page. A voice memo.", lt, 0.9, 3.6);
+  }
+  sceneSources.vertical = (ctx, lt) => {
+    fullBg(ctx, "#e7d7b6");
+    drawSources(ctx, lt, ASK_V, { k: 1.15, badge: [540, 1370] });
+    mascot(ctx, 900, 330, 0.9, { wave: lt * 6, bigSmile: lt > 3, blink: lt % 2.6 < 0.12, rot: 8 });
+    caption(ctx, "A PDF. A web page. A voice memo.", lt, 0.9, 3.6, { vy: 1590 });
+  };
+
+  const AQ = { x: 260, y: 120, w: 1400, h: 730 };
+  const ASK_ROWS = [
+    ["Mars mission brief", "PDF", "Launch window opens October 12.", C.red],
+    ["Meet the crew", "example.com", "Four astronauts, two engineers.", C.brand],
+    ["Voice memo", "Thursday", "…moving launch to October 19.", C.mustard],
+  ];
+  function askScreen(ctx, x, y, w, h, lt) {
+    const on = (a, d = 0.5) => seg(lt, a, a + d);
+    ctx.fillStyle = "rgba(30,36,51,0.05)"; ctx.fillRect(x, y, w, 0);
+    const L = x + 34, colR = x + 500, R = x + w - 40;
+    text(ctx, "SOURCES", L, y + 60, F.sans(16, 600), C.red, { spacing: 2, alpha: on(0.3) });
+    const cited = seg(lt, 7.3, 8.0), press = lt > 8.4 && lt < 8.9;
+    ASK_ROWS.forEach(([t, kind, ex, col], i) => {
+      const a = easeOut(on(0.5 + i * 0.25, 0.6)), yy = y + 84 + i * 150;
+      const hot = (i === 0 || i === 2) ? cited : 0;
+      const lift = hot * (press && i === 2 ? 14 : 6);
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(L - (1 - a) * 80 + lift, yy);
+      rrect(ctx, 0, 0, 430, 126, 14, hot ? "#eef1ff" : "#fff", 1640 + i, { rough: 1.5, blur: hot ? 14 : 6 });
+      if (hot) { ctx.strokeStyle = C.brand; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(0, 0, 430, 126, 14); ctx.stroke(); }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(18, 20, 10, 32, 3); ctx.fill();
+      text(ctx, `${i + 1}`, 350, 50, F.sans(20, 700), C.inkSoft, { alpha: 0 });
+      text(ctx, t, 42, 46, F.sans(26, 600), C.ink);
+      text(ctx, kind, 412, 46, F.sans(17, 500), C.inkSoft, { align: "right" });
+      if (hot) { ctx.fillStyle = C.yellow; ctx.globalAlpha = a * 0.85; ctx.fillRect(38, 74, 380 * easeOut(hot), 32); ctx.globalAlpha = a; }
+      text(ctx, ex, 42, 98, F.sans(21, 400), C.ink);
+      ctx.restore();
+    });
+    ctx.strokeStyle = "rgba(30,36,51,0.12)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(colR - 14, y + 40); ctx.lineTo(colR - 14, y + h - 40); ctx.stroke();
+    text(ctx, "Mars trip", colR + 20, y + 62, F.serif(44), C.ink, { reveal: on(0.4, 0.6) });
+    // question
+    const qa = on(1.6, 0.4);
+    if (qa > 0) {
+      ctx.save(); ctx.globalAlpha = qa;
+      rrect(ctx, R - 340, y + 100, 340, 74, 37, C.brand, 1650, { rough: 1.5, blur: 8 });
+      text(ctx, "When do we launch?", R - 170, y + 147, F.sans(28, 500), "#fff", { align: "center", reveal: easeInOut(seg(lt, 1.7, 2.9)) });
+      ctx.restore();
+    }
+    // thinking dots
+    if (lt > 3.0 && lt < 4.0) {
+      rrect(ctx, colR + 20, y + 214, 130, 56, 28, C.paper2, 1655, { rough: 1.2, blur: 4 });
+      for (let k = 0; k < 3; k++) { ctx.fillStyle = C.inkSoft; ctx.beginPath(); ctx.arc(colR + 60 + k * 30, y + 242 - Math.max(0, Math.sin(lt * 9 - k * 0.9)) * 9, 7, 0, 7); ctx.fill(); }
+    }
+    // answer
+    const aa = easeOut(on(4.0, 0.5));
+    if (aa > 0) {
+      ctx.save(); ctx.globalAlpha = aa;
+      rrect(ctx, colR + 20, y + 210, R - colR - 20, 330, 22, C.paper2, 1660, { rough: 2, blur: 10 });
+      ctx.restore();
+      const lines = [
+        ["The sources differ:", 4.4, 5.2, null],
+        ["- Launch window opens October 12", 5.3, 6.3, [1]],
+        ["- The voice memo moves it to October 19", 6.5, 7.6, [3]],
+      ];
+      lines.forEach(([str, a0, a1, ref], i) => {
+        const yy = y + 275 + i * 78, rv = easeInOut(seg(lt, a0, a1));
+        const f = F.sans(i === 0 ? 30 : 28, i === 0 ? 600 : 500);
+        text(ctx, str, colR + 52, yy, f, C.ink, { reveal: rv });
+        if (ref) {
+          ctx.font = f; const tw = ctx.measureText(str).width;
+          const cp = backOut(seg(lt, a1, a1 + 0.35)); if (cp <= 0) return;
+          const cx = colR + 52 + tw + 34, pr = ref[0] === 3 && press;
+          ctx.save(); ctx.translate(cx, yy - 10); ctx.scale(cp * (pr ? 0.9 : 1), cp * (pr ? 0.9 : 1));
+          ctx.fillStyle = pr ? C.brandDeep : C.brand; ctx.beginPath(); ctx.roundRect(-24, -20, 48, 40, 20); ctx.fill();
+          text(ctx, String(ref[0]), 0, 9, F.sans(24, 700), "#fff", { align: "center" });
+          ctx.restore();
+          if (pr) { const q = seg(lt, 8.4, 8.9); ctx.strokeStyle = C.brand; ctx.globalAlpha = 1 - q; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, yy - 10, 24 + q * 40, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+        }
+      });
+      text(ctx, "On-device · from your sources only", colR + 52, y + 515, F.sans(17, 500), C.inkSoft, { alpha: on(7.6) });
+    }
+  }
+  function sceneAsk(ctx, lt) {
+    ruledPaperBg(ctx);
+    const rise = easeOut(seg(lt, 0, 0.7));
+    ctx.save(); ctx.translate(0, (1 - rise) * 600);
+    tablet(ctx, AQ.x, AQ.y, AQ.w, AQ.h, 1600, (c, x, y, w, h) => askScreen(c, x, y, w, h, lt));
+    ctx.restore();
+    mascot(ctx, AQ.x + AQ.w + 10, AQ.y + AQ.h - 110, 0.9, { rot: 10, bigSmile: true, wink: lt > 9.2 && lt < 9.8, wave: lt * 6 });
+    caption(ctx, "Ask one question.", lt, 1.2, 2.6, { y: 1010 });
+    caption(ctx, "Every answer points back to its source.", lt, 4.6, 3.0, { y: 1010 });
+    caption(ctx, "Tap a number to jump to the passage.", lt, 7.7, 2.6, { y: 1010 });
+  }
+  sceneAsk.vcam = camPath([[0, 960, 500, 1500], [1.0, 640, 500, 760], [2.4, 640, 500, 760], [3.6, 1250, 500, 900], [7.0, 1250, 500, 900], [7.8, 960, 500, 1300], [10.5, 960, 500, 1300]]);
+  const ASK_END = { tagline: "Ask your notebook. It answers from your sources.", sub: "PDFs, pages & meetings  ·  On-device  ·  iPhone, iPad & Mac  ·  coming soon" };
+  function askEnd(ctx, lt) { sceneEnd(ctx, lt, ASK_END); }
+  askEnd.vertical = (ctx, lt) => sceneEndV(ctx, lt, ASK_END);
+
   // ================= FILMS =================
   const FILMS = {
     hero: {
@@ -1191,6 +1344,10 @@
     notebook: {
       title: "One notebook", duration: 24,
       segs: [[sceneScraps, 0, 4.5], [sceneNotebook, 4.5, 15], [sceneImport, 15, 19], [notebookEnd, 19, 24]],
+    },
+    ask: {
+      title: "Ask my notebook", duration: 21,
+      segs: [[sceneSources, 0, 5.5], [sceneAsk, 5.5, 16], [askEnd, 16, 21]],
     },
     speed: {
       title: "Two seconds", duration: 15,
@@ -1243,7 +1400,7 @@
   // ================= POSTERS =================
   // Stills for social: a scene frame framed by a camera, with a headline card and logo tag.
   const SCENES = { town: sceneTown, scribblers: sceneScribblers, meeting: sceneMeeting, note: sceneNote, train: sceneTrain,
-    speed: sceneSpeed, scraps: sceneScraps, notebook: sceneNotebook, import: sceneImport, end: sceneEnd };
+    speed: sceneSpeed, scraps: sceneScraps, notebook: sceneNotebook, import: sceneImport, sources: sceneSources, ask: sceneAsk, end: sceneEnd };
   function paperScreen(ctx, W, H, U) {
     ctx.fillStyle = C.cream; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = grainPattern(ctx); ctx.fillRect(0, 0, W, H);
