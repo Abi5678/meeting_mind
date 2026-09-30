@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 
@@ -368,5 +369,52 @@ struct OnDeviceModelTests {
         print("PIECES:", pieces)
         #expect(TranscriptPiece.joined(pieces).localizedCaseInsensitiveContains("press release"))
         #expect(pieces.last!.end > pieces.first!.start)
+    }
+
+    @Test("Labels two voices in a recording")
+    @available(macOS 26, *)
+    func speakerLabels() async throws {
+        let lines = [
+            ("Samantha", "Good morning. Shall we go through the launch plan for the new app today?"),
+            ("Daniel", "Yes. I think we should move the release to Monday, because the press release is not ready."),
+            ("Samantha", "Fine by me. Can you send the updated deck to the team by Friday afternoon?"),
+            ("Daniel", "Sure, I will send it tomorrow morning and copy you on the email."),
+        ]
+        let url = try Self.conversation(lines)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let (_, words) = try await OnDeviceTranscriber(locale: Locale(identifier: "en_US")).transcription(fileAt: url)
+        let turns = try await SpeakerDiarizer().turns(fileAt: url)
+        let pieces = try #require(SpeakerLabels.pieces(words: words, turns: turns))
+        print("LABELLED:\n" + pieces.map(\.text).joined(separator: "\n"))
+
+        #expect(pieces.map { $0.text.prefix(10) } == ["Speaker 1:", "Speaker 2:", "Speaker 1:", "Speaker 2:"])
+        #expect(pieces[1].text.localizedCaseInsensitiveContains("press release"))
+    }
+
+    /// Each line spoken by its voice, one after another with a short pause, in one file.
+    private static func conversation(_ lines: [(voice: String, text: String)]) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "conversation-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 22_050, channels: 1)!
+        let url = FileManager.default.temporaryDirectory.appending(path: "conversation-\(UUID()).caf")
+        let output = try AVAudioFile(forWriting: url, settings: format.settings)
+        for (i, line) in lines.enumerated() {
+            let part = directory.appending(path: "\(i).caf")
+            let say = Process()
+            say.executableURL = URL(filePath: "/usr/bin/say")
+            say.arguments = ["-v", line.voice, "-o", part.path, "--data-format=LEF32@22050", line.text]
+            try say.run()
+            say.waitUntilExit()
+            let input = try AVAudioFile(forReading: part, commonFormat: .pcmFormatFloat32, interleaved: false)
+            let buffer = AVAudioPCMBuffer(pcmFormat: input.processingFormat, frameCapacity: AVAudioFrameCount(input.length))!
+            try input.read(into: buffer)
+            try output.write(from: buffer)
+            let pause = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 8_000)!
+            pause.frameLength = 8_000
+            try output.write(from: pause)
+        }
+        return url
     }
 }
