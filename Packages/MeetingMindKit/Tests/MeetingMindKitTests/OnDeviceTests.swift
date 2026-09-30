@@ -214,6 +214,30 @@ struct OnDeviceModelTests {
         #expect(!NotesQuestion.cited(in: all, count: 2).isEmpty)
     }
 
+    @Test("A notebook of one source is summarized without talking of other sources, and a long source reports its parts")
+    @available(macOS 26, *)
+    func singleSourceSummary() async throws {
+        let summarizer = OnDeviceNotebookSummarizer()
+        let long = Array(repeating: Self.libraryMemo, count: 40).joined(separator: "\n\n")
+        let parts = PartLog()
+        let digest = try await summarizer.digest(title: "Council memo", text: long) { part, count in parts.add(part, count) }
+        #expect(parts.last?.count ?? 0 > 1)
+        let overview = try await summarizer.overview(of: [
+            SourceDigest(noteID: UUID(), sourceModifiedAt: .now, title: "Council memo", summary: digest.summary, keyPoints: digest.keyPoints),
+        ])
+        print("ONE SOURCE:", overview)
+        let all = ([overview.overview] + overview.themes).joined(separator: " ").lowercased()
+        #expect(!all.contains("two sources") && !all.contains("sources agree") && !all.contains("both sources"))
+        #expect(overview.agreements.isEmpty && overview.differences.isEmpty)
+    }
+
+    private final class PartLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var parts: [(part: Int, count: Int)] = []
+        func add(_ part: Int, _ count: Int) { lock.withLock { parts.append((part, count)) } }
+        var last: (part: Int, count: Int)? { lock.withLock { parts.last } }
+    }
+
     @Test("Answers from a notebook's sources and cites the right one")
     @available(macOS 26, *)
     func notebookChat() async throws {

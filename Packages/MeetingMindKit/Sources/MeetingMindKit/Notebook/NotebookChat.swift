@@ -6,7 +6,7 @@ import FoundationModels
 /// "Ask this notebook": picks what fits the on-device model from a notebook's sources, numbers it
 /// for citing, and builds the prompt.
 public enum NotebookChat {
-    /// One numbered excerpt handed to the model. Several can come from the same note.
+    /// One numbered source handed to the model: a note, with the excerpts of it that matter here.
     public struct Source: Codable, Equatable, Sendable {
         public let number: Int
         public let noteID: UUID
@@ -49,7 +49,7 @@ public enum NotebookChat {
         wordBudget: Int = 1_000,
         limit: Int = 8
     ) -> [Source] {
-        var result: [Source] = []
+        var result: [(noteID: UUID, text: String)] = []
         var seen = Set<String>()
         var words = 0
         @discardableResult
@@ -58,7 +58,7 @@ public enum NotebookChat {
             let count = text.split(whereSeparator: \.isWhitespace).count
             guard result.count < limit, count > 0, words + count <= wordBudget, seen.insert(text).inserted else { return false }
             words += count
-            result.append(Source(number: result.count + 1, noteID: noteID, title: titles[noteID] ?? "Untitled", text: text))
+            result.append((noteID, text))
             return true
         }
 
@@ -92,7 +92,21 @@ public enum NotebookChat {
             }
             order.forEach { add($0, openings[$0] ?? "") }
         }
-        return result
+
+        // One number for each note, however many of its excerpts are given, so a citation names a
+        // source and the numbers never outrun the sources.
+        var sources: [Source] = []
+        for excerpt in result {
+            if let index = sources.firstIndex(where: { $0.noteID == excerpt.noteID }) {
+                let source = sources[index]
+                sources[index] = Source(number: source.number, noteID: source.noteID, title: source.title,
+                                        text: source.text + "\n…\n" + excerpt.text)
+            } else {
+                sources.append(Source(number: sources.count + 1, noteID: excerpt.noteID,
+                                      title: titles[excerpt.noteID] ?? "Untitled", text: excerpt.text))
+            }
+        }
+        return sources
     }
 
     static func prompt(question: String, sources: [Source], history: [MeetingChatTurn]) -> String {
@@ -145,6 +159,20 @@ public enum NotebookChat {
             ? NotebookSummary.citing(answer, Set(claims.flatMap(\.sources)).sorted()) : answer
     }
 
+    /// The answer without a list of source numbers in parentheses, "(1, 2, 3)", which the model
+    /// sometimes writes beside the `[n]` markers. Only a list of two or more numbers that all name
+    /// a given source goes, so "(2024)" and "(3)" stay.
+    static func withoutNumberLists(_ answer: String, count: Int) -> String {
+        guard count > 1, let pattern = try? Regex(#"\s*\(\s*(\d+(?:\s*[,;]\s*\d+)+)\s*\)"#) else { return answer }
+        var result = answer
+        for match in answer.matches(of: pattern).reversed() {
+            guard let list = match.output[1].substring else { continue }
+            let numbers = list.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+            if numbers.allSatisfy({ (1...count).contains($0) }) { result.removeSubrange(match.range) }
+        }
+        return result
+    }
+
     /// An earlier answer without its `[n]` markers, which pointed at that turn's sources, not these.
     static func uncited(_ text: String) -> String {
         guard let pattern = try? Regex(#"\s*\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]"#) else { return text }
@@ -168,8 +196,9 @@ public struct OnDeviceNotebookChat: Sendable {
         let reading = try await session.respond(to: prompt, generating: Reading.self).content
         let claims = NotebookChat.claims(reading.findings.map { (source: $0.source, says: $0.says) }, count: sources.count)
         let disagree = try await disagree(claims, question: question)
-        let answer = NotebookChat.answer(reading.answer.trimmingCharacters(in: .whitespacesAndNewlines),
-                                         claims: claims, disagree: disagree, count: sources.count)
+        let answer = NotebookChat.answer(
+            NotebookChat.withoutNumberLists(reading.answer.trimmingCharacters(in: .whitespacesAndNewlines), count: sources.count),
+            claims: claims, disagree: disagree, count: sources.count)
         guard !answer.isEmpty else { throw OnDeviceAIError.emptyResponse }
         return answer
     }

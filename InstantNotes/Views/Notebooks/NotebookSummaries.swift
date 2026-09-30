@@ -59,7 +59,14 @@ final class NotebookSummaries {
             var digest = SourceDigest(noteID: note.id, sourceModifiedAt: modified, title: title, summary: "", keyPoints: [])
             // A source with no text yet is listed but not summarized.
             if !text.isEmpty {
-                (digest.summary, digest.keyPoints) = try await summarizer.digest(title: title, text: text)
+                let reading = "Reading “\(title)” (\(index + 1) of \(sources.count))"
+                (digest.summary, digest.keyPoints) = try await summarizer.digest(title: title, text: text) { part, count in
+                    guard count > 1 else { return }
+                    // Only while the summary is running: a late update must not restart it.
+                    Task { @MainActor in
+                        if self.progress[id] != nil { self.progress[id] = "\(reading), part \(part) of \(count)…" }
+                    }
+                }
             }
             guard notebook.modelContext != nil else { return }  // deleted meanwhile
             stored[note.id] = digest

@@ -42,6 +42,9 @@ public struct NotebookOverview: Equatable, Sendable {
 public enum NotebookSummary {
     /// About 1,300 tokens for all the digests together, leaving room for the instructions and answer.
     static let wordBudget = 900
+    /// The most of one source read for its digest. A very long page is summarized from its start,
+    /// so a summary takes minutes at most, not the better part of an hour.
+    static let maxSourceWords = 8_000
 
     /// The digests numbered `[1]`, `[2]`… Each gets an equal share of the budget, so one long
     /// source can't crowd out the rest.
@@ -151,12 +154,16 @@ public struct OnDeviceNotebookSummarizer: Sendable {
     public init() {}
 
     /// What one source says. A long source is read in parts first, like a long recording.
-    public func digest(title: String, text: String) async throws -> (summary: String, keyPoints: [String]) {
+    /// `progress` is told which part (1-based) of how many is being read.
+    public func digest(
+        title: String, text: String, progress: (@Sendable (_ part: Int, _ of: Int) -> Void)? = nil
+    ) async throws -> (summary: String, keyPoints: [String]) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw OnDeviceAIError.emptyNotes }
         let (condensed, isNotes) = try await OnDeviceMeetingAnalyzer().condensed(
-            text, instructions: Self.digestInstructions, as: PartNotes.self
+            text.prefix(words: NotebookSummary.maxSourceWords), instructions: Self.digestInstructions, as: PartNotes.self
         ) { index, count, isNotes in
-            """
+            progress?(index + 1, count)
+            return """
             This is part \(index + 1) of \(count) of \(isNotes ? "notes on " : "")a source titled "\(title)". \
             Note what this part says: its facts, claims and arguments.
             """
@@ -177,8 +184,9 @@ public struct OnDeviceNotebookSummarizer: Sendable {
         guard !digests.isEmpty else { throw OnDeviceAIError.emptyNotes }
         let session = LanguageModelSession(instructions: Self.overviewInstructions)
         let prompt = """
-            These are summaries of the \(digests.count) sources in one notebook, numbered. Write an \
-            overview of them together and the key themes.
+            \(digests.count == 1
+                ? "This is the summary of the one source in a notebook. Write an overview of it and its key themes. Don't mention other sources: there are none."
+                : "These are summaries of the \(digests.count) sources in one notebook, numbered. Write an overview of them together and the key themes.")
 
             \(NotebookSummary.sourcesText(digests))
             """
