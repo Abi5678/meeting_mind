@@ -375,9 +375,11 @@ final class MeetingSession: ObservableObject {
         if kind == nil { kind = await analyzer.kind(of: transcript) }
         guard !Task.isCancelled else { return }
         do {
-            analysis = try await kind == .talk
-                ? analyzer.analyzeTalk(transcript: transcript)
-                : analyzer.analyze(transcript: transcript)
+            analysis = switch kind {
+            case .talk: try await analyzer.analyzeTalk(transcript: transcript)
+            case .memo: try await analyzer.analyzeMemo(transcript: transcript)
+            default: try await analyzer.analyze(transcript: transcript)
+            }
         } catch {
             guard !Task.isCancelled else { return }
             analysisError = error.localizedDescription
@@ -389,8 +391,15 @@ final class MeetingSession: ObservableObject {
         self.phase = phase
     }
 
-    /// Topic-first title: summary/transcript gist, not a raw timestamp dump.
+    /// The title the model wrote ("Banana bread recipe"), if it wrote one.
+    private static func writtenTitle(of analysis: MeetingAnalysis?) -> String? {
+        let title = analysis?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? nil : title
+    }
+
+    /// Topic-first title: the model's title, else the summary/transcript gist, not a raw timestamp dump.
     private func topicTitle(startedAt: Date, analysis: MeetingAnalysis?, transcript: String) -> String {
+        if let title = Self.writtenTitle(of: analysis) { return title }
         func gist(_ text: String) -> String? {
             let terminators = CharacterSet(charactersIn: ".!?\n")
             let sentence = text.components(separatedBy: terminators)
@@ -404,6 +413,7 @@ final class MeetingSession: ObservableObject {
         let label = switch kind {
         case .meeting: "Meeting notes"
         case .talk: "Talk notes"
+        case .memo: "Memo"
         case .song: "Song"
         case nil: "Recording"
         }
@@ -426,7 +436,7 @@ final class MeetingSession: ObservableObject {
             note = existing
             // Ink stays where it was drawn, so the added section starts below it rather than under it.
             let heading = Block(type: .heading(level: 2),
-                                runs: [.plain("Recording · \(startedAt.formatted(.dateTime.month().day().hour().minute()))")],
+                                runs: [.plain("\(Self.writtenTitle(of: analysis) ?? "Recording") · \(startedAt.formatted(.dateTime.month().day().hour().minute()))")],
                                 minY: Self.inkBottom(of: note))
             note.blockDocument = BlockDocument(blocks: note.blockDocument.blocks + [heading] + blocks)
             if note.summary == nil { note.summary = analysis?.summary }

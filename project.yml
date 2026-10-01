@@ -63,6 +63,8 @@ targets:
       path: InstantNotes/Info.plist
       properties:
         CFBundleDisplayName: Quolio
+        # The Mac app menu ("About…", "Quit…") shows the bundle name, not the display name.
+        CFBundleName: Quolio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:

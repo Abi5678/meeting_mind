@@ -2,8 +2,8 @@
 import Foundation
 import FoundationModels
 
-/// Summarizes a meeting or a talk with Apple's on-device model: no network, no API key, and the
-/// transcript never leaves the device.
+/// Summarizes a meeting, a talk or a memo with Apple's on-device model: no network, no API key,
+/// and the transcript never leaves the device.
 ///
 /// The model reads about 4,000 tokens at a time, prompt and answer included, so a long recording
 /// is summarized in parts first and the part notes are then summarized together.
@@ -58,8 +58,30 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
         return try await session.respond(to: prompt, generating: TalkAnalysis.self).content.analysis
     }
 
-    /// Whether a transcript is people meeting or one person talking, judged from its opening.
-    /// A meeting when the model can't say, since that was the only kind before.
+    /// Notes on a memo someone recorded for themselves, such as a recipe, directions or a workout,
+    /// under headings the model picks to suit it.
+    public func analyzeMemo(transcript: String) async throws -> MeetingAnalysis {
+        // A talk's part notes, points in order, suit a memo's parts too.
+        let (text, isNotes) = try await condensed(transcript, instructions: Self.memoInstructions, as: TalkPartNotes.self) { index, count, isNotes in
+            """
+            This is part \(index + 1) of \(count) of a memo \(isNotes ? "summary" : "transcript"). \
+            Note everything it records, keeping every quantity, name and step.
+            """
+        }
+
+        let session = LanguageModelSession(instructions: Self.memoInstructions)
+        let prompt = """
+            \(isNotes ? "These are notes on the parts of one memo, in order." : "This is the transcript of one memo.") \
+            Write the summary, a title, and the memo's content under headings that suit it.
+
+            \(text)
+            """
+        return try await session.respond(to: prompt, generating: MemoAnalysis.self).content.analysis
+    }
+
+    /// Whether a transcript is people meeting, one person talking to listeners, or someone noting
+    /// something down, judged from its opening. A meeting when the model can't say, since that was
+    /// the only kind before.
     public func kind(of transcript: String) async -> RecordingKind {
         let opening = TranscriptChunker.chunks(transcript, maxWords: Self.wordsPerChunk).first ?? transcript
         let session = LanguageModelSession(instructions: """
@@ -67,15 +89,20 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
             may mishear words.
             """)
         let prompt = """
-            Is this a talk or a meeting? A talk is one speaker presenting to listeners: a lecture, \
-            class, keynote, sermon, podcast or voice memo. It may end with homework or next steps for \
+            Is this a talk, a meeting or a memo? A talk is one speaker presenting to listeners: a \
+            lecture, class, keynote, sermon or podcast. It may end with homework or next steps for \
             the audience. A meeting is people working out their own plans together: discussing, \
-            deciding and agreeing who does what.
+            deciding and agreeing who does what. A memo is someone noting something down to keep: a \
+            recipe, directions, a workout, a list, instructions or an idea.
 
             \(opening)
             """
         guard let sorted = try? await session.respond(to: prompt, generating: Sorting.self).content else { return .meeting }
-        return sorted.kind == .talk ? .talk : .meeting
+        return switch sorted.kind {
+        case .talk: .talk
+        case .meeting: .meeting
+        case .memo: .memo
+        }
     }
 
     /// Condenses part by part until everything fits in one request. Returns what to summarize, and
@@ -114,6 +141,12 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
         number, fact or piece of advice.
         """
 
+    private static let memoInstructions = """
+        You write up memos people record for themselves, such as recipes, directions, workouts and \
+        lists, from automatic speech recognition, so expect misheard words. Only state what was \
+        said: keep every quantity, name and step, and never invent one.
+        """
+
     /// Notes on one part of a long transcript, as text for the next round.
     protocol PartNoting: Generable {
         var text: String { get }
@@ -123,14 +156,15 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     enum Kind {
         case talk
         case meeting
+        case memo
     }
 
     @Generable
     struct Sorting {
         // Asked first, so the choice below follows from what the speaking is for.
-        @Guide(description: "In a few words, what the speaking is for, e.g. teaching a subject, planning a project")
+        @Guide(description: "In a few words, what the speaking is for, e.g. teaching a subject, planning a project, noting a recipe")
         var purpose: String
-        @Guide(description: "talk if one speaker presents to listeners; meeting if people work out their own plans together")
+        @Guide(description: "talk if one speaker presents to listeners; meeting if people work out their own plans together; memo if someone notes something down to keep")
         var kind: Kind
     }
 
@@ -173,6 +207,8 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     struct Analysis {
         @Guide(description: "Three to five sentences: the purpose of the meeting and what came of it")
         var summary: String
+        @Guide(description: "A title of three to six words naming what the meeting was about, e.g. Q3 hiring plan")
+        var title: String
         @Guide(description: "Choices the participants settled on; empty if none")
         var keyDecisions: [String]
         @Guide(description: "Concrete work someone committed to; empty if none")
@@ -190,7 +226,8 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
                     .init(task: $0.task, owner: $0.owner.isEmpty ? MeetingAnalysis.unassignedOwner : $0.owner,
                           due: $0.spokenDue)
                 },
-                followUpEmail: .init(subject: emailSubject, body: emailBody)
+                followUpEmail: .init(subject: emailSubject, body: emailBody),
+                title: title
             )
         }
     }
@@ -211,6 +248,8 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     struct TalkAnalysis {
         @Guide(description: "Three to five sentences on what the talk was about")
         var summary: String
+        @Guide(description: "A title of three to six words naming what the talk was about, e.g. Why sleep matters")
+        var title: String
         @Guide(description: "The main points the speaker made, in the order they were made")
         var keyPoints: [String]
         @Guide(description: "Things a listener should remember or try, drawn only from what was said; empty if none")
@@ -219,7 +258,33 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
         var analysis: MeetingAnalysis {
             MeetingAnalysis(summary: summary, keyDecisions: [], actionItems: [],
                             followUpEmail: .init(subject: "", body: ""),
-                            keyPoints: keyPoints, takeaways: takeaways)
+                            keyPoints: keyPoints, takeaways: takeaways, title: title)
+        }
+    }
+
+    @Generable
+    struct MemoSection {
+        @Guide(description: "A short heading for this part of the memo, e.g. Ingredients, Steps, Route, Exercises")
+        var heading: String
+        @Guide(description: "What the memo says under this heading, one item each, in the order said")
+        var items: [String]
+        @Guide(description: "true if the items are steps to follow in order")
+        var isSteps: Bool
+    }
+
+    @Generable
+    struct MemoAnalysis {
+        @Guide(description: "One or two sentences on what this is and what is worth knowing at a glance, without describing the memo itself")
+        var summary: String
+        @Guide(description: "A title of three to six words naming what was recorded, e.g. Weeknight chili recipe")
+        var title: String
+        @Guide(description: "The memo's content under headings that suit it, e.g. Ingredients and Steps for a recipe", .maximumCount(6))
+        var sections: [MemoSection]
+
+        var analysis: MeetingAnalysis {
+            MeetingAnalysis(summary: summary, keyDecisions: [], actionItems: [],
+                            followUpEmail: .init(subject: "", body: ""), title: title,
+                            sections: sections.map { .init(heading: $0.heading, items: $0.items, isSteps: $0.isSteps) })
         }
     }
 }

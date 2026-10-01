@@ -57,34 +57,61 @@ struct OnDeviceModelTests {
         plants respire at night. Please read chapter six before then.
         """
 
+    /// A recipe said aloud while cooking.
+    static let recipe = """
+        Okay so this is my banana bread. You need three ripe bananas, a third of a cup of melted \
+        butter, three quarters of a cup of sugar, one egg, a teaspoon of vanilla, a teaspoon of \
+        baking soda, a pinch of salt and one and a half cups of flour. First preheat the oven to \
+        three fifty. Mash the bananas in a bowl, then stir in the melted butter. Mix in the sugar, \
+        the egg and the vanilla. Sprinkle the baking soda and salt over it, then add the flour and \
+        stir until it's just mixed. Pour it into a buttered loaf pan and bake for about an hour, \
+        until a toothpick comes out clean.
+        """
+
     #if canImport(FoundationModels)
     @Test("Summarizes a meeting without the network")
     @available(macOS 26, *)
     func summary() async throws {
         let analysis = try await OnDeviceMeetingAnalyzer().analyze(transcript: Self.script)
-        print("SUMMARY:", analysis.summary, analysis.keyDecisions, analysis.actionItems, analysis.followUpEmail.subject)
+        print("SUMMARY:", analysis.title, analysis.summary, analysis.keyDecisions, analysis.actionItems, analysis.followUpEmail.subject)
         #expect(!analysis.summary.isEmpty)
+        #expect(!analysis.title.isEmpty)
         #expect(analysis.actionItems.contains { $0.task.localizedCaseInsensitiveContains("press release") })
         #expect(analysis.actionItems.contains { $0.task.localizedCaseInsensitiveContains("pricing") && $0.due == nil })
     }
 
-    @Test("Tells a meeting from a talk")
+    @Test("Tells a meeting from a talk and a memo")
     @available(macOS 26, *)
     func kind() async throws {
         let analyzer = OnDeviceMeetingAnalyzer()
         #expect(await analyzer.kind(of: Self.script) == .meeting)
         #expect(await analyzer.kind(of: Self.lecture) == .talk)
+        #expect(await analyzer.kind(of: Self.recipe) == .memo)
     }
 
     @Test("Writes talk notes: key points and takeaways, no email or action items")
     @available(macOS 26, *)
     func talkSummary() async throws {
         let analysis = try await OnDeviceMeetingAnalyzer().analyzeTalk(transcript: Self.lecture)
-        print("TALK:", analysis.summary, analysis.keyPoints, analysis.takeaways)
+        print("TALK:", analysis.title, analysis.summary, analysis.keyPoints, analysis.takeaways)
         #expect(!analysis.summary.isEmpty)
+        #expect(!analysis.title.isEmpty)
         #expect(!analysis.keyPoints.isEmpty)
         #expect(analysis.actionItems.isEmpty && analysis.keyDecisions.isEmpty)
         #expect(analysis.followUpEmail.subject.isEmpty && analysis.followUpEmail.body.isEmpty)
+    }
+
+    @Test("Writes a memo under its own headings, with a title")
+    @available(macOS 26, *)
+    func memoSummary() async throws {
+        let analysis = try await OnDeviceMeetingAnalyzer().analyzeMemo(transcript: Self.recipe)
+        print("MEMO:", analysis.title, "|", analysis.summary)
+        analysis.sections.forEach { print("MEMO SECTION:", $0.heading, $0.isSteps, $0.items) }
+        #expect(!analysis.summary.isEmpty)
+        #expect(analysis.title.localizedCaseInsensitiveContains("banana"))
+        #expect(analysis.sections.count >= 2)
+        #expect(analysis.sections.flatMap(\.items).contains { $0.localizedCaseInsensitiveContains("flour") })
+        #expect(analysis.actionItems.isEmpty && analysis.followUpEmail.subject.isEmpty)
     }
 
     @Test("A long transcript is condensed in parts first")
