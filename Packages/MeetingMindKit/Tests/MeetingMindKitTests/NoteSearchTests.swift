@@ -282,6 +282,25 @@ struct NotesQuestionTests {
         #expect(renumbered.map(\.number) == [1])
     }
 
+    @Test("A sentence with a number no source has is dropped; the rest stays")
+    func unsupportedNumbers() {
+        let texts = ["Speaker 3: I'll send Daniel the two crash logs at 0:16.", "Budget is 1,000 dollars."]
+        #expect(NotesQuestion.withoutUnsupportedNumbers(
+            "Speaker 3 sends 2 crash logs [1]. This was decided in 2020 [1]. The budget is 1000 dollars [2].", in: texts)
+            == "Speaker 3 sends 2 crash logs [1]. The budget is 1000 dollars [2].")
+        #expect(NotesQuestion.withoutUnsupportedNumbers("It shipped in 2020 [12].", in: texts)
+            == "I couldn't find that in your notes.")
+    }
+
+    @Test("Notebook chat answers are renumbered like Ask answers")
+    func chatRenumbered() {
+        let sources = (1...3).map { NotebookChat.Source(number: $0, noteID: UUID(), title: "Note \($0)", text: "") }
+        let (answer, renumbered) = NotebookChat.renumbered("Fee is $20 [3]. Due Friday [1, 3].", sources: sources)
+        #expect(answer == "Fee is $20 [1]. Due Friday [2, 1].")
+        #expect(renumbered.map(\.number) == [1, 2, 3])
+        #expect(renumbered.map(\.noteID) == [sources[2].noteID, sources[0].noteID, sources[1].noteID])
+    }
+
     @Test("A transcript passage that starts mid-turn says whose turn it is")
     func speakerCarried() {
         let passages = SearchPassage.passages(noteID: UUID(), title: "", blocks: [], transcript: [

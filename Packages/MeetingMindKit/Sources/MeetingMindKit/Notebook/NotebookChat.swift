@@ -29,8 +29,9 @@ public enum NotebookChat {
     static let instructions = """
         You answer questions about a notebook of the user's sources: documents, web pages, notes \
         and meeting transcripts. Use only the numbered sources given, and after each fact cite its \
-        source number in brackets, like [2]. If the sources don't cover the question, say the \
-        notebook doesn't cover it; never guess or use outside knowledge. Sources can disagree, as \
+        source number in brackets, like [1]. If the sources don't cover the question, say the \
+        notebook doesn't cover it; never guess or use outside knowledge. Copy names, numbers and \
+        dates exactly as the sources give them. Sources can disagree, as \
         when a newer one changes what an older one says: then give what each says, with its \
         citation. Be brief: one to four sentences. Only when listing several things, put each on \
         its own line starting with "- ".
@@ -173,6 +174,15 @@ public enum NotebookChat {
         return result
     }
 
+    /// The answer with its citations numbered 1, 2, 3… in the order it first cites them, and the
+    /// sources renumbered to match, as `NotesQuestion.renumbered` does for "Ask your notes".
+    public static func renumbered(_ answer: String, sources: [Source]) -> (answer: String, sources: [Source]) {
+        let (text, order) = NotesQuestion.renumbering(answer, numbers: sources.map(\.number))
+        let renumbered = order.compactMap { old in sources.first { $0.number == old } }
+            .enumerated().map { Source(number: $0.offset + 1, noteID: $0.element.noteID, title: $0.element.title, text: $0.element.text) }
+        return (text, renumbered)
+    }
+
     /// An earlier answer without its `[n]` markers, which pointed at that turn's sources, not these.
     static func uncited(_ text: String) -> String {
         guard let pattern = try? Regex(#"\s*\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]"#) else { return text }
@@ -193,14 +203,16 @@ public struct OnDeviceNotebookChat: Sendable {
         let session = LanguageModelSession(instructions: NotebookChat.instructions)
         let prompt = NotebookChat.prompt(question: question.trimmingCharacters(in: .whitespacesAndNewlines),
                                          sources: sources, history: history)
-        let reading = try await session.respond(to: prompt, generating: Reading.self).content
+        // Greedy: the likeliest words, not sampled ones, which wander from the sources.
+        let reading = try await session.respond(to: prompt, generating: Reading.self, options: GenerationOptions(sampling: .greedy)).content
         let claims = NotebookChat.claims(reading.findings.map { (source: $0.source, says: $0.says) }, count: sources.count)
         let disagree = try await disagree(claims, question: question)
         let answer = NotebookChat.answer(
             NotebookChat.withoutNumberLists(reading.answer.trimmingCharacters(in: .whitespacesAndNewlines), count: sources.count),
             claims: claims, disagree: disagree, count: sources.count)
-        guard !answer.isEmpty else { throw OnDeviceAIError.emptyResponse }
-        return answer
+        let supported = NotesQuestion.withoutUnsupportedNumbers(answer, in: sources.map(\.text) + [question])
+        guard !supported.isEmpty else { throw OnDeviceAIError.emptyResponse }
+        return supported
     }
 
     private func disagree(_ claims: [(says: String, sources: [Int])], question: String) async throws -> Bool {
