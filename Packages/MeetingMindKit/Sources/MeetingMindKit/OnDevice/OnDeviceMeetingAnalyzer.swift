@@ -85,8 +85,8 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     public func kind(of transcript: String) async -> RecordingKind {
         let opening = TranscriptChunker.chunks(transcript, maxWords: Self.wordsPerChunk).first ?? transcript
         let session = LanguageModelSession(instructions: """
-            You sort transcripts from automatic speech recognition, which has no speaker names and \
-            may mishear words.
+            You sort transcripts from automatic speech recognition, which may mishear words. Lines \
+            may start with a label such as "Speaker 1:", which only tells voices apart.
             """)
         let prompt = """
             Is this a talk, a meeting or a memo? A talk is one speaker presenting to listeners: a \
@@ -146,16 +146,18 @@ public struct OnDeviceMeetingAnalyzer: Sendable {
     }
 
     private static let instructions = """
-        You summarize meetings from automatic speech recognition, so expect misheard words and \
-        no speaker names. Only state what was said: never invent a name, number, decision or \
+        You summarize meetings from automatic speech recognition, so expect misheard words. \
+        Lines may start with a label such as "Speaker 1:", which only tells voices apart and is \
+        not a name. Only state what was said: never invent a name, number, decision or \
         deadline. If nobody was named for a task, the owner is "\(MeetingAnalysis.unassignedOwner)". \
         If no deadline was said, due is nil.
         """
 
     private static let talkInstructions = """
         You write notes on talks, lectures and presentations from automatic speech recognition, so \
-        expect misheard words and no speaker names. Only state what was said: never invent a name, \
-        number, fact or piece of advice.
+        expect misheard words. Lines may start with a label such as "Speaker 1:", which only tells \
+        voices apart and is not a name. Only state what was said: never invent a name, number, \
+        fact or piece of advice.
         """
 
     private static let memoInstructions = """

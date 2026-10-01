@@ -102,9 +102,13 @@ final class MeetingSession: ObservableObject {
                 phase = .failed(SpeechFileTranscriber.Failure.notAuthorized.localizedDescription)
                 return
             }
-            // Fetch Apple's speech model while the meeting runs, so it's ready when it ends.
+            // Fetch Apple's speech model and the speaker models while the meeting runs, so they're
+            // ready when it ends.
             if #available(iOS 26, *), OnDeviceTranscriber.isAvailable {
-                Task.detached(priority: .utility) { try? await OnDeviceTranscriber().prepare() }
+                Task.detached(priority: .utility) {
+                    try? await OnDeviceTranscriber().prepare()
+                    try? await SpeakerDiarizer().prepare()
+                }
             }
             // Warn before the meeting, not after it. Recording still goes ahead: the audio can be saved.
             if debugTranscript == nil, !Self.onDeviceSpeechAvailable, !SpeechFileTranscriber().isAvailable {
@@ -299,8 +303,9 @@ final class MeetingSession: ObservableObject {
                 return
             }
             if let timed = await transcribeOnDevice(url) {
-                pieces = timed
-                transcript = TranscriptPiece.joined(timed)
+                pieces = timed.pieces
+                // A line per speaker's turn reads as a conversation; unlabelled phrases run on.
+                transcript = timed.labelled ? timed.pieces.map(\.text).joined(separator: "\n") : TranscriptPiece.joined(timed.pieces)
             } else {
                 phase = .transcribing(window: 0, total: 0)
                 transcript = try await SpeechFileTranscriber().transcribe(fileAt: url) { [weak self] window, total in
@@ -330,17 +335,28 @@ final class MeetingSession: ObservableObject {
 
     /// Apple's newer on-device model (iOS 26): one pass over the whole file, with timings. Nil when it
     /// isn't available or fails, so the older recognizer gets a turn.
-    private func transcribeOnDevice(_ url: URL) async -> [TranscriptPiece]? {
+    private func transcribeOnDevice(_ url: URL) async -> (pieces: [TranscriptPiece], labelled: Bool)? {
         guard #available(iOS 26, *), OnDeviceTranscriber.isAvailable else { return nil }
         phase = .transcribingOnDevice(percent: 0)
         do {
-            let pieces = try await OnDeviceTranscriber().transcribe(fileAt: url) { [weak self] fraction in
+            let (pieces, words) = try await OnDeviceTranscriber().transcription(fileAt: url) { [weak self] fraction in
                 await self?.setPhase(.transcribingOnDevice(percent: Int(fraction * 100)))
             }
-            return pieces.isEmpty ? nil : pieces
+            guard !pieces.isEmpty else { return nil }
+            // Lyrics stay as sung; a singer and a chorus aren't a conversation.
+            if kind != .song, let labelled = await speakerLabels(url, words: words) { return (labelled, true) }
+            return (pieces, false)
         } catch {
             return nil
         }
+    }
+
+    /// The transcript as one piece per speaker's turn, "Speaker 1: …". Nil for a single voice, or
+    /// when the speaker models can't be had (offline on first use), so the plain transcript stands.
+    private func speakerLabels(_ url: URL, words: [TimedWord]) async -> [TranscriptPiece]? {
+        phase = .preparing("Telling speakers apart…")
+        guard let turns = try? await SpeakerDiarizer().turns(fileAt: url) else { return nil }
+        return SpeakerLabels.pieces(words: words, turns: turns)
     }
 
     /// Apple reports a missing speech model as "Failed to initialize recognizer", which says nothing
