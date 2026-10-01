@@ -49,7 +49,9 @@ struct CanvasNoteEditorView: View {
     @State private var photoSource: PhotoSource?
     @State private var postImages: [UIImage]?
     /// Held in @State rather than observed, so playback ticking doesn't redraw the whole page;
-    /// the bar observes it, and the page follows `playingBlockID`.
+    /// the bar observes it, and the page follows `playingBlockID`. Playback stops when the editor
+    /// goes and lets go of it, not on `onDisappear`: SwiftUI can send that to an editor still on
+    /// screen (opening an Ask source after going back), which stopped a jump just as it played.
     @State private var player = PlaybackController()
     @State private var loadedRecordingID: UUID?
     @State private var playingBlockID: UUID?
@@ -163,7 +165,6 @@ struct CanvasNoteEditorView: View {
             default: break
             }
         }
-        .onDisappear { player.stop() }
         .onReceive(player.$currentTime) { time in
             let id = loadedRecordingID.flatMap { recording in
                 player.isPlaying || time > 0 ? AudioClock.currentBlock(in: state.document.blocks, recordingID: recording, at: time) : nil

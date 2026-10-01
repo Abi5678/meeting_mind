@@ -29,7 +29,7 @@ public enum NotesQuestion {
     public static let instructions = """
         You answer questions about the user's own notes, meeting transcripts and the text in their \
         photos, using only the numbered sources given. After each fact, cite its source number in \
-        brackets, like [2]. Never state anything the sources don't say. If they don't answer the \
+        brackets, like [1]. Never state anything the sources don't say. If they don't answer the \
         question, say you couldn't find it in the notes. Answer in one to four short sentences.
         """
 
@@ -60,10 +60,53 @@ public enum NotesQuestion {
     /// The citations in `answer` that name one of `count` sources. Numbers the model made up are
     /// dropped, and a marker left with none isn't a citation.
     public static func citations(in answer: String, count: Int) -> [Citation] {
+        markers(in: answer).compactMap { marker in
+            let numbers = marker.numbers.filter { (1...count).contains($0) }
+            return numbers.isEmpty ? nil : Citation(range: marker.range, numbers: numbers)
+        }
+    }
+
+    /// The answer with its citations numbered 1, 2, 3… in the order it first cites them, and the
+    /// sources renumbered to match, cited ones first. A marker that names no source is removed;
+    /// with a single source, any number can only mean that one, so it becomes [1].
+    public static func renumbered(_ answer: String, sources: [Source]) -> (answer: String, sources: [Source]) {
+        guard !sources.isEmpty else { return (answer, sources) }
+        var order: [Int] = []  // Old numbers, in the order first cited.
+        var text = ""
+        var rest = answer.startIndex
+        for marker in markers(in: answer) {
+            let numbers = marker.numbers
+                .map { sources.count == 1 ? 1 : $0 }
+                .filter { number in sources.contains { $0.number == number } }
+            var end = marker.range.lowerBound
+            // A dropped marker takes the space before it along, so "it [5]." reads "it.".
+            if numbers.isEmpty {
+                while end > rest, answer[answer.index(before: end)] == " " { end = answer.index(before: end) }
+            }
+            text += answer[rest ..< end]
+            if !numbers.isEmpty {
+                var new: [Int] = []
+                for number in numbers {
+                    if !order.contains(number) { order.append(number) }
+                    let renumbered = order.firstIndex(of: number)! + 1
+                    if !new.contains(renumbered) { new.append(renumbered) }
+                }
+                text += "[" + new.map(String.init).joined(separator: ", ") + "]"
+            }
+            rest = marker.range.upperBound
+        }
+        text += answer[rest...]
+        let uncited = sources.map(\.number).filter { !order.contains($0) }
+        let renumbered = (order + uncited).compactMap { old in sources.first { $0.number == old } }
+            .enumerated().map { Source(number: $0.offset + 1, noteTitle: $0.element.noteTitle, hit: $0.element.hit) }
+        return (text, renumbered)
+    }
+
+    /// Every `[n]` or `[n, m]` marker in `answer`, whatever numbers it holds.
+    private static func markers(in answer: String) -> [(range: Range<String.Index>, numbers: [Int])] {
         guard let pattern = try? Regex(#"\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]"#) else { return [] }
-        return answer.matches(of: pattern).compactMap { match in
-            let numbers = answer[match.range].split { !$0.isNumber }.compactMap { Int($0) }.filter { (1...count).contains($0) }
-            return numbers.isEmpty ? nil : Citation(range: match.range, numbers: numbers)
+        return answer.matches(of: pattern).map { match in
+            (match.range, answer[match.range].split { !$0.isNumber }.compactMap { Int($0) })
         }
     }
 

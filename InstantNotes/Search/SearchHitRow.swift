@@ -8,8 +8,16 @@ import SwiftUI
 import MeetingMindKit
 
 struct SearchResult: Identifiable {
-    let id = UUID()
+    var id = UUID()
     let hit: SearchHit
+
+    /// Where the hit is, which stays the same when the search runs again.
+    struct Place: Hashable {
+        let noteID: UUID
+        let source: SearchPassage.Source
+    }
+
+    var place: Place { Place(noteID: hit.passage.noteID, source: hit.passage.source) }
 }
 
 struct SearchHitRow: View {

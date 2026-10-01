@@ -262,4 +262,38 @@ struct NotesQuestionTests {
         #expect(found.map { String(answer[$0.range]) } == ["[2]", "[1, 3]", "[ 1 ]"])
         #expect(NotesQuestion.cited(in: answer, count: 2) == [2, 1])
     }
+
+    @Test("Citations are renumbered in the order they're first cited, and the sources with them")
+    func renumbered() throws {
+        let sources = NotesQuestion.sources(from: Self.index.search("launch flights"), titles: Self.titles)
+        try #require(sources.count >= 2)
+        let (answer, renumbered) = NotesQuestion.renumbered("Launch is March 14 [2]. Flights [1, 2]. Hotel [9].", sources: sources)
+        #expect(answer == "Launch is March 14 [1]. Flights [2, 1]. Hotel.")
+        #expect(renumbered.map(\.number) == Array(1...sources.count))
+        #expect(renumbered[0].hit == sources[1].hit)
+        #expect(renumbered[1].hit == sources[0].hit)
+    }
+
+    @Test("With one source, whatever number the answer gives is [1]")
+    func renumberedSingle() {
+        let sources = Array(NotesQuestion.sources(from: Self.index.search("March"), titles: Self.titles).prefix(1))
+        let (answer, renumbered) = NotesQuestion.renumbered("The launch moved to March 14 [2].", sources: sources)
+        #expect(answer == "The launch moved to March 14 [1].")
+        #expect(renumbered.map(\.number) == [1])
+    }
+
+    @Test("A transcript passage that starts mid-turn says whose turn it is")
+    func speakerCarried() {
+        let passages = SearchPassage.passages(noteID: UUID(), title: "", blocks: [], transcript: [
+            TranscriptPiece(start: 0, end: 4, text: "Speaker 3: From testing, the last build crashed."),
+            TranscriptPiece(start: 4, end: 8, text: "I'll send Daniel the crash logs."),
+            TranscriptPiece(start: 8, end: 12, text: "Speaker 2: Thanks."),
+        ], wordsPerPassage: 5)
+        #expect(passages.map(\.text) == [
+            "Speaker 3: From testing, the last build crashed.",
+            "Speaker 3: I'll send Daniel the crash logs.",
+            "Speaker 2: Thanks.",
+        ])
+        #expect(passages[1].source == .transcript(start: 4))
+    }
 }

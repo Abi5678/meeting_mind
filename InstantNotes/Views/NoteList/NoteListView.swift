@@ -188,7 +188,14 @@ struct NoteListView: View {
         }
         let hits = await searchEngine.search(searchText)
         guard !Task.isCancelled else { return }
-        results = hits.map(SearchResult.init)
+        // A place found again keeps its id, so a result already open (from the list or from Ask)
+        // stays selected and keeps its jump.
+        var ids = Dictionary(results.map { ($0.place, $0.id) }, uniquingKeysWith: { first, _ in first })
+        results = hits.map { hit in
+            var result = SearchResult(hit: hit)
+            if let id = ids.removeValue(forKey: result.place) { result.id = id }
+            return result
+        }
         searchedQuery = searchText
     }
 
