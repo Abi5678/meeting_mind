@@ -396,6 +396,27 @@ struct NotebookChatTests {
         #expect(sources.map { $0.text.split(whereSeparator: \.isWhitespace).count }.reduce(0, +) <= 200)
     }
 
+    @Test("Excerpts of one note share one number, so citations name sources")
+    func oneNumberPerNote() {
+        let passages = (0..<4).flatMap { i in
+            SearchPassage.passages(noteID: Self.memo, title: "", blocks: [
+                Block(type: .paragraph, runs: [.plain("Library item \(i) needs a vote.")]),
+            ])
+        } + Self.passages.filter { $0.noteID == Self.plan }
+        let sources = NotebookChat.sources(question: "library vote", passages: passages, titles: Self.titles)
+        #expect(Set(sources.map(\.noteID)).count == sources.count)
+        #expect(sources.map(\.number) == Array(1...sources.count))
+        #expect(sources.count <= 2)
+        #expect(sources.first { $0.noteID == Self.memo }?.text.contains("item 0") == true)
+    }
+
+    @Test("A parenthesised list of source numbers is dropped; other numbers stay")
+    func numberLists() {
+        #expect(NotebookChat.withoutNumberLists("It ships in May (1, 2, 3) [1][2].", count: 3) == "It ships in May [1][2].")
+        #expect(NotebookChat.withoutNumberLists("Founded (2024) with 3 (of 5) staff (1, 9).", count: 3) == "Founded (2024) with 3 (of 5) staff (1, 9).")
+        #expect(NotebookChat.withoutNumberLists("Only one source (1, 2).", count: 1) == "Only one source (1, 2).")
+    }
+
     @Test("The prompt lists sources and the conversation, without old citation numbers")
     func prompt() {
         let sources = [NotebookChat.Source(number: 1, noteID: Self.plan, title: "City plan", text: "Starts in spring.")]

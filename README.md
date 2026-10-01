@@ -88,3 +88,9 @@ Based on **NoteStyle Studio** visual reference — "a calm notebook identity tha
 | AI provider | Apple Foundation Models, on device (iOS 26+, Apple Intelligence) | No key, no network, notes never leave the device; `@Generable` for constrained output |
 | Speech-to-text | whisper.cpp xcframework (MPS-backed on Apple Silicon) | Offline, low latency |
 | Meeting capture | AVAudioRecorder → ChunkPlanner windows → whisper.cpp per chunk → on-device analyze | Flat memory, no 90-min file in RAM |
+| Speaker labels | FluidAudio's offline pyannote segmentation + VBx clustering, word times from SpeechAnalyzer | On device, ~21 MB of models fetched on first use, ~95% of words on the right speaker in a real 4-person meeting (AMI ES2004a) |
+
+## Acknowledgements
+
+- [FluidAudio](https://github.com/FluidInference/FluidAudio) (Apache-2.0) runs the speaker models.
+- Speaker labels use the models of pyannote's [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) (pyannote, with WeSpeaker's speaker embedding and PLDA parameters from BUT Speech@FIT), as modified Core ML conversions by Fluid Inference ([FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml)), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

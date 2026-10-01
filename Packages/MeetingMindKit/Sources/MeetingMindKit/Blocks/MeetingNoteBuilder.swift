@@ -2,7 +2,8 @@ import Foundation
 
 /// Lays a recording out as note blocks, with the full transcript last so the useful parts come
 /// first. A meeting gets its summary, decisions, action items as to-dos and the follow-up email; a
-/// talk its summary, key points and takeaways; a song just its lyrics.
+/// talk its summary, key points and takeaways; a memo its summary and its own sections; a song just
+/// its lyrics.
 public enum MeetingNoteBuilder {
     /// - Parameter analysis: nil when the summary could not be written (no Apple Intelligence, or it refused); the note then
     ///   holds the transcript alone.
@@ -30,6 +31,15 @@ public enum MeetingNoteBuilder {
             if !analysis.takeaways.isEmpty {
                 add(.heading(level: 2), "Takeaways")
                 analysis.takeaways.forEach { add(.bulletedList, $0) }
+            }
+
+        case let (.memo, analysis?):
+            add(.heading(level: 2), "Summary")
+            add(.paragraph, analysis.summary)
+
+            for section in analysis.sections where !section.items.isEmpty {
+                add(.heading(level: 2), section.heading)
+                section.items.forEach { add(section.isSteps ? .numberedList : .bulletedList, $0) }
             }
 
         case let (.meeting, analysis?):

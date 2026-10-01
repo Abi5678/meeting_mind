@@ -216,6 +216,7 @@ struct MeetingCaptureView: View {
         switch kind {
         case .meeting: "Meeting notes"
         case .talk: "Talk notes"
+        case .memo: "Memo notes"
         case .song: "Lyrics"
         }
     }
@@ -224,6 +225,7 @@ struct MeetingCaptureView: View {
         switch kind {
         case .meeting: "person.2"
         case .talk: "person.wave.2"
+        case .memo: "note.text"
         case .song: "music.note"
         }
     }

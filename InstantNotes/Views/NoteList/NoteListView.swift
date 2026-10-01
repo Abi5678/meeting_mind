@@ -40,6 +40,9 @@ struct NoteListView: View {
     @State private var showAsk = false
     /// A source picked in "Ask your notes", opened once its sheet has gone.
     @State private var askedResultID: SearchResult.ID?
+    /// Shown again when ⌥⌘F searches with the sidebar hidden.
+    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    @FocusState private var searchFocused: Bool
     @State private var sidebarMode = SidebarMode.notes
     @Query private var notebooks: [Notebook]
     @State private var selectedNotebookID: UUID?
@@ -47,7 +50,7 @@ struct NoteListView: View {
     @State private var newNotebookTitle = ""
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 Picker("Show", selection: $sidebarMode) {
                     Text("Notes").tag(SidebarMode.notes)
@@ -106,6 +109,23 @@ struct NoteListView: View {
                 EmptyDetailPlaceholder()
             }
         }
+        .focusedSceneValue(\.noteListActions, menuActions)
+    }
+
+    /// What the menu bar's shortcuts do in this window.
+    private var menuActions: NoteListActions {
+        var actions = NoteListActions(
+            newNote: { showNewNoteSheet = true },
+            search: {
+                columnVisibility = .all
+                // A field the sidebar is only now bringing back can't take focus in this update.
+                Task { searchFocused = true }
+            }
+        )
+        if recorder.session == nil {
+            actions.record = { capture(.microphone) }
+        }
+        return actions
     }
 
     private var searchField: some View {
@@ -114,6 +134,7 @@ struct NoteListView: View {
                 .font(.caption)
                 .foregroundStyle(Color("InkColor").opacity(0.45))
             TextField("Search notes…", text: $searchText)
+                .focused($searchFocused)
                 .font(.body)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -433,6 +454,46 @@ struct NoteListView: View {
         case modified = "Last Modified"
         case created = "Date Created"
         case title = "Title A-Z"
+    }
+}
+
+// MARK: - Menu Bar Commands
+
+/// The note list's actions in the focused window, for the menu bar and its shortcuts.
+struct NoteListActions {
+    var newNote: @MainActor () -> Void
+    var search: @MainActor () -> Void
+    /// Nil while a note is recording; there's one microphone.
+    var record: (@MainActor () -> Void)?
+}
+
+extension FocusedValues {
+    @Entry var noteListActions: NoteListActions?
+}
+
+/// ⌘N makes a note, as in the Mac's other note apps, so New Window moves to ⌥⌘N, as in Mail.
+struct NoteListCommands: Commands {
+    @FocusedValue(\.noteListActions) private var actions
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Note") { actions?.newNote() }
+                .keyboardShortcut("n")
+                .disabled(actions == nil)
+            Button("New Recording") { actions?.record?() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(actions?.record == nil)
+            Button("New Window") {
+                UIApplication.shared.activateSceneSession(for: UISceneSessionActivationRequest(role: .windowApplication))
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+        }
+        // ⌥⌘F, as in Notes and Mail: ⌘F belongs to the system's Find in a text field.
+        CommandGroup(after: .pasteboard) {
+            Button("Search Notes") { actions?.search() }
+                .keyboardShortcut("f", modifiers: [.command, .option])
+                .disabled(actions == nil)
+        }
     }
 }
 

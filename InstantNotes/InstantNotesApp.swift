@@ -59,6 +59,7 @@ struct InstantNotesApp: App {
                 .environmentObject(noteRecorder)
         }
         .modelContainer(sharedModelContainer)
+        .commands { NoteListCommands() }
     }
 }
 

@@ -32,20 +32,35 @@ public struct OnDeviceTranscriber: Sendable {
         fileAt url: URL,
         progress: @Sendable @escaping (Double) async -> Void = { _ in }
     ) async throws -> [TranscriptPiece] {
+        try await transcription(fileAt: url, progress: progress).pieces
+    }
+
+    /// The phrases, as `transcribe` gives them, and every word with its time, for telling speakers
+    /// apart.
+    public func transcription(
+        fileAt url: URL,
+        progress: @Sendable @escaping (Double) async -> Void = { _ in }
+    ) async throws -> (pieces: [TranscriptPiece], words: [TimedWord]) {
         let transcriber = try await transcriber()
         let file = try AVAudioFile(forReading: url)
         let duration = Double(file.length) / file.processingFormat.sampleRate
 
         let collector = Task {
             var pieces: [TranscriptPiece] = []
+            var words: [TimedWord] = []
             for try await result in transcriber.results {
                 let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
                 let piece = TranscriptPiece(start: result.range.start.seconds, end: result.range.end.seconds, text: text)
                 pieces.append(piece)
+                for run in result.text.runs {
+                    guard let range = run.audioTimeRange else { continue }
+                    let word = String(result.text[run.range].characters).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !word.isEmpty { words.append(TimedWord(start: range.start.seconds, end: range.end.seconds, text: word)) }
+                }
                 if duration > 0 { await progress(min(1, piece.end / duration)) }
             }
-            return pieces
+            return (pieces, words)
         }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -59,14 +74,19 @@ public struct OnDeviceTranscriber: Sendable {
             collector.cancel()
             throw error
         }
-        return try await collector.value.sorted { $0.start < $1.start }
+        let (pieces, words) = try await collector.value
+        return (pieces.sorted { $0.start < $1.start }, words.sorted { $0.start < $1.start })
     }
 
     private func transcriber() async throws -> SpeechTranscriber {
         guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
             throw Failure.unsupportedLocale
         }
-        let transcriber = SpeechTranscriber(locale: supported, preset: .transcription)
+        // The plain transcription preset, with each word's time added.
+        let preset = SpeechTranscriber.Preset.transcription
+        let transcriber = SpeechTranscriber(
+            locale: supported, transcriptionOptions: preset.transcriptionOptions, reportingOptions: preset.reportingOptions,
+            attributeOptions: preset.attributeOptions.union([.audioTimeRange]))
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             try await request.downloadAndInstall()
         }
