@@ -19,6 +19,7 @@ const FILMS = {
   listen: { duration: 22, segs: [["meeting", 0, 9.5, 6.5], ["note", 9.5, 17], ["end", 17, 22]] },
   notebook: { duration: 24, segs: [["scraps", 0, 4.5], ["notebook", 4.5, 15], ["import", 15, 19], ["end", 19, 24]] },
   speed: { duration: 15, segs: [["speed", 0, 10], ["end", 10, 15]] },
+  voices: { duration: 46, segs: [["noise", 0, 6], ["room", 6, 17], ["lanes", 17, 27], ["owners", 27, 35], ["device", 35, 40.5], ["end", 40.5, 46]] },
 };
 
 // ---------- helpers ----------
@@ -181,11 +182,48 @@ const CUES = {
     click(sfx, 1.15, 0.2, 0.55, 900, 0.2);
     chime(sfx, 1.3, 0.09, 0.55);
   },
+  // "Who said that?": each voice has its own pitch once Quolio tells them apart (room, 4.9 s).
+  noise(sfx) {
+    for (let i = 0; i < 4; i++) whoosh(sfx, 0.2 + i * 0.5, 1.6, 0.04, -0.6 + i * 0.4, 300, 1200);
+    whoosh(sfx, 2.2, 1.2, 0.08, 0, 400, 2400);                       // the line comes forward
+    scribble(sfx, 3.5, 0.8, 0.09, 0.2, 31);                          // red-pen circle
+    click(sfx, 4.05, 0.18, 0.4, 600, 0.4);
+    musicBox(sfx, 4.1, mtof(79), 0.09, 0.4, 0.7); musicBox(sfx, 4.25, mtof(83), 0.09, 0.4, 0.9); // "who?"
+  },
+  room(sfx) {
+    const turns = [[0.3, 1.5, 0], [1.6, 3.0, 1], [3.1, 3.8, 0], [3.9, 4.8, 1], [5.3, 6.8, 2], [6.9, 8.1, 0], [8.2, 9.4, 2], [9.5, 10.8, 1]];
+    const voice = [84, 79, 72], pan = [-0.6, -0.2, 0.6];
+    turns.forEach(([a, b, who], n) => {
+      for (let t = a; t < b; t += 0.19) musicBox(sfx, t, mtof(a < 4.9 ? 76 : voice[who] + [0, 2, 4][Math.floor(t * 5) % 3]), a < 4.9 ? 0.03 : 0.045, pan[who], 0.3);
+      whoosh(sfx, a, 1.0, 0.04, pan[who] * 0.6, 500, 1800);           // ribbon toward the phone
+    });
+    chime(sfx, 4.9, 0.1, 0);
+    [0, 1, 2].forEach((i) => { musicBox(sfx, 5.2 + i * 0.16, mtof(voice[i] + 12), 0.1, pan[i], 1.0); click(sfx, 5.2 + i * 0.16, 0.08, pan[i], 700, 0.3); });
+  },
+  lanes(sfx) {
+    whoosh(sfx, 0.9, 1.2, 0.08, 0, 300, 2600);                       // the waveform splits
+    [-0.6, 0, 0.6].forEach((p, i) => musicBox(sfx, 1.3 + i * 0.12, mtof([84, 79, 72][i] + 12), 0.07, p, 0.8));
+    const turns = [[0.1, 0], [0.3, 1], [0.37, 0], [0.46, 1], [0.62, 2], [0.74, 0], [0.85, 2], [1, 1]];
+    turns.forEach(([z, who]) => { const t = 2.3 + 6.1 * z; tick(sfx, t, 0.07, 0.2); musicBox(sfx, t + 0.03, mtof([84, 79, 72][who] + 12), 0.06, 0.2, 0.6); });
+  },
+  owners(sfx) {
+    whoosh(sfx, 0, 0.8, 0.07, 0.4, 500, 2200);
+    [0.3, 0.45, 0.6].forEach((t, i) => click(sfx, t + 0.25, 0.12, -0.6 + i * 0.25, 160, 0.3));
+    [2.7, 3.0, 3.3].forEach((t, i) => { tick(sfx, t, 0.07, 0.4); musicBox(sfx, t + 0.04, mtof([72, 79, 84][i] + 12), 0.07, 0.4, 0.6); });
+    scribble(sfx, 4.3, 1.3, 0.09, 0.1, 33);                          // arrow and circle
+    chime(sfx, 5.6, 0.08, 0.3);
+  },
+  device(sfx) {
+    for (let i = 0; i < 6; i++) whoosh(sfx, 0.2 + i * 0.6, 1.2, 0.035, Math.sin(i * 1.7) * 0.7, 1200, 4200);
+    whoosh(sfx, 3.6, 1.0, 0.09, 0, 3000, 400);                       // ribbons fold into the phone
+    chime(sfx, 4.4, 0.11, 0);
+  },
 };
 
 // Music intensity per scene (0 sparse · 1 arpeggio · 2 full), in local seconds.
 const LEVELS = {
   town: [[0, 0]], scraps: [[0, 1]], notebook: [[0, 1], [4.4, 2]], import: [[0, 2]], scribblers: [[0, 1]], meeting: [[0, 1], [8.8, 2]], note: [[0, 2]], train: [[0, 1]], speed: [[0, 1]], end: [[0, 3]],
+  noise: [[0, 0]], room: [[0, 1], [4.9, 2]], lanes: [[0, 2]], owners: [[0, 2]], device: [[0, 1], [4.4, 2]],
 };
 
 // ---------- compose ----------
