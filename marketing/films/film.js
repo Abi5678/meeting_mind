@@ -1328,6 +1328,509 @@
   function askEnd(ctx, lt) { sceneEnd(ctx, lt, ASK_END); }
   askEnd.vertical = (ctx, lt) => sceneEndV(ctx, lt, ASK_END);
 
+  // ================= SPEAKERS AD: "Who said that?" =================
+  // Speaker labels: a transcript that knows who spoke. Three voices leave three
+  // paper ribbons; Quolio colours them apart, gives each its own line, and the
+  // to-dos get owners.
+  const VOX = [
+    { col: C.brand, name: "Speaker 1", skin: SKIN[0], hair: "#6b3a22", hs: "bun" },
+    { col: C.red, name: "Speaker 2", skin: SKIN[2], hair: "#1d1a22", hs: "curly" },
+    { col: C.green, name: "Speaker 3", skin: SKIN[3], hair: "#3a2a24", hs: "short" },
+  ];
+  const VOX_GREY = "#949bad";
+  const VOX_LINES = [
+    [0, "Okay, let's get started."],
+    [1, "Before we pick a date: the citation work isn't finished."],
+    [0, "How much is left?"],
+    [1, "Probably three or four days."],
+    [2, "The last build crashed twice importing large PDFs."],
+    [0, "Rishi, can you send Daniel the crash logs today?"],
+    [2, "Yes, I'll send them right after this call."],
+    [1, "I'd rather say October 19th. It gives us a buffer."],
+  ];
+  const VOX_FILLER = ["Sounds good.", "Fair point.", "Let's plan for the 19th.", "That works for me.", "Is that right?",
+    "No, we changed it to seven days.", "Thanks, everyone.", "I'll update the test plan.", "Agreed.", "Could we launch on the 12th?"];
+  function mix(a, b, p) {
+    const h = (s) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16)), A = h(a), B = h(b);
+    return "#" + A.map((v, i) => Math.round(lerp(v, B[i], clamp(p))).toString(16).padStart(2, "0")).join("");
+  }
+  // A pill of colour with white type; (x, y) is its left edge (or centre) and vertical middle. Returns its width.
+  function chip(ctx, str, x, y, size, col, seed, o = {}) {
+    ctx.save(); ctx.font = F.sans(size, 600);
+    const w = ctx.measureText(str).width + size * 1.2, h = size * 1.7, x0 = o.center ? x - w / 2 : x;
+    rrect(ctx, x0, y - h / 2, w, h, h / 2, col, seed, { rough: 1.2, step: 8, blur: o.blur ?? 5, dy: 2 });
+    text(ctx, str, x0 + w / 2, y + size * 0.36, F.sans(size, 600), "#fff", { align: "center" });
+    ctx.restore();
+    return w;
+  }
+  // Draws into an offscreen copy of the canvas, then lays it down blurred: depth of field.
+  const softBufs = [];
+  function softLayer(ctx, i, blur, alpha, draw) {
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    let b = softBufs[i];
+    if (!b || b.width !== W || b.height !== H) { b = softBufs[i] = document.createElement("canvas"); b.width = W; b.height = H; }
+    const bc = b.getContext("2d");
+    bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H);
+    bc.setTransform(ctx.getTransform());
+    draw(bc);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = alpha;
+    if (blur) ctx.filter = `blur(${(blur * W / (VERT ? 1080 : VW)).toFixed(1)}px)`;
+    ctx.drawImage(b, 0, 0); ctx.restore();
+  }
+  // A transcript line on a grey strip.
+  function slip(ctx, str, x, y, s, rot, seed, o = {}) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
+    ctx.font = F.sans(30, 500); const w = ctx.measureText(str).width + 50;
+    rect(ctx, -w / 2, -30, w, 60, o.bg || "#e7e9ef", seed, { rough: 2.5, blur: 10 });
+    text(ctx, str, 0, 10, F.sans(30, 500), o.ink || "#5b6275", { align: "center" });
+    ctx.restore();
+    return w * s;
+  }
+
+  // 1 · Every word, nobody's name: a fog of grey transcript, and one line that matters.
+  function sceneNoise(ctx, lt) {
+    fullBg(ctx, C.navyDeep);
+    const lines = VOX_LINES.map((l) => l[1]).concat(VOX_FILLER);
+    const focus = easeInOut(seg(lt, 2.2, 3.4));
+    [[0.62, 5, 0.45, 26], [0.82, 2.2, 0.7, 40], [1, 0, 1, 58]].forEach(([s, blur, al, sp], L) => {
+      const draw = (c) => {
+        const r = rng(1900 + L);
+        for (let i = 0; i < 11; i++) {
+          const str = lines[(i * 3 + L * 5) % lines.length];
+          if (L === 2 && str === VOX_LINES[6][1]) continue;
+          const x = 120 + r() * 1680, y0 = r() * 1500;
+          const y = ((y0 - lt * sp) % 1500 + 1500) % 1500 - 210;
+          slip(c, str, x, y, s, (r() - 0.5) * 0.08, 1920 + L * 20 + i);
+        }
+      };
+      if (blur) softLayer(ctx, L, blur + focus * 3, al * (1 - focus * 0.55), draw);
+      else { ctx.save(); ctx.globalAlpha = 1 - focus * 0.75; draw(ctx); ctx.restore(); }
+    });
+    // the line with the to-do in it comes forward
+    const str = VOX_LINES[6][1];
+    const s = lerp(1, 1.9, focus), x = lerp(1380, VW / 2, focus), y = lerp(760 - lt * 58, 470, focus);
+    const w = slip(ctx, str, x, y, s, lerp(0.03, -0.015, focus), 1990, { bg: focus > 0.5 ? C.cream : "#e7e9ef", ink: mix("#5b6275", C.ink, focus) });
+    // "Who?" in red pen
+    const q = seg(lt, 3.5, 4.3);
+    if (q > 0) {
+      ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 7; ctx.lineCap = "round";
+      const rx = w / 2 + 40, ry = 92, n = 60, end = Math.floor(n * 1.08 * easeInOut(q));
+      ctx.beginPath();
+      for (let k = 0; k <= end; k++) { const a = -2.6 + (k / n) * Math.PI * 2, wob = 1 + Math.sin(k * 0.7) * 0.012; const px = VW / 2 + Math.cos(a) * rx * wob, py = 470 + Math.sin(a) * ry * wob; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.stroke(); ctx.restore();
+      const qp = backOut(seg(lt, 4.0, 4.5));
+      if (qp > 0) {
+        ctx.save(); ctx.translate(VW / 2 + rx - 20, 350); ctx.rotate(0.12); ctx.scale(qp, qp);
+        text(ctx, "who?", 0, 0, F.hand(120, 700), C.red, { align: "center" });
+        ctx.restore();
+      }
+    }
+    caption(ctx, "A transcript has every word…", lt, 0.3, 2.5, { y: 900 });
+    caption(ctx, "…but who's sending the crash logs?", lt, 3.0, 3.3, { y: 900, bg: C.yellow });
+  }
+  sceneNoise.vcam = camPath([[0, 1100, 560, 1150], [2.4, 1100, 520, 1300], [3.4, 960, 500, 1400], [6, 960, 500, 1360]]);
+
+  // 2 · The room at dusk: three voices, three ribbons into one phone, then the colours come apart.
+  const ROOM_PEOPLE = [{ x: 360 }, { x: 740 }, { x: 1560 }];
+  const ROOM_PHONE = [1060, 548, 110, 196];
+  const ROOM_TURNS = [[0.3, 1.5, 0], [1.6, 3.0, 1], [3.1, 3.8, 2], [3.9, 4.8, 3], [5.3, 6.8, 4], [6.9, 8.1, 5], [8.2, 9.4, 6], [9.5, 10.8, 7]];
+  const SORT = 4.9;
+  function roomTalk(who, lt) {
+    for (const [a, b, li] of ROOM_TURNS) if (VOX_LINES[li][0] === who && lt > a && lt < b) return Math.abs(Math.sin(lt * 13 + who * 2)) * 0.8 + 0.2;
+    return 0;
+  }
+  function duskWindow(ctx, x, y, w, h, lt) {
+    rect(ctx, x - 16, y - 16, w + 32, h + 32, "#e8d3b0", 1910, { rough: 3, blur: 18 });
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, "#2e3570"); g.addColorStop(0.5, "#a35f8c"); g.addColorStop(0.85, "#f4a27f"); g.addColorStop(1, "#ffcf8a");
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = grainPattern(ctx); ctx.fillRect(x, y, w, h);
+    const r0 = rng(1909);
+    ctx.fillStyle = C.star;
+    for (let i = 0; i < 14; i++) { ctx.globalAlpha = 0.4 + 0.5 * Math.abs(Math.sin(lt * 1.4 + i)); ctx.beginPath(); ctx.arc(x + r0() * w, y + r0() * h * 0.35, 1.5 + r0() * 1.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    circ(ctx, x + w * 0.7, y + h * 0.8 + lt * 2, 58, "#ffd780", 1911, { shadowColor: "rgba(255,190,110,0.9)", blur: 50, dy: 0 });
+    const r = rng(1912);
+    let bx = x - 20, i = 0;
+    while (bx < x + w) {
+      const bw = 50 + r() * 70, bh = 70 + r() * 140, top = y + h - bh;
+      paper(ctx, [[bx, y + h + 20], [bx, top], [bx + bw, top], [bx + bw, y + h + 20]], i % 2 ? "#262a54" : "#31366a", 1913 + i, { rough: 2, blur: 6 });
+      const wr = rng(1950 + i);
+      ctx.fillStyle = C.window;
+      for (let wy = top + 14; wy < y + h - 12; wy += 24) for (let wx = bx + 9; wx < bx + bw - 12; wx += 18) {
+        if (wr() < 0.38) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(lt * 0.7 + wx * 0.1 + wy)); ctx.fillRect(wx, wy, 7, 11); }
+      }
+      ctx.globalAlpha = 1;
+      bx += bw + 5; i++;
+    }
+    ctx.restore();
+    rect(ctx, x + w / 2 - 8, y - 4, 16, h + 8, "#e8d3b0", 1960, { rough: 1.5, blur: 5 });
+    rect(ctx, x - 30, y + h + 6, w + 60, 22, C.manilaDark, 1961, { rough: 2 });
+  }
+  function shelf(ctx, x, y) {
+    rect(ctx, x, y + 150, 380, 18, C.manilaDark, 1962, { rough: 2 });
+    const r = rng(1963), cols = [C.brand, C.red, C.mustard, C.green, C.plum, C.pink, C.blue];
+    let bx = x + 16;
+    for (let i = 0; i < 9; i++) {
+      const bw = 22 + r() * 18, bh = 90 + r() * 55, lean = i === 6 ? 0.18 : 0;
+      ctx.save(); ctx.translate(bx, y + 150); ctx.rotate(lean);
+      paper(ctx, [[0, 0], [0, -bh], [bw, -bh], [bw, 0]], cols[i % cols.length], 1964 + i, { rough: 1.4, step: 10, blur: 5 });
+      ctx.restore();
+      bx += bw + 4 + (i === 5 ? 30 : 0);
+    }
+    circ(ctx, x + 330, y + 110, 34, C.red, 1975, { rough: 1.5 });
+    for (let k = 0; k < 4; k++) { ctx.save(); ctx.translate(x + 330, y + 80); ctx.rotate(-0.9 + k * 0.6); paper(ctx, [[0, 0], [-10, -40], [0, -70], [10, -40]], k % 2 ? C.green : "#5a9468", 1976 + k, { shadow: false, rough: 1.5 }); ctx.restore(); }
+  }
+  function pendant(ctx, x, y) {
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, -400); ctx.lineTo(x, y); ctx.stroke();
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(x, y + 60, 20, x, y + 420, 620);
+    g.addColorStop(0, "rgba(255,214,140,0.30)"); g.addColorStop(1, "rgba(255,214,140,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x - 70, y + 56); ctx.lineTo(x + 70, y + 56); ctx.lineTo(x + 560, y + 760); ctx.lineTo(x - 560, y + 760); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    paper(ctx, [[x - 34, y], [x + 34, y], [x + 86, y + 60], [x - 86, y + 60]], C.mustard, 1970, { rough: 2 });
+    circ(ctx, x, y + 64, 18, "#fff2c0", 1971, { shadowColor: "rgba(255,220,140,0.95)", blur: 34, dy: 0 });
+  }
+  // A paper ribbon along a curve from `from` to `to`, drawn between fractions u0..u1, waving as it goes.
+  function ribbon(ctx, from, to, u0, u1, lt, col, seed, wid = 18, lift = 190) {
+    if (u1 - u0 < 0.015) return;
+    const ctl = [(from[0] + to[0]) / 2, Math.min(from[1], to[1]) - lift];
+    const top = [], bot = [], N = 30;
+    for (let k = 0; k <= N; k++) {
+      const u = lerp(u0, u1, k / N);
+      const [x, y] = bez(from, ctl, to, u);
+      const dx = 2 * (1 - u) * (ctl[0] - from[0]) + 2 * u * (to[0] - ctl[0]), dy = 2 * (1 - u) * (ctl[1] - from[1]) + 2 * u * (to[1] - ctl[1]);
+      const L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+      const env = Math.sin(clamp(u) * Math.PI);
+      const wv = Math.sin(u * 13 - lt * 7 + seed) * 18 * env;
+      const w = wid * (0.25 + 0.75 * env) * (0.45 + 0.55 * Math.abs(Math.cos(u * 6 - lt * 4 + seed)));
+      top.push([x + nx * (wv + w), y + ny * (wv + w)]); bot.push([x + nx * (wv - w), y + ny * (wv - w)]);
+    }
+    paper(ctx, [...top, ...bot.reverse()], col, seed, { rough: 1.4, step: 9, blur: 8, dy: 3 });
+  }
+  const mouthOf = (i) => [ROOM_PEOPLE[i].x + (i === 2 ? -70 : 70), 760 - (232 - 40) * 1.08];
+  function sceneRoom(ctx, lt) {
+    const [px, py, pw, ph] = ROOM_PHONE, phoneTop = [px + pw / 2, py + 40];
+    const k = 1 + 0.07 * easeInOut(seg(lt, 0, 11)), fx = 960 + 70 * easeInOut(seg(lt, 3.5, 7));
+    ctx.save(); ctx.translate(960, 540); ctx.scale(k, k); ctx.translate(-fx, -540);
+    fullBg(ctx, "#efdcc2");
+    rect(ctx, -300, -300, VW + 600, 380, "#e3cba7", 1980, { rough: 4, shadow: false });
+    duskWindow(ctx, 230, 110, 640, 330, lt);
+    shelf(ctx, 1290, 190);
+    pendant(ctx, 1115, 60);
+    // the people
+    VOX.forEach((V, i) => {
+      const talk = roomTalk(i, lt), P = ROOM_PEOPLE[i];
+      let look = i === 2 ? -14 : 12;
+      for (const [a, b, li] of ROOM_TURNS) if (lt > a - 0.2 && lt < b) { const w = VOX_LINES[li][0]; if (w !== i) look = ROOM_PEOPLE[w].x > P.x ? 14 : -14; }
+      person(ctx, {
+        x: P.x, y: 760, s: 1.08, seed: 2000 + i * 20, skin: V.skin, shirt: V.col, hair: V.hair, hairStyle: V.hs,
+        look: [look, 0], mouth: talk > 0 ? "talk" : "smile", talk, blink: (lt + i * 0.9) % 3.3 < 0.12,
+        tilt: talk > 0 ? Math.sin(lt * 3 + i) * 3 : 0,
+        arms: [{ sh: [60, -140], hand: [80 + (talk > 0 ? Math.sin(lt * 4) * 30 : 0), -30 - (talk > 0 ? 40 + Math.sin(lt * 5) * 30 : 0)] }, { sh: [-60, -140], hand: [-70, -20] }],
+      });
+    });
+    // table
+    rect(ctx, 120, 740, 1680, 60, C.manila, 2090, { rough: 3, blur: 16 });
+    rect(ctx, 160, 796, 1600, 900, C.manilaDark, 2091, { rough: 4 });
+    mug(ctx, 520, 716, 2092);
+    rect(ctx, 1300, 712, 150, 30, C.cream, 2093, { rough: 2, blur: 6 });
+    // ribbons of speech into the phone: grey until Quolio tells the voices apart
+    const tint = seg(lt, SORT, SORT + 0.35);
+    ROOM_TURNS.forEach(([a, b, li], n) => {
+      const who = VOX_LINES[li][0];
+      const u1 = easeOut(seg(lt, a, a + 0.8)), u0 = Math.pow(seg(lt, b - 0.1, b + 0.8), 1.6);
+      if (u1 <= 0 || u0 >= 1) return;
+      const col = lt < a ? VOX[who].col : mix(VOX_GREY, VOX[who].col, a >= SORT ? 1 : tint);
+      ribbon(ctx, mouthOf(who), phoneTop, u0, u1, lt, col, 2100 + n, 24, who === 2 ? 170 : 240);
+      // the words ride the ribbon in
+      const uc = easeInOut(seg(lt, a + 0.15, b + 0.7));
+      if (uc > 0 && uc < 0.97 && u1 > 0.3) {
+        const from = mouthOf(who), ctl = [(from[0] + phoneTop[0]) / 2, Math.min(from[1], phoneTop[1]) - (who === 2 ? 170 : 240)];
+        const [x, y] = bez(from, ctl, phoneTop, Math.min(lerp(0.3, 1, uc), u1));
+        const s = lerp(0.8, 0.2, Math.pow(uc, 2.2));
+        ctx.save(); ctx.translate(x, y - 46); ctx.rotate(Math.sin(lt * 3 + n) * 0.05); ctx.scale(s, s);
+        ctx.font = F.hand(34); const w = ctx.measureText(VOX_LINES[li][1]).width + 40;
+        rect(ctx, -w / 2, -28, w, 56, a >= SORT ? C.cream : mix(C.cream, "#eef0f4", 1 - tint), 2150 + n, { rough: 2.5, blur: 8 });
+        if (a >= SORT || tint > 0) { ctx.fillStyle = VOX[who].col; ctx.globalAlpha = a >= SORT ? 1 : tint; ctx.fillRect(-w / 2 + 6, -22, 8, 44); ctx.globalAlpha = 1; }
+        text(ctx, VOX_LINES[li][1], 6, 11, F.hand(34), C.ink, { align: "center" });
+        ctx.restore();
+      }
+    });
+    // phone
+    const level = Math.max(roomTalk(0, lt), roomTalk(1, lt), roomTalk(2, lt));
+    phone(ctx, px, py, pw, ph, 2095, (c, x, y, w, h) => {
+      screenRecording(c, x, y, w, h, lt, true, level);
+      if (lt > SORT) VOX.forEach((V, i) => { const q = backOut(seg(lt, SORT + 0.1 + i * 0.1, SORT + 0.5 + i * 0.1)); c.fillStyle = V.col; c.beginPath(); c.arc(x + w / 2 + (i - 1) * 22, y + h * 0.6, 7 * q, 0, Math.PI * 2); c.fill(); });
+    });
+    // the moment the voices come apart: rings of colour, a badge over each head
+    for (let i = 0; i < 3; i++) {
+      const q = seg(lt, SORT + i * 0.14, SORT + 1.4 + i * 0.14);
+      if (q <= 0 || q >= 1) continue;
+      ctx.save(); ctx.strokeStyle = VOX[i].col; ctx.globalAlpha = (1 - q) * 0.9; ctx.lineWidth = 10 * (1 - q) + 2;
+      ctx.beginPath(); ctx.arc(px + pw / 2, py + ph / 2, 40 + easeOut(q) * 900, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    VOX.forEach((V, i) => {
+      const q = backOut(seg(lt, SORT + 0.3 + i * 0.16, SORT + 0.75 + i * 0.16));
+      if (q <= 0) return;
+      ctx.save(); ctx.translate(ROOM_PEOPLE[i].x, 760 - 232 * 1.08 - 108 + Math.sin(lt * 2.4 + i) * 4); ctx.scale(q, q); ctx.rotate((i - 1) * 0.04);
+      chip(ctx, V.name, 0, 0, 24, V.col, 2170 + i, { center: true, blur: 10 });
+      ctx.restore();
+    });
+    // a blurred plant and mug in the foreground, drifting slower than the camera
+    softLayer(ctx, 3, 7, 1, (c) => {
+      c.translate(-lt * 10, 0);
+      for (let j = 0; j < 5; j++) { c.save(); c.translate(-30, 1180); c.rotate(-1.2 + j * 0.32 + Math.sin(lt + j) * 0.02); paper(c, [[0, 0], [-34, -200], [0, -400], [34, -200]], j % 2 ? "#3f6e4b" : "#4d7f59", 2180 + j, { rough: 2 }); c.restore(); }
+    });
+    ctx.restore();
+    caption(ctx, "Three voices. One phone on the table.", lt, 0.4, 4.3);
+    caption(ctx, "Quolio tells them apart.", lt, SORT + 0.4, 5.6, { bg: C.yellow });
+  }
+  sceneRoom.vcam = camPath([[0, 560, 540, 900], [3.2, 640, 540, 900], [4.7, 1000, 520, 1500], [5.8, 1000, 520, 1500], [6.6, 1320, 540, 980], [9.2, 1300, 540, 980], [10.2, 900, 520, 1300], [11, 900, 520, 1300]]);
+
+  // 3 · One grey waveform splits into a lane per voice; the playhead writes the labelled transcript.
+  const LANE_TURNS = [[0, 0.1, 0], [0.11, 0.3, 1], [0.31, 0.37, 2], [0.38, 0.46, 3], [0.47, 0.62, 4], [0.63, 0.74, 5], [0.75, 0.85, 6], [0.86, 1, 7]];
+  const LANES_H = { x0: 430, x1: 1760, ys: [180, 290, 400], labelX: 230, n: 84, barW: 9, amp: 40, head: 52,
+    card: { x: 230, y: 510, w: 1460, h: 380 }, font: 28, chip: 19, lineH: 50, wrapW: 1080, cap: {} };
+  const LANES_V = { x0: 320, x1: 1010, ys: [470, 600, 730], labelX: 50, n: 44, barW: 10, amp: 44, head: 52,
+    card: { x: 60, y: 880, w: 960, h: 600 }, font: 33, chip: 22, lineH: 52, wrapW: 640, cap: { vy: 1640 } };
+  function sceneLanes(ctx, lt, L = LANES_H) {
+    const W = L === LANES_V ? 1080 : VW, H = L === LANES_V ? 1920 : VH;
+    ctx.fillStyle = C.navyDeep; ctx.fillRect(-1200, -1200, W + 2400, H + 2400);
+    const gl = ctx.createRadialGradient(W / 2, H * 0.35, 50, W / 2, H * 0.35, W * 0.7);
+    gl.addColorStop(0, "rgba(74,100,220,0.28)"); gl.addColorStop(1, "rgba(74,100,220,0)");
+    ctx.fillStyle = gl; ctx.fillRect(-1200, -1200, W + 2400, H + 2400);
+    ctx.fillStyle = grainPattern(ctx); ctx.fillRect(-1200, -1200, W + 2400, H + 2400);
+    const split = easeInOut(seg(lt, 0.9, 2.0)), mid = L.ys[1];
+    const t0 = 2.3, t1 = 8.4, head = clamp((lt - t0) / (t1 - t0)), hx = lerp(L.x0, L.x1, head);
+    // lanes
+    VOX.forEach((V, i) => {
+      const q = easeOut(seg(lt, 1.2 + i * 0.12, 1.9 + i * 0.12));
+      if (q <= 0) return;
+      ctx.globalAlpha = q;
+      rect(ctx, L.x0 - 24, L.ys[i] - L.amp * 0.9, (L.x1 - L.x0 + 48) * q, L.amp * 1.8, C.navy2, 2200 + i, { rough: 3, blur: 12 });
+      ctx.globalAlpha = 1;
+      ctx.save(); ctx.translate(L.labelX - (1 - q) * 120, L.ys[i]); ctx.globalAlpha = q;
+      chip(ctx, V.name, 0, 0, L.chip, V.col, 2210 + i, { blur: 10 });
+      ctx.restore();
+    });
+    // bars
+    const r = rng(2220), step = (L.x1 - L.x0) / L.n;
+    for (let b = 0; b < L.n; b++) {
+      const f = (b + 0.5) / L.n, turn = LANE_TURNS.find(([a, z]) => f >= a && f <= z) || LANE_TURNS[0];
+      const who = VOX_LINES[turn[2]][0], edge = Math.min(f - turn[0], turn[1] - f) * L.n;
+      const amp = L.amp * (0.2 + 0.8 * r()) * clamp(edge / 1.5, 0.25, 1);
+      const show = easeOut(seg(lt, f * 0.8, f * 0.8 + 0.3));
+      if (show <= 0) continue;
+      const x = L.x0 + b * step, y = lerp(mid, L.ys[who], split);
+      const passed = x < hx;
+      const h = amp * show * (passed ? 1 + 0.15 * Math.sin(lt * 9 + b) : 1);
+      ctx.fillStyle = mix("#8f97ad", V_COL(who, passed), split);
+      ctx.globalAlpha = split < 1 ? 1 : passed ? 1 : 0.5;
+      ctx.beginPath(); ctx.roundRect(x, y - h, L.barW, h * 2, L.barW / 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // playhead, with the mascot riding it
+    if (lt > t0 - 0.3) {
+      const a = seg(lt, t0 - 0.3, t0);
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.strokeStyle = C.cream; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, L.ys[0] - 70); ctx.lineTo(hx, L.ys[2] + 70); ctx.stroke();
+      ctx.restore();
+      mascot(ctx, hx, L.ys[0] - 112 + Math.sin(lt * 6) * 5, 0.55, { blink: lt % 2.4 < 0.12, rot: Math.sin(lt * 3) * 6 });
+    }
+    // the transcript, written as the playhead passes each turn
+    const c = L.card, rise = easeOut(seg(lt, 1.6, 2.4));
+    ctx.save(); ctx.translate(0, (1 - rise) * 300); ctx.globalAlpha = rise;
+    rect(ctx, c.x, c.y, c.w, c.h, C.cream, 2230, { rough: 4, blur: 24, dy: 8 });
+    text(ctx, "TRANSCRIPT", c.x + 40, c.y + 50, F.sans(L.chip, 600), C.red, { spacing: 2 });
+    ctx.beginPath(); ctx.rect(c.x, c.y + 70, c.w, c.h - 84); ctx.clip();
+    const entries = [];
+    let total = 0;
+    LANE_TURNS.forEach(([a, z, li]) => {
+      const at = t0 + (t1 - t0) * z;
+      const q = seg(lt, at - 0.25, at + 0.35);
+      if (q <= 0) return;
+      ctx.font = F.sans(L.chip, 600);
+      const cw = ctx.measureText(VOX[VOX_LINES[li][0]].name).width + L.chip * 1.2;
+      const lines = wrap(ctx, VOX_LINES[li][1], F.sans(L.font, 500), Math.min(L.wrapW, c.w - 110 - cw));
+      const h = lines.length * L.lineH + 14;
+      entries.push({ li, q, lines, cw, h, y: total }); total += h * easeOut(q);
+    });
+    const view = c.h - 130, scroll = Math.max(0, total - view);
+    entries.forEach((e) => {
+      const y = c.y + 110 + e.y - scroll, who = VOX_LINES[e.li][0];
+      ctx.save(); ctx.globalAlpha = rise * e.q; ctx.translate(0, (1 - easeOut(e.q)) * 24);
+      chip(ctx, VOX[who].name, c.x + 40, y - L.font * 0.35, L.chip, VOX[who].col, 2240 + e.li, { blur: 3 });
+      e.lines.forEach((ln, k) => text(ctx, ln, c.x + 60 + e.cw, y + k * L.lineH, F.sans(L.font, 500), C.ink, { reveal: k === 0 ? easeInOut(e.q) : seg(e.q, 0.5, 1) }));
+      ctx.restore();
+    });
+    const fade = ctx.createLinearGradient(0, c.y + 70, 0, c.y + 104);
+    fade.addColorStop(0, C.cream); fade.addColorStop(1, "rgba(250,246,240,0)");
+    ctx.fillStyle = fade; ctx.fillRect(c.x, c.y + 70, c.w, 34);
+    ctx.restore();
+    caption(ctx, "Every voice gets its own line.", lt, 0.4, 4.2, Object.assign({ y: 980 }, L.cap));
+    caption(ctx, "And the transcript says who spoke.", lt, 5.0, 4.6, Object.assign({ y: 980, bg: C.yellow }, L.cap));
+  }
+  const V_COL = (who, passed) => (passed ? VOX[who].col : mix(VOX[who].col, "#8f97ad", 0.35));
+  sceneLanes.vertical = (ctx, lt) => sceneLanes(ctx, lt, LANES_V);
+
+  // 4 · The payoff: to-dos with owners, and the answer to the opening question.
+  const VN = { x: 1110, y: 70, w: 440, h: 880 };
+  function voiceNoteScreen(ctx, x, y, w, h, lt) {
+    const Lx = x + 28, R = x + w - 26;
+    let yy = y + 88;
+    const on = (a) => seg(lt, a, a + 0.6);
+    text(ctx, "Launch date", Lx, yy, F.serif(44), C.ink, { reveal: on(0.5) }); yy += 32;
+    text(ctx, "Thu · 9 min · 3 speakers", Lx, yy, F.sans(16, 500), C.inkSoft, { alpha: on(0.8) }); yy += 48;
+    const head = (s, a) => { text(ctx, s, Lx, yy, F.sans(14, 600), C.red, { spacing: 2, alpha: on(a) }); yy += 28; };
+    head("SUMMARY", 1.0);
+    wrap(ctx, "Launch moves to October 19th, leaving room to fix the PDF crash first.", F.sans(19, 400), w - 56).forEach((ln, i) => {
+      text(ctx, ln, Lx, yy, F.sans(19, 400), C.ink, { reveal: seg(lt, 1.2 + i * 0.3, 1.6 + i * 0.3) }); yy += 27;
+    });
+    yy += 20;
+    head("TO-DOS", 2.0);
+    const rows = [["Send the crash logs", 2, 2.2], ["Finish the Mac sidebar", 1, 2.5], ["Fix the pricing page", 0, 2.8]];
+    const slots = [];
+    rows.forEach(([s, who, a]) => {
+      const al = on(a);
+      ctx.globalAlpha = al; ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(Lx, yy - 19, 22, 22, 5); ctx.stroke(); ctx.globalAlpha = 1;
+      text(ctx, s, Lx + 34, yy, F.sans(19, 500), C.ink, { reveal: al });
+      const q = backOut(seg(lt, a + 0.5, a + 0.9));
+      if (q > 0) {
+        ctx.save(); ctx.font = F.sans(13, 600);
+        const cw = ctx.measureText(VOX[who].name).width + 13 * 1.2;
+        ctx.translate(R - cw / 2, yy - 6); ctx.scale(q, q);
+        chip(ctx, VOX[who].name, 0, 0, 13, VOX[who].col, 2260 + who, { center: true, blur: 3 });
+        ctx.restore();
+        slots.push([R - cw / 2, yy - 6, cw]);
+      }
+      yy += 46;
+    });
+    yy += 10;
+    head("TRANSCRIPT", 3.3);
+    [5, 6].forEach((li, n) => {
+      const a = 3.5 + n * 0.4, who = VOX_LINES[li][0];
+      const cw = chip(ctx, VOX[who].name, Lx, yy - 6, 12, VOX[who].col, 2270 + n, { blur: 2 });
+      ctx.globalAlpha = on(a);
+      wrap(ctx, VOX_LINES[li][1], F.sans(16, 400), w - 66 - cw).forEach((ln, k) => text(ctx, ln, Lx + cw + 10, yy + k * 23, F.sans(16, 400), C.ink, { reveal: on(a) }));
+      ctx.globalAlpha = 1;
+      yy += 58;
+    });
+    return slots;
+  }
+  function sceneOwners(ctx, lt) {
+    ruledPaperBg(ctx);
+    const rise = easeOut(seg(lt, 0, 0.8));
+    let slots = [];
+    ctx.save(); ctx.translate(0, (1 - rise) * 500);
+    phone(ctx, VN.x, VN.y, VN.w, VN.h, 2280, (c, x, y, w, h) => { slots = voiceNoteScreen(c, x, y, w, h, lt); });
+    ctx.restore();
+    // the three of them, popping up from below with their badges
+    const spots = [[250, 0.3], [580, 0.45], [910, 0.6]];
+    VOX.forEach((V, i) => {
+      const [x, a] = spots[i], q = backOut(seg(lt, a, a + 0.7));
+      const y = 1110 + (1 - q) * 620;
+      person(ctx, {
+        x, y, s: 1.32, seed: 2000 + i * 20, skin: V.skin, shirt: V.col, hair: V.hair, hairStyle: V.hs,
+        look: [12, -4], mouth: i === 2 && lt > 4.6 ? "talk" : "smile", talk: Math.abs(Math.sin(lt * 10)) * 0.6, blink: (lt + i) % 3 < 0.12,
+        arms: i === 2 && lt > 4.4 ? [{ sh: [60, -140], hand: [130, -230 + Math.sin(lt * 7) * 16] }, { sh: [-60, -140], hand: [-70, -20] }] : [{ sh: [60, -140], hand: [80, -20] }, { sh: [-60, -140], hand: [-70, -20] }],
+      });
+      ctx.save(); ctx.translate(x, y - 232 * 1.32 - 120); ctx.scale(clamp(q, 0, 1.2), clamp(q, 0, 1.2));
+      chip(ctx, V.name, 0, 0, 28, V.col, 2290 + i, { center: true, blur: 10 });
+      ctx.restore();
+    });
+    rect(ctx, -400, 1092, 1600, 800, C.manila, 2295, { rough: 4, blur: 18, dy: -4 });
+    // red pen: from Speaker 3 to their to-do
+    const s0 = slots[0];
+    const ap = easeInOut(seg(lt, 4.3, 5.2));
+    if (s0 && ap > 0) {
+      const from = [1000, 560], to = [s0[0] - s0[2] / 2 - 18, s0[1] + 6], ctl = [1010, 250];
+      ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath();
+      const N = 40, n = Math.ceil(N * ap);
+      for (let k = 0; k <= n; k++) { const [x, y] = bez(from, ctl, to, Math.min(ap, k / N)); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+      if (ap >= 1) {
+        const [x0, y0] = bez(from, ctl, to, 0.94), ang = Math.atan2(to[1] - y0, to[0] - x0);
+        ctx.beginPath(); ctx.moveTo(to[0] - Math.cos(ang - 0.5) * 22, to[1] - Math.sin(ang - 0.5) * 22); ctx.lineTo(to[0], to[1]); ctx.lineTo(to[0] - Math.cos(ang + 0.5) * 22, to[1] - Math.sin(ang + 0.5) * 22); ctx.stroke();
+      }
+      const cp = easeInOut(seg(lt, 5.0, 5.6));
+      if (cp > 0) {
+        ctx.beginPath();
+        for (let k = 0; k <= 50 * cp; k++) { const a = -2.4 + (k / 46) * Math.PI * 2; const px = s0[0] + Math.cos(a) * (s0[2] / 2 + 14), py = s0[1] + Math.sin(a) * 22; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    mascot(ctx, VN.x + VN.w + 24, VN.y + VN.h - 120, 0.95, { rot: 10, wave: lt * 6, blink: lt % 2.8 < 0.12 });
+    caption(ctx, "Now every to-do has an owner.", lt, 1.2, 3.4, { y: 330, x: 560, size: 64, vy: 1560 });
+    caption(ctx, "Speaker 3 is sending the crash logs.", lt, 4.6, 3.3, { y: 330, x: 560, size: 64, bg: C.yellow, vy: 1560 });
+  }
+  sceneOwners.vcam = camPath([[0, 580, 700, 1050], [2.4, 580, 700, 1050], [3.4, 1180, 560, 1000], [8, 1180, 560, 1000]]);
+
+  // 5 · Worked out on the phone: the three ribbons orbit it, then fold into it.
+  function sceneDevice(ctx, lt) {
+    nightSky(ctx, lt, 33);
+    moon(ctx, 1560, 190, 70);
+    hills(ctx, lt, 2300, [C.navy3, "#28335e"], -lt * 12);
+    const cx = 960, cy = 500 + Math.sin(lt * 1.6) * 10, pw = 250, ph = 450;
+    const pull = easeInOut(seg(lt, 3.6, 4.6));
+    const pieces = [[], []];
+    VOX.forEach((V, i) => {
+      const rx = (360 + i * 50) * (1 - pull), ry = (95 + i * 12) * (1 - pull), tilt = (-0.32 + i * 0.32) * (1 - pull);
+      const ph0 = lt * (1.3 + i * 0.15) + i * 2.1, span = 3.2;
+      let cur = null, side = null;
+      for (let k = 0; k <= 40; k++) {
+        const a = ph0 + (k / 40) * span, front = Math.sin(a) > 0;
+        const ex = Math.cos(a) * rx, ey = Math.sin(a) * ry;
+        const x = cx + ex * Math.cos(tilt) - ey * Math.sin(tilt), y = cy + ex * Math.sin(tilt) + ey * Math.cos(tilt);
+        const w = (12 + 14 * (0.5 + 0.5 * Math.sin(a))) * Math.sin((k / 40) * Math.PI) * (1 - pull * 0.6);
+        if (front !== side) { const last = cur && cur.pts[cur.pts.length - 1]; if (cur && cur.pts.length > 1) pieces[side ? 1 : 0].push(cur); cur = { pts: last ? [last] : [], i, col: V.col }; side = front; }
+        cur.pts.push([x, y, w]);
+      }
+      if (cur && cur.pts.length > 1) pieces[side ? 1 : 0].push(cur);
+    });
+    const draw = (pc, n) => {
+      const top = [], bot = [];
+      for (let k = 0; k < pc.pts.length; k++) {
+        const [x, y, w] = pc.pts[k], [x2, y2] = pc.pts[Math.min(k + 1, pc.pts.length - 1)], [x0, y0] = pc.pts[Math.max(k - 1, 0)];
+        const dx = x2 - x0, dy = y2 - y0, L = Math.hypot(dx, dy) || 1;
+        top.push([x - dy / L * w, y + dx / L * w]); bot.push([x + dy / L * w, y - dx / L * w]);
+      }
+      paper(ctx, [...top, ...bot.reverse()], pc.col, 2310 + n, { rough: 1.2, step: 8, blur: 14, dy: 4, shadowColor: "rgba(0,0,0,0.4)" });
+    };
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const halo = ctx.createRadialGradient(cx, cy, 60, cx, cy, 460);
+    halo.addColorStop(0, "rgba(120,140,255,0.22)"); halo.addColorStop(1, "rgba(120,140,255,0)");
+    ctx.fillStyle = halo; ctx.fillRect(cx - 500, cy - 500, 1000, 1000); ctx.restore();
+    pieces[0].forEach(draw);
+    const glow = seg(lt, 4.3, 4.6) * (1 - seg(lt, 4.6, 5.6));
+    if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(cx, cy, 20, cx, cy, 520); g.addColorStop(0, `rgba(255,230,160,${0.55 * glow})`); g.addColorStop(1, "rgba(255,230,160,0)"); ctx.fillStyle = g; ctx.fillRect(cx - 600, cy - 600, 1200, 1200); ctx.restore(); }
+    phone(ctx, cx - pw / 2, cy - ph / 2, pw, ph, 2320, (c, x, y, w, h) => {
+      mascot(c, x + w / 2, y + h * 0.3, w / 240, { blink: lt % 2.6 < 0.12, wink: lt > 4.6 ? true : null });
+      VOX.forEach((V, i) => {
+        const q = easeOut(seg(lt, 4.5 + i * 0.12, 5.0 + i * 0.12));
+        if (q <= 0) return;
+        const yy = y + h * 0.56 + i * 44;
+        chip(c, String(i + 1), x + 22, yy, 13, V.col, 2330 + i, { blur: 2 });
+        c.fillStyle = "rgba(30,36,51,0.18)"; c.beginPath(); c.roundRect(x + 58, yy - 6, (w - 82) * q * [0.9, 0.7, 0.8][i], 12, 6); c.fill();
+      });
+    });
+    pieces[1].forEach(draw);
+    caption(ctx, "Worked out on your phone, not on a server.", lt, 0.3, 3.6, { y: 960 });
+    caption(ctx, "No bot on the call.", lt, 4.2, 2.0, { y: 960, bg: C.yellow });
+  }
+  sceneDevice.vcam = camPath([[0, 960, 540, 1000], [6, 960, 520, 900]]);
+
+  const VOX_END = { tagline: "Know who said what.", sub: "Speaker labels, worked out on your phone  ·  iPhone, iPad & Mac  ·  coming soon" };
+  function voicesEnd(ctx, lt) { sceneEnd(ctx, lt, VOX_END); }
+  voicesEnd.plain = true;
+  voicesEnd.vertical = (ctx, lt) => sceneEndV(ctx, lt, VOX_END);
+
+
   // ================= FILMS =================
   const FILMS = {
     hero: {
@@ -1352,6 +1855,10 @@
     speed: {
       title: "Two seconds", duration: 15,
       segs: [[sceneSpeed, 0, 10], [speedEnd, 10, 15]],
+    },
+    voices: {
+      title: "Who said that?", duration: 46, wipe: 0.9, vignette: 0.24,
+      segs: [[sceneNoise, 0, 6], [sceneRoom, 6, 17], [sceneLanes, 17, 27], [sceneOwners, 27, 35], [sceneDevice, 35, 40.5], [voicesEnd, 40.5, 46]],
     },
   };
   const XFADE = 0.6;
@@ -1385,12 +1892,27 @@
     const i = film.segs.findIndex(([, a, b]) => t >= a && t < b);
     const s = film.segs[i];
     drawSeg(ctx, s, t, W, H);
-    const into = t - s[1];
-    if (i > 0 && into < XFADE) {
+    const into = t - s[1], tr = film.wipe || XFADE;
+    if (i > 0 && into < tr) {
       const b = buffer(W, H), bc = b.getContext("2d");
       bc.clearRect(0, 0, W, H);
       drawSeg(bc, film.segs[i - 1], t, W, H);
-      ctx.save(); ctx.globalAlpha = 1 - easeInOut(into / XFADE); ctx.drawImage(b, 0, 0); ctx.restore();
+      if (film.wipe) {
+        // a torn sheet pulled away on a slant: the old scene is the paper, the new one is under it
+        const p = easeInOut(into / tr), u = W / 1920, ex = lerp(-0.25 * W, 1.25 * W, p), sl = 0.18 * W;
+        const pts = (d) => [[ex + sl + d, -60], [2 * W, -60], [2 * W, H + 60], [ex - sl + d, H + 60]];
+        ctx.save();
+        tornPath(ctx, pts(-16 * u), 4200 + i, 9 * u, 26 * u);
+        ctx.shadowColor = "rgba(8,10,24,0.5)"; ctx.shadowBlur = 40 * u; ctx.shadowOffsetX = -12 * u;
+        ctx.fillStyle = C.cream; ctx.fill();
+        ctx.restore();
+        ctx.save(); tornPath(ctx, pts(0), 4300 + i, 7 * u, 22 * u); ctx.clip(); ctx.drawImage(b, 0, 0); ctx.restore();
+      } else { ctx.save(); ctx.globalAlpha = 1 - easeInOut(into / XFADE); ctx.drawImage(b, 0, 0); ctx.restore(); }
+    }
+    if (film.vignette && !s[0].plain) {
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.hypot(W, H) * 0.56);
+      g.addColorStop(0, "rgba(8,10,24,0)"); g.addColorStop(1, `rgba(8,10,24,${film.vignette})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
     // open from and close to ink
     const edge = Math.min(seg(t, 0, 0.6), 1 - seg(t, film.duration - 0.6, film.duration));
@@ -1400,7 +1922,8 @@
   // ================= POSTERS =================
   // Stills for social: a scene frame framed by a camera, with a headline card and logo tag.
   const SCENES = { town: sceneTown, scribblers: sceneScribblers, meeting: sceneMeeting, note: sceneNote, train: sceneTrain,
-    speed: sceneSpeed, scraps: sceneScraps, notebook: sceneNotebook, import: sceneImport, sources: sceneSources, ask: sceneAsk, end: sceneEnd };
+    speed: sceneSpeed, scraps: sceneScraps, notebook: sceneNotebook, import: sceneImport, sources: sceneSources, ask: sceneAsk, end: sceneEnd,
+    noise: sceneNoise, room: sceneRoom, lanes: sceneLanes, owners: sceneOwners, device: sceneDevice };
   function paperScreen(ctx, W, H, U) {
     ctx.fillStyle = C.cream; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = grainPattern(ctx); ctx.fillRect(0, 0, W, H);

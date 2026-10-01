@@ -113,7 +113,7 @@
     <span class="eyebrow">Launch kit · strategy, films &amp; social</span>
     <div class="brandrow"><img class="icon" src="social-kit/profile/profile-picture.png" alt="" width="56" height="56"><h1>Quolio</h1></div>
     <p class="tag">Be in the room. <mark>We'll take the notes.</mark></p>
-    <p class="lede">An iPhone, iPad and Mac notebook that turns the meeting you just sat through into a note with a summary, decisions and to-dos. It opens instantly and works without a signal. This kit holds the launch plan and three films, drawn frame by frame in code in a torn-paper storybook style.</p>
+    <p class="lede">An iPhone, iPad and Mac notebook that turns the meeting you just sat through into a note with a summary, decisions and to-dos. It opens instantly and works without a signal. This kit holds the launch plan and five films, drawn frame by frame in code in a torn-paper storybook style.</p>
   </header>
 
   <div class="stage" aria-label="Film player">
@@ -125,6 +125,7 @@
         <button type="button" data-film="listen" aria-pressed="false">Pencil down · 22s</button>
         <button type="button" data-film="speed" aria-pressed="false">Two seconds · 15s</button>
         <button type="button" data-film="notebook" aria-pressed="false">One notebook · 24s</button>
+        <button type="button" data-film="voices" aria-pressed="false">Who said that? · 46s</button>
       </div>
       <div class="scrub">
         <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Scrub film">
@@ -203,6 +204,7 @@
           <tr><td>What Mia heard</td><td class="kpi">0:50</td><td>A night town where everyone scribbles and misses what was said. Mia records instead and listens, and the note writes itself. It still opens on a train with no signal.</td><td>X launch post, Product Hunt gallery, top of the landing page, YouTube</td></tr>
           <tr><td>Pencil down</td><td class="kpi">0:22</td><td>Just the meeting: the pencil goes down, the ideas fly into the phone as paper strips, and the finished note appears.</td><td>LinkedIn, paid social, App Store preview (re-cut to 30s at the device size)</td></tr>
           <tr><td>Two seconds</td><td class="kpi">0:15</td><td>Split screen: a loading spinner counting up against a notebook that's ready right away.</td><td>Reels, Shorts, TikTok (9:16 version ready), Notion-switcher posts</td></tr>
+          <tr><td>Who said that?</td><td class="kpi">0:46</td><td>A transcript has every word but not who said it. Three people talk to one phone, and Quolio tells their voices apart: each gets a lane, the transcript says who spoke, and every to-do gets an owner. It's all worked out on the phone, with no bot on the call.</td><td>Speaker-labels release post on X and LinkedIn, Product Hunt update, Reels and Shorts (9:16 version ready)</td></tr>
         </tbody>
       </table>
     </div>
@@ -231,7 +233,9 @@ Tagline: Meeting notes that write themselves, on your iPhone
 First comment: I built this because I kept choosing between listening and writing. Quolio records the meeting and gives you back a real note with the summary, decisions and who owns what. It opens in under 2 seconds and works offline.</pre></div>
       <div class="sheet copy"><span class="label">App Store</span><button class="copybtn" type="button">Copy</button><pre>Subtitle (30): Notes that take themselves
 Promo text: Be in the room. We'll take the notes. Record a meeting and get a summary, decisions and to-dos, with no bot on the call.
-Keywords: quolio,meeting notes,transcribe,offline notes,notebook,minutes,to-do,summary,notion import</pre></div>
+Keywords: quolio,meeting notes,transcribe,offline notes,notebook,minutes,to-do,summary,notion import
+Description, last paragraph (the speaker models' CC BY 4.0 licence asks for this credit):
+Acknowledgements: Speaker labels use pyannote's speaker-diarization-community-1 models (pyannote, with WeSpeaker's speaker embedding and PLDA parameters from BUT Speech@FIT), as modified Core ML conversions by Fluid Inference, under CC BY 4.0 (creativecommons.org/licenses/by/4.0). They run on the device through FluidAudio (Apache 2.0).</pre></div>
     </div>
   </section>
 
@@ -368,14 +372,16 @@ Every frame of this was drawn in code, and so is the music. Quolio is coming soo
       <li><strong>"Under 2 seconds"</strong> is a test target. Measure a cold launch on the iPhone 12 Pro and put the real number in the copy.</li>
       <li><strong>"No bot on the call" / offline:</strong> the recording and notes are local. If summaries go to Gemini, say "works offline, summaries sync when you're back online" rather than implying everything happens on the device.</li>
       <li><strong>iPad &amp; Mac:</strong> the Mac Catalyst target exists. Confirm it's in the launch build, or drop "Mac" from the end card.</li>
+      <li><strong>Speaker labels</strong> ("Who said that?"): the diarization models, about 21 MB, download the first time they're used. Don't pair this film with an offline or airplane-mode claim, and don't quote an accuracy figure. Speakers are numbered, not named.</li>
       <li><strong>Recording consent:</strong> the app, the App Store text and the films should all nudge people to tell others in the room they're recording.</li>
     </ul>
   </section>
 
-  <footer>Film source: <code>marketing/films/film.js</code>. Re-render with <code>node render.mjs hero</code> (or <code>listen</code> / <code>speed</code>) from <code>marketing/</code>.</footer>
+  <footer>Film source: <code>marketing/films/film.js</code>. Re-render with <code>node render.mjs hero</code> (or <code>listen</code> / <code>speed</code> / <code>notebook</code> / <code>voices</code>) and its soundtrack with <code>node audio.mjs</code> and the same name, from <code>marketing/</code>.</footer>
 </div>
 
-<script src="film.js"></script>
+<script src="films/brand-art.js"></script>
+<script src="films/film.js"></script>
 <script>
 (function () {
   const canvas = document.getElementById("film"), ctx = canvas.getContext("2d");
