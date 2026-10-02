@@ -498,6 +498,8 @@ final class MeetingSession: ObservableObject {
             }
             note.meetingArtifact = artifact
         }
+        // Written now, so a note survives the app being closed before SwiftData's autosave runs.
+        if context.hasChanges { try? context.save() }
         return note
     }
 

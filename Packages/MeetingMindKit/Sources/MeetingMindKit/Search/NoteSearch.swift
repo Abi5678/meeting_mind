@@ -87,12 +87,16 @@ public struct SearchPassage: Sendable, Equatable {
         }
         var words = 0
         var group: [TranscriptPiece] = []
+        // The "Speaker 2: " that last started a turn. A passage that begins mid-turn carries it, so
+        // whoever reads the passage alone (Ask, most of all) still knows who said it.
+        var speaker: String?
+        var groupSpeaker: String?
         func flush() {
             guard let first = group.first else { return }
-            var text = ""
+            var text = speakerLabel(first.text) == nil ? groupSpeaker ?? "" : ""
             var marks: [(offset: Int, start: TimeInterval)] = []
             for piece in group {
-                if !text.isEmpty { text += " " }
+                if !text.isEmpty, !text.hasSuffix(" ") { text += " " }
                 marks.append((text.count, piece.start))
                 text += piece.text
             }
@@ -101,12 +105,20 @@ public struct SearchPassage: Sendable, Equatable {
             words = 0
         }
         for piece in transcript where !piece.text.isEmpty {
+            if group.isEmpty { groupSpeaker = speaker }
+            speaker = speakerLabel(piece.text) ?? speaker
             group.append(piece)
             words += piece.text.split(whereSeparator: \.isWhitespace).count
             if words >= wordsPerPassage { flush() }
         }
         flush()
         return result
+    }
+
+    /// "Speaker 2: " when `text` opens a speaker's turn.
+    private static func speakerLabel(_ text: String) -> String? {
+        guard let pattern = try? Regex(#"Speaker \d+: "#) else { return nil }
+        return text.prefixMatch(of: pattern).map { String(text[$0.range]) }
     }
 
     private static func wordWindows(_ text: String, size: Int) -> [String] {

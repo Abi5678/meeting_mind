@@ -73,7 +73,9 @@ public final class PlaybackController: NSObject, ObservableObject {
 
     private func startUpdateTimer() {
         stopUpdateTimer()
-        playbackUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 15.0, repeats: true) { [weak self] _ in
+        playbackUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 15.0, repeats: true) { [weak self] timer in
+            // A controller let go of mid-playback (its player stops with it) leaves no timer running.
+            guard self != nil else { timer.invalidate(); return }
             Task { @MainActor in
                 guard let self, let player = self.audioPlayer else { return }
                 self.currentTime = player.currentTime

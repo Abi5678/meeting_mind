@@ -96,9 +96,10 @@ struct NotebookChatView: View {
     }
 
     private func answer(_ message: NotebookChatMessage) -> some View {
-        let sources = message.sources
+        // Renumbered as shown, so answers saved before renumbering read 1, 2, 3… too.
+        let (content, sources) = NotebookChat.renumbered(message.content, sources: message.sources)
         // Several excerpts can come from one note; list each note once, with the numbers citing it.
-        let cited = NotesQuestion.cited(in: message.content, count: sources.count)
+        let cited = NotesQuestion.cited(in: content, count: sources.count)
         var notes: [(noteID: UUID, title: String, numbers: [Int])] = []
         for number in cited {
             guard let source = sources.first(where: { $0.number == number }) else { continue }
@@ -110,7 +111,7 @@ struct NotebookChatView: View {
         }
         return HStack {
             VStack(alignment: .leading, spacing: 8) {
-                Text(linked(message.content, count: sources.count))
+                Text(linked(content, count: sources.count))
                     .textSelection(.enabled)
                     .foregroundStyle(Color("InkColor"))
                     .environment(\.openURL, OpenURLAction { url in

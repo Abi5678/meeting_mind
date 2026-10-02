@@ -15,7 +15,9 @@ public struct OnDeviceNotesAnswerer: Sendable {
     public func answer(question: String, sources: [NotesQuestion.Source]) async throws -> String {
         let session = LanguageModelSession(instructions: NotesQuestion.instructions)
         let prompt = NotesQuestion.prompt(question: question, sources: sources)
-        return try await session.respond(to: prompt).content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Greedy: the likeliest words, not sampled ones, which wander from the sources.
+        let answer = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy)).content
+        return NotesQuestion.withoutUnsupportedNumbers(answer.trimmingCharacters(in: .whitespacesAndNewlines), in: [prompt])
     }
 }
 #endif

@@ -29,8 +29,9 @@ public enum NotesQuestion {
     public static let instructions = """
         You answer questions about the user's own notes, meeting transcripts and the text in their \
         photos, using only the numbered sources given. After each fact, cite its source number in \
-        brackets, like [2]. Never state anything the sources don't say. If they don't answer the \
-        question, say you couldn't find it in the notes. Answer in one to four short sentences.
+        brackets, like [1]. Never state anything the sources don't say, and copy names, numbers and \
+        dates exactly as they give them. If they don't answer the question, say you couldn't find it \
+        in the notes. Answer in one to four short sentences.
         """
 
     public static func prompt(question: String, sources: [Source]) -> String {
@@ -60,10 +61,85 @@ public enum NotesQuestion {
     /// The citations in `answer` that name one of `count` sources. Numbers the model made up are
     /// dropped, and a marker left with none isn't a citation.
     public static func citations(in answer: String, count: Int) -> [Citation] {
+        markers(in: answer).compactMap { marker in
+            let numbers = marker.numbers.filter { (1...count).contains($0) }
+            return numbers.isEmpty ? nil : Citation(range: marker.range, numbers: numbers)
+        }
+    }
+
+    /// The answer with its citations numbered 1, 2, 3… in the order it first cites them, and the
+    /// sources renumbered to match, cited ones first. A marker that names no source is removed;
+    /// with a single source, any number can only mean that one, so it becomes [1].
+    public static func renumbered(_ answer: String, sources: [Source]) -> (answer: String, sources: [Source]) {
+        let (text, order) = renumbering(answer, numbers: sources.map(\.number))
+        let renumbered = order.compactMap { old in sources.first { $0.number == old } }
+            .enumerated().map { Source(number: $0.offset + 1, noteTitle: $0.element.noteTitle, hit: $0.element.hit) }
+        return (text, renumbered)
+    }
+
+    /// `answer` renumbered for sources numbered `numbers`, and those numbers in their new order.
+    static func renumbering(_ answer: String, numbers sourceNumbers: [Int]) -> (answer: String, order: [Int]) {
+        guard !sourceNumbers.isEmpty else { return (answer, sourceNumbers) }
+        var order: [Int] = []  // Old numbers, in the order first cited.
+        var text = ""
+        var rest = answer.startIndex
+        for marker in markers(in: answer) {
+            let numbers = marker.numbers
+                .map { sourceNumbers.count == 1 ? sourceNumbers[0] : $0 }
+                .filter { sourceNumbers.contains($0) }
+            var end = marker.range.lowerBound
+            // A dropped marker takes the space before it along, so "it [5]." reads "it.".
+            if numbers.isEmpty {
+                while end > rest, answer[answer.index(before: end)] == " " { end = answer.index(before: end) }
+            }
+            text += answer[rest ..< end]
+            if !numbers.isEmpty {
+                var new: [Int] = []
+                for number in numbers {
+                    if !order.contains(number) { order.append(number) }
+                    let renumbered = order.firstIndex(of: number)! + 1
+                    if !new.contains(renumbered) { new.append(renumbered) }
+                }
+                text += "[" + new.map(String.init).joined(separator: ", ") + "]"
+            }
+            rest = marker.range.upperBound
+        }
+        text += answer[rest...]
+        return (text, order + sourceNumbers.filter { !order.contains($0) })
+    }
+
+    /// The answer without the sentences that give a number of two or more digits, a year say, that
+    /// none of `texts` has: the on-device model sometimes adds one. Short numbers are left alone,
+    /// since "2" may be the sources' "two". With nothing left, the answer says it couldn't find it.
+    public static func withoutUnsupportedNumbers(_ answer: String, in texts: [String]) -> String {
+        let known = Set(texts.flatMap(numbers(in:)))
+        var kept = ""
+        answer.enumerateSubstrings(in: answer.startIndex..., options: [.bySentences, .substringNotRequired]) { _, _, range, _ in
+            let sentence = String(answer[range])
+            let unsupported = numbers(in: uncited(sentence)).contains { $0.count >= 2 && !known.contains($0) }
+            if !unsupported { kept += sentence }
+        }
+        kept = kept.trimmingCharacters(in: .whitespacesAndNewlines)
+        return kept.isEmpty && !answer.isEmpty ? "I couldn't find that in your notes." : kept
+    }
+
+    /// The numbers written in `text`, "1,000" as "1000".
+    private static func numbers(in text: String) -> [String] {
+        guard let pattern = try? Regex(#"\d+(?:,\d{3})*"#) else { return [] }
+        return text.matches(of: pattern).map { text[$0.range].filter(\.isNumber) }
+    }
+
+    private static func uncited(_ text: String) -> String {
+        var text = text
+        for marker in markers(in: text).reversed() { text.removeSubrange(marker.range) }
+        return text
+    }
+
+    /// Every `[n]` or `[n, m]` marker in `answer`, whatever numbers it holds.
+    private static func markers(in answer: String) -> [(range: Range<String.Index>, numbers: [Int])] {
         guard let pattern = try? Regex(#"\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]"#) else { return [] }
-        return answer.matches(of: pattern).compactMap { match in
-            let numbers = answer[match.range].split { !$0.isNumber }.compactMap { Int($0) }.filter { (1...count).contains($0) }
-            return numbers.isEmpty ? nil : Citation(range: match.range, numbers: numbers)
+        return answer.matches(of: pattern).map { match in
+            (match.range, answer[match.range].split { !$0.isNumber }.compactMap { Int($0) })
         }
     }
 

@@ -17,7 +17,8 @@ struct AskNotesView: View {
     let open: (SearchResult.ID) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var answer: String?
+    /// The answer, with its citations and sources renumbered to read 1, 2, 3….
+    @State private var answer: (answer: String, sources: [NotesQuestion.Source])?
     @State private var error: String?
 
     private var sources: [NotesQuestion.Source] {
@@ -32,7 +33,7 @@ struct AskNotesView: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(Color("InkColor"))
                     if let answer {
-                        answerView(answer)
+                        answerView(answer.answer, sources: answer.sources)
                     } else if let error {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(.callout)
@@ -59,8 +60,7 @@ struct AskNotesView: View {
     }
 
     @ViewBuilder
-    private func answerView(_ answer: String) -> some View {
-        let sources = sources
+    private func answerView(_ answer: String, sources: [NotesQuestion.Source]) -> some View {
         let cited = NotesQuestion.cited(in: answer, count: sources.count)
         Text(linked(answer, count: sources.count))
             .font(.body)
@@ -134,7 +134,9 @@ struct AskNotesView: View {
             return
         }
         do {
-            answer = try await OnDeviceNotesAnswerer().answer(question: question, sources: sources)
+            let sources = sources
+            let text = try await OnDeviceNotesAnswerer().answer(question: question, sources: sources)
+            answer = NotesQuestion.renumbered(text, sources: sources)
         } catch {
             self.error = "Couldn't answer that on this device. \(error.localizedDescription)"
         }
