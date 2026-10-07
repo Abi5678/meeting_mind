@@ -3,14 +3,26 @@ import Foundation
 /// Lays a recording out as note blocks, with the full transcript last so the useful parts come
 /// first. A meeting gets its summary, decisions, action items as to-dos and the follow-up email; a
 /// talk its summary, key points and takeaways; a memo its summary and its own sections; a song just
-/// its lyrics.
+/// its lyrics. Without Apple Intelligence, key points picked from the transcript stand in for the
+/// summary, whatever the kind.
 public enum MeetingNoteBuilder {
-    /// - Parameter analysis: nil when the summary could not be written (no Apple Intelligence, or it refused); the note then
-    ///   holds the transcript alone.
+    /// - Parameter analysis: nil when the summary could not be written (Apple Intelligence refused, or there was nothing to
+    ///   pick); the note then holds the transcript alone.
     public static func blocks(kind: RecordingKind = .meeting, analysis: MeetingAnalysis?, transcript: String) -> [Block] {
         var blocks: [Block] = []
         func add(_ type: BlockType, _ text: String) {
             blocks.append(Block(type: type, runs: [.plain(text)]))
+        }
+        // Empty when key points picked from the transcript stand in for a written summary.
+        func addSummary(_ text: String) {
+            guard !text.isEmpty else { return }
+            add(.heading(level: 2), "Summary")
+            add(.paragraph, text)
+        }
+        func addKeyPoints(_ points: [String]) {
+            guard !points.isEmpty else { return }
+            add(.heading(level: 2), "Key points")
+            points.forEach { add(.bulletedList, $0) }
         }
 
         switch (kind, analysis) {
@@ -20,13 +32,8 @@ public enum MeetingNoteBuilder {
             return blocks
 
         case let (.talk, analysis?):
-            add(.heading(level: 2), "Summary")
-            add(.paragraph, analysis.summary)
-
-            if !analysis.keyPoints.isEmpty {
-                add(.heading(level: 2), "Key points")
-                analysis.keyPoints.forEach { add(.bulletedList, $0) }
-            }
+            addSummary(analysis.summary)
+            addKeyPoints(analysis.keyPoints)
 
             if !analysis.takeaways.isEmpty {
                 add(.heading(level: 2), "Takeaways")
@@ -34,8 +41,8 @@ public enum MeetingNoteBuilder {
             }
 
         case let (.memo, analysis?):
-            add(.heading(level: 2), "Summary")
-            add(.paragraph, analysis.summary)
+            addSummary(analysis.summary)
+            addKeyPoints(analysis.keyPoints)
 
             for section in analysis.sections where !section.items.isEmpty {
                 add(.heading(level: 2), section.heading)
@@ -43,8 +50,8 @@ public enum MeetingNoteBuilder {
             }
 
         case let (.meeting, analysis?):
-            add(.heading(level: 2), "Summary")
-            add(.paragraph, analysis.summary)
+            addSummary(analysis.summary)
+            addKeyPoints(analysis.keyPoints)
 
             if !analysis.keyDecisions.isEmpty {
                 add(.heading(level: 2), "Key decisions")
@@ -56,9 +63,11 @@ public enum MeetingNoteBuilder {
                 analysis.actionItems.forEach { add(.todo, actionItemText($0)) }
             }
 
-            add(.heading(level: 2), "Follow-up email")
-            add(.paragraph, "Subject: \(analysis.followUpEmail.subject)")
-            paragraphs(analysis.followUpEmail.body).forEach { add(.paragraph, $0) }
+            if !analysis.followUpEmail.subject.isEmpty || !analysis.followUpEmail.body.isEmpty {
+                add(.heading(level: 2), "Follow-up email")
+                add(.paragraph, "Subject: \(analysis.followUpEmail.subject)")
+                paragraphs(analysis.followUpEmail.body).forEach { add(.paragraph, $0) }
+            }
 
         case (_, nil):
             break

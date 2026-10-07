@@ -10,6 +10,9 @@ import SwiftData
 import PhotosUI
 import PencilKit
 import MeetingMindKit
+#if !targetEnvironment(macCatalyst)
+import BackgroundTasks
+#endif
 
 @MainActor
 final class MeetingSession: ObservableObject {
@@ -36,7 +39,9 @@ final class MeetingSession: ObservableObject {
         }
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet { backgroundRun?.report(phase) }
+    }
     @Published private(set) var recordingDuration: TimeInterval = 0
     /// An interruption (a call, Siri, an alarm) is holding the recording until it resumes.
     @Published private(set) var isPaused = false
@@ -62,6 +67,10 @@ final class MeetingSession: ObservableObject {
 
     private var timer: Timer?
     private var work: Task<Void, Never>?
+    /// Time to finish `work` should the app be left before it's done.
+    private var backgroundRun: BackgroundRun?
+    /// Whether leaving the app now lets transcribing carry on rather than pause it (iOS 26).
+    var continuesInBackground: Bool { backgroundRun?.isContinued ?? false }
     /// Once saved, the audio belongs to a note and must not be deleted on the way out.
     private var isSaved = false
     private let recorderService = AudioRecorderService()
@@ -149,7 +158,9 @@ final class MeetingSession: ObservableObject {
     /// Brings in a file, a library video or a YouTube video's captions, then carries on exactly as
     /// a recording would once it stops.
     func importMeeting(from source: CaptureSource) {
+        let run = beginBackgroundRun()
         work = Task {
+            defer { run.end() }
             do {
                 switch source {
                 case .microphone:
@@ -234,7 +245,9 @@ final class MeetingSession: ObservableObject {
             return
         }
         recording = result
+        let run = beginBackgroundRun()
         work = Task {
+            defer { run.end() }
             await checkForMusic(result.url)
             guard !Task.isCancelled else { return }
             await transcribe(result.url)
@@ -256,7 +269,20 @@ final class MeetingSession: ObservableObject {
         guard let recording else { return }
         transcript = ""
         pieces = []
-        work = Task { await transcribe(recording.url) }
+        let run = beginBackgroundRun()
+        work = Task {
+            defer { run.end() }
+            await transcribe(recording.url)
+        }
+    }
+
+    /// Asks iOS for time to finish the work about to start, should the app be left meanwhile. Only
+    /// granted while the app is on screen, so call it as the work starts, not once it's left.
+    private func beginBackgroundRun() -> BackgroundRun {
+        backgroundRun?.end()
+        let run = BackgroundRun(title: "Transcribing your recording")
+        backgroundRun = run
+        return run
     }
 
     func reset() {
@@ -337,9 +363,18 @@ final class MeetingSession: ObservableObject {
     /// isn't available or fails, so the older recognizer gets a turn.
     private func transcribeOnDevice(_ url: URL) async -> (pieces: [TranscriptPiece], labelled: Bool)? {
         guard #available(iOS 26, *), OnDeviceTranscriber.isAvailable else { return nil }
-        phase = .transcribingOnDevice(percent: 0)
+        // The model usually comes down while recording. When it hasn't, say so rather than sit at
+        // "Transcribing… 0%", and don't wait on it for long: the system may hold the download back.
+        let transcriber = OnDeviceTranscriber()
+        let ready = await transcriber.modelReady(within: .seconds(60)) { [weak self] fraction in
+            await self?.setPhase(.preparing("Downloading the speech model… \(Int(fraction * 100))%"))
+        }
+        guard ready else { return nil }
+        // The model takes some 20 seconds to start, whatever the recording's length; the first
+        // progress report, 0, comes once it has.
+        phase = .preparing("Starting the speech model…")
         do {
-            let (pieces, words) = try await OnDeviceTranscriber().transcription(fileAt: url) { [weak self] fraction in
+            let (pieces, words) = try await transcriber.transcription(fileAt: url) { [weak self] fraction in
                 await self?.setPhase(.transcribingOnDevice(percent: Int(fraction * 100)))
             }
             guard !pieces.isEmpty else { return nil }
@@ -352,10 +387,13 @@ final class MeetingSession: ObservableObject {
     }
 
     /// The transcript as one piece per speaker's turn, "Speaker 1: …". Nil for a single voice, or
-    /// when the speaker models can't be had (offline on first use), so the plain transcript stands.
+    /// when the speaker models can't be had within 30 seconds (offline, or a slow network on first
+    /// use), so the plain transcript stands.
     private func speakerLabels(_ url: URL, words: [TimedWord]) async -> [TranscriptPiece]? {
         phase = .preparing("Telling speakers apart…")
-        guard let turns = try? await SpeakerDiarizer().turns(fileAt: url) else { return nil }
+        let diarizer = SpeakerDiarizer()
+        guard await diarizer.modelsReady(within: .seconds(30)),
+              let turns = try? await diarizer.turns(fileAt: url) else { return nil }
         return SpeakerLabels.pieces(words: words, turns: turns)
     }
 
@@ -382,10 +420,22 @@ final class MeetingSession: ObservableObject {
             return
         }
         guard AppleIntelligence.unavailableReason == nil, #available(iOS 26, *) else {
-            analysisError = (AppleIntelligence.unavailableReason ?? "") + " You can still save the transcript."
+            // No model to write a summary, so the transcript's telling sentences stand in for one.
+            analysis = KeyPoints.analysis(of: transcript)
+            analysisError = (AppleIntelligence.unavailableReason ?? "")
+                + (analysis == nil ? " You can still save the transcript." : " The key points are sentences picked from the transcript.")
             phase = .done
             return
         }
+        // Apple Intelligence may turn away an app in the background (rateLimited), so a recording
+        // transcribed there is summarized once the app is open again.
+        backgroundRun?.end()
+        #if !targetEnvironment(macCatalyst)
+        while UIApplication.shared.applicationState == .background, !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+        }
+        guard !Task.isCancelled else { return }
+        #endif
         phase = .analyzing
         let analyzer = OnDeviceMeetingAnalyzer()
         if kind == nil { kind = await analyzer.kind(of: transcript) }
@@ -528,4 +578,102 @@ final class MeetingSession: ObservableObject {
         let parts = [first, second].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
     }
+}
+
+/// Time to finish transcribing when the app is left before it's done. On iOS 26 that's a
+/// continued-processing task, which shows its progress outside the app and runs for as long as it
+/// keeps moving; elsewhere, or when iOS turns that down, it's the half-minute or so any app gets.
+@MainActor
+private final class BackgroundRun {
+    /// Whether this is the iOS 26 kind, which can see a long recording through.
+    private(set) var isContinued = false
+    private var fallback = UIBackgroundTaskIdentifier.invalid
+    /// The continued-processing task once iOS starts it, shortly after it's asked for.
+    private var task: AnyObject?
+    private var latest: MeetingSession.Phase?
+    private var ended = false
+
+    init(title: String) {
+        #if !targetEnvironment(macCatalyst)
+        if #available(iOS 26, *) { isContinued = submit(title: title) }
+        #endif
+        if !isContinued {
+            fallback = UIApplication.shared.beginBackgroundTask(withName: title) { [weak self] in self?.end() }
+        }
+    }
+
+    /// Shows how far the work has got, outside the app too.
+    func report(_ phase: MeetingSession.Phase) {
+        guard !ended else { return }
+        latest = phase
+        #if !targetEnvironment(macCatalyst)
+        if #available(iOS 26, *), let task = task as? BGContinuedProcessingTask { show(phase, on: task) }
+        #endif
+    }
+
+    /// Hands the time back. Safe to call more than once.
+    func end() {
+        guard !ended else { return }
+        ended = true
+        isContinued = false
+        #if !targetEnvironment(macCatalyst)
+        if #available(iOS 26, *), let task = task as? BGContinuedProcessingTask { task.setTaskCompleted(success: true) }
+        #endif
+        task = nil
+        if fallback != .invalid {
+            UIApplication.shared.endBackgroundTask(fallback)
+            fallback = .invalid
+        }
+    }
+
+    #if !targetEnvironment(macCatalyst)
+    @available(iOS 26, *)
+    private func submit(title: String) -> Bool {
+        // A fresh name each time: registering one twice kills the app.
+        let identifier = "\(Bundle.main.bundleIdentifier ?? "").transcribe.\(UUID().uuidString)"
+        let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { [weak self] task in
+            guard let task = task as? BGContinuedProcessingTask else { return }
+            MainActor.assumeIsolated { self?.started(task) }
+        }
+        guard registered else { return false }
+        let request = BGContinuedProcessingTaskRequest(identifier: identifier, title: title, subtitle: "Starting…")
+        // Now or not at all: queued, it could start after the work it's for has finished.
+        request.strategy = .fail
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            return false
+        }
+        return true
+    }
+
+    @available(iOS 26, *)
+    private func started(_ task: BGContinuedProcessingTask) {
+        guard !ended else {
+            task.setTaskCompleted(success: true)
+            return
+        }
+        self.task = task
+        task.progress.totalUnitCount = 100
+        task.expirationHandler = Self.expiry(of: task)
+        if let latest { show(latest, on: task) }
+    }
+
+    /// Out of time: the work stops with the app, and carries on when it's next opened.
+    @available(iOS 26, *)
+    private nonisolated static func expiry(of task: BGContinuedProcessingTask) -> () -> Void {
+        { task.setTaskCompleted(success: false) }
+    }
+
+    @available(iOS 26, *)
+    private func show(_ phase: MeetingSession.Phase, on task: BGContinuedProcessingTask) {
+        let percent: Int? = switch phase {
+        case let .transcribingOnDevice(percent): percent
+        case let .transcribing(window, total) where total > 0: (window - 1) * 100 / total
+        default: nil
+        }
+        if let percent { task.progress.completedUnitCount = Int64(max(0, percent)) }
+        task.updateTitle(task.title, subtitle: phase.description)
+    }
+    #endif
 }
