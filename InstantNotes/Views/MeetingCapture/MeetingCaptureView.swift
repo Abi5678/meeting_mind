@@ -138,7 +138,9 @@ struct MeetingCaptureView: View {
                 .controlSize(.large)
             Text(viewModel.phase.description)
                 .font(.headline)
-            Text("Keep the app open until this finishes.")
+            Text(viewModel.continuesInBackground
+                 ? "You can leave the app: transcribing carries on in the background."
+                 : "Keep the app open until this finishes.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -152,7 +154,9 @@ struct MeetingCaptureView: View {
 
                 if let analysis = viewModel.analysis {
                     MeetingAnalysisView(analysis: analysis)
-                } else if let error = viewModel.analysisError {
+                }
+                // Without Apple Intelligence there are key points above but still no summary.
+                if let error = viewModel.analysisError {
                     VStack(spacing: 10) {
                         Label("No summary yet", systemImage: "exclamationmark.triangle")
                             .font(.headline)

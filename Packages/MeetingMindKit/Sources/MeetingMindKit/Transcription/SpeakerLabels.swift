@@ -87,6 +87,13 @@ public struct SpeakerDiarizer: Sendable {
         try await OfflineDiarizerManager().prepareModels()
     }
 
+    /// Waits up to `limit` for the models, downloading them if the device lacks them. False when
+    /// they aren't ready in time or can't be had; the download carries on past the limit, for next
+    /// time.
+    public func modelsReady(within limit: Duration) async -> Bool {
+        await finishes(within: limit) { try await prepare() }
+    }
+
     public func turns(fileAt url: URL) async throws -> [SpeakerTurn] {
         let manager = OfflineDiarizerManager()
         try await manager.prepareModels()

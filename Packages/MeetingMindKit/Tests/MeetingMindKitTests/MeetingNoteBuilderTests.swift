@@ -100,6 +100,18 @@ struct MeetingNoteBuilderTests {
         ])
     }
 
+    @Test("Key points standing in for a summary make the notes, with no empty sections, whatever the kind")
+    func keyPointsOnly() {
+        let analysis = MeetingAnalysis(summary: "", keyDecisions: [], actionItems: [], followUpEmail: .init(subject: "", body: ""),
+                                       keyPoints: ["We ship on Friday."])
+        for kind in [RecordingKind.meeting, .talk, .memo] {
+            #expect(Self.layout(MeetingNoteBuilder.blocks(kind: kind, analysis: analysis, transcript: "so we ship friday")) == [
+                "h Key points", "- We ship on Friday.",
+                "h Transcript", "p so we ship friday",
+            ])
+        }
+    }
+
     @Test("A song is kept as its lyrics, even if something summarized it")
     func songLayout() {
         let blocks = MeetingNoteBuilder.blocks(kind: .song, analysis: Fixture.analysis, transcript: "never gonna give you up")

@@ -35,7 +35,7 @@ targets:
         # The sandbox entitlements are Catalyst-only; the iOS build keeps its empty file.
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: InstantNotes/InstantNotesMacCatalyst.entitlements
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: 7
+        CURRENT_PROJECT_VERSION: 8
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         Debug:
@@ -87,6 +87,10 @@ targets:
         UIBackgroundModes:
           - audio
           - remote-notification
+          # With the identifiers below, lets a recording left mid-transcription finish (iOS 26).
+          - processing
+        BGTaskSchedulerPermittedIdentifiers:
+          - $(PRODUCT_BUNDLE_IDENTIFIER).transcribe.*
         NSMicrophoneUsageDescription: Quolio needs microphone access to record audio during meetings so it can transcribe and analyze them automatically.
         NSCameraUsageDescription: Quolio uses the camera to take photos you add to your notes.
         NSPhotoLibraryAddUsageDescription: Quolio saves the photos you share from a note to your library.
