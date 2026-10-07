@@ -112,6 +112,19 @@ struct MeetingNoteBuilderTests {
         }
     }
 
+    @Test("A transcript with speakers gets a Speakers line after the summary; one voice gets none")
+    func speakers() {
+        let analysis = MeetingAnalysis(summary: "We planned.", keyDecisions: [], actionItems: [], followUpEmail: .init(subject: "", body: ""))
+        let labelled = "Speaker 1: one two three\nSpeaker 2: four\nSpeaker 1: five six seven"
+        #expect(Self.layout(MeetingNoteBuilder.blocks(analysis: analysis, transcript: labelled)) == [
+            "h Summary", "p We planned.",
+            "h Speakers", "p 2 speakers: Speaker 1 86%, Speaker 2 14%",
+            "h Transcript", "p \(labelled)",
+        ])
+        #expect(!Self.layout(MeetingNoteBuilder.blocks(analysis: analysis, transcript: "Speaker 1: just me")).contains("h Speakers"))
+        #expect(Self.layout(MeetingNoteBuilder.blocks(analysis: nil, transcript: labelled)).first == "h Speakers")
+    }
+
     @Test("A song is kept as its lyrics, even if something summarized it")
     func songLayout() {
         let blocks = MeetingNoteBuilder.blocks(kind: .song, analysis: Fixture.analysis, transcript: "never gonna give you up")

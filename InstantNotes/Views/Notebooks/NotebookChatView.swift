@@ -175,6 +175,18 @@ struct NotebookChatView: View {
     }
 
     private var inputBar: some View {
+        VStack(spacing: 6) {
+            Text("AI-generated answers can be wrong. Tap a source number to check it.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            inputField
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private var inputField: some View {
         HStack(spacing: 8) {
             TextField("Ask about these sources…", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
@@ -189,9 +201,6 @@ struct NotebookChatView: View {
             .disabled(isThinking || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {

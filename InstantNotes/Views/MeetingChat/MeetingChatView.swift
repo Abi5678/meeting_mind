@@ -96,6 +96,18 @@ struct MeetingChatView: View {
     }
 
     private var inputBar: some View {
+        VStack(spacing: 6) {
+            Text("AI-generated answers can be wrong. Check anything important against the transcript.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            inputField
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private var inputField: some View {
         HStack(spacing: 8) {
             TextField("Ask about this meeting…", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
@@ -111,9 +123,6 @@ struct MeetingChatView: View {
             .disabled(isThinking || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {

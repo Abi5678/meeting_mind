@@ -96,7 +96,7 @@ struct AskNotesView: View {
                 .buttonStyle(.plain)
             }
         }
-        Label("Answered on this device from your notes. Check the sources for anything important.",
+        Label("AI-generated on this device from your notes. Tap a source to check it.",
               systemImage: "lock.shield")
             .font(.caption)
             .foregroundStyle(.secondary)

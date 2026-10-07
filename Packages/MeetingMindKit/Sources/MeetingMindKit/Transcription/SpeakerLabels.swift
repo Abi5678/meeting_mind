@@ -64,6 +64,33 @@ public enum SpeakerLabels {
         return pieces
     }
 
+    /// How much of a labelled transcript each voice spoke, by words, in the order they first speak, as
+    /// ("Speaker 1", 54). Nil when it isn't labelled, or only one voice is.
+    public static func talkShares(in transcript: String) -> [(speaker: String, percent: Int)]? {
+        var words: [String: Int] = [:]
+        var order: [String] = []
+        var current: String?
+        for line in transcript.split(whereSeparator: \.isNewline) {
+            var spoken = line
+            if let label = line.prefixMatch(of: #/Speaker \d+: /#) {
+                let name = String(line[label.range].dropLast(2))
+                if words[name] == nil { order.append(name) }
+                current = name
+                spoken = line[label.range.upperBound...]
+            }
+            if let current { words[current, default: 0] += spoken.split(whereSeparator: \.isWhitespace).count }
+        }
+        let total = words.values.reduce(0, +)
+        guard order.count > 1, total > 0 else { return nil }
+        return order.map { ($0, Int((Double(words[$0]!) / Double(total) * 100).rounded())) }
+    }
+
+    /// "3 speakers: Speaker 1 54%, Speaker 2 31%, Speaker 3 15%", or nil as `talkShares`.
+    public static func summary(of transcript: String) -> String? {
+        guard let shares = talkShares(in: transcript) else { return nil }
+        return "\(shares.count) speakers: " + shares.map { "\($0.speaker) \($0.percent)%" }.joined(separator: ", ")
+    }
+
     private static func ends(_ word: TimedWord) -> Bool { word.text.last.map { ".?!".contains($0) } ?? false }
 
     /// The voice covering most of the span, else the nearest one within a second.

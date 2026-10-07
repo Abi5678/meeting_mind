@@ -29,6 +29,10 @@ struct MeetingAnalysisView: View {
                     Text(analysis.summary)
                         .font(.body)
                         .lineSpacing(2)
+
+                    Text("AI-generated summary. Check names, dates and action items against the transcript.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(16)
                 .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))

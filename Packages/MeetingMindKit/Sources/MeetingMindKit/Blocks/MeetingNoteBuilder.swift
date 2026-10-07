@@ -19,6 +19,12 @@ public enum MeetingNoteBuilder {
             add(.heading(level: 2), "Summary")
             add(.paragraph, text)
         }
+        // Who spoke, and how much, when the transcript tells the voices apart.
+        func addSpeakers() {
+            guard let speakers = SpeakerLabels.summary(of: transcript) else { return }
+            add(.heading(level: 2), "Speakers")
+            add(.paragraph, speakers)
+        }
         func addKeyPoints(_ points: [String]) {
             guard !points.isEmpty else { return }
             add(.heading(level: 2), "Key points")
@@ -33,6 +39,7 @@ public enum MeetingNoteBuilder {
 
         case let (.talk, analysis?):
             addSummary(analysis.summary)
+            addSpeakers()
             addKeyPoints(analysis.keyPoints)
 
             if !analysis.takeaways.isEmpty {
@@ -42,6 +49,7 @@ public enum MeetingNoteBuilder {
 
         case let (.memo, analysis?):
             addSummary(analysis.summary)
+            addSpeakers()
             addKeyPoints(analysis.keyPoints)
 
             for section in analysis.sections where !section.items.isEmpty {
@@ -51,6 +59,7 @@ public enum MeetingNoteBuilder {
 
         case let (.meeting, analysis?):
             addSummary(analysis.summary)
+            addSpeakers()
             addKeyPoints(analysis.keyPoints)
 
             if !analysis.keyDecisions.isEmpty {
@@ -70,7 +79,7 @@ public enum MeetingNoteBuilder {
             }
 
         case (_, nil):
-            break
+            addSpeakers()
         }
 
         add(.heading(level: 2), "Transcript")

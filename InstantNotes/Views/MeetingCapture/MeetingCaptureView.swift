@@ -172,6 +172,14 @@ struct MeetingCaptureView: View {
                     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                 }
 
+                if viewModel.kind != .song, let speakers = SpeakerLabels.summary(of: viewModel.transcript) {
+                    Label(speakers, systemImage: "person.2")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color("PaperBackground").opacity(0.9).cornerRadius(8))
+                }
+
                 DisclosureGroup(viewModel.kind == .song ? "Lyrics" : "Transcript") {
                     Text(viewModel.transcript)
                         .font(.body)
